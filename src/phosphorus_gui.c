@@ -195,7 +195,7 @@ Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem)
 	return v;
 }
 
-Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem)
+Rectangle phos_gui_get_logical_elem_rect(const phos_gui_elem *const elem)
 {
 	Rectangle r = {0};
 
@@ -207,8 +207,25 @@ Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem)
 
 	r.x = elem -> pos.x + elem -> left_padding;
 	r.y = elem -> pos.y + elem -> top_padding;
-	r.width = elem -> size.x + elem -> right_padding;
-	r.height = elem -> size.y + elem -> bottom_padding;
+	r.width = elem -> size.x - elem -> left_padding - elem -> right_padding;
+	r.height = elem -> size.y - elem -> top_padding - elem -> bottom_padding;
+
+	return r;
+}
+Rectangle phos_gui_get_visible_elem_rect(const phos_gui_elem *const elem)
+{
+	Rectangle r = {0};
+
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot obtain rectangle bounds for a null UI element!\n");
+		return r;
+	}
+
+	r.x = elem -> pos.x;
+	r.y = elem -> pos.y;
+	r.width = elem -> size.x;
+	r.height = elem -> size.y;
 
 	return r;
 }
@@ -386,7 +403,7 @@ void phos_gui_set_text_contents(phos_gui_elem *elem, const char *str)
 	elem -> text.cursor_pos = strlen(str);
 }
 
-Vector2 phos_gui_align(phos_gui_elem *elem, phos_gui_alignment alignment, float pad_x, float pad_y)
+Vector2 phos_gui_align(phos_gui_elem *elem, phos_gui_alignment alignment)
 {
 	Vector2 v = {0};
 
@@ -400,7 +417,11 @@ Vector2 phos_gui_align(phos_gui_elem *elem, phos_gui_alignment alignment, float 
 	{
 		case PHOS_GUI_ALIGN_LEFT:
 			v.x = elem -> pos.x + elem -> left_padding;
-			v.y = elem -> pos.y + elem -> size.y / 2.0f + pad_y;
+			v.y = elem -> pos.y + elem -> size.y / 2.0f + elem -> top_padding;
+			break;
+		case PHOS_GUI_ALIGN_RIGHT:
+			v.x = elem -> pos.x + elem -> size.x - elem -> right_padding;
+			v.y = elem -> pos.y + elem -> size.y / 2.0f - elem -> bottom_padding;
 			break;
 	}
 
@@ -581,10 +602,8 @@ static void phos_gui_update_key_timer(phos_gui_elem *e, float dt, phos_gui_key_t
 		kt -> active = false;
 }
 
-static void phos_gui_update_elem(phos_gui_elem *e)
+static void phos_gui_update_elem(phos_gui_elem *e, float dt)
 {
-	float dt = GetFrameTime();
-
 	// get mouse information
 	Vector2 mouse_pos = GetMousePosition();
 
@@ -703,13 +722,14 @@ static void phos_gui_update_elem(phos_gui_elem *e)
 		// handle text-scrolling:
 
 		// first get visual bounds of text component on screen
-		Rectangle vis_bounds = phos_gui_get_elem_rect(e);
+		Rectangle vis_bounds = phos_gui_get_visible_elem_rect(e);
 
 		// get bounds of text
 		Rectangle text_bounds = phos_gui_get_text_bounds(e, e -> text.str);
 
 		// calculate the overflow
-		float overflow = text_bounds.width - vis_bounds.width;
+		float vis_width = vis_bounds.width - e -> left_padding - e -> right_padding;
+		float overflow = text_bounds.width - vis_width;
 
 		if(overflow > 0.0f)
 			e -> text.max_scroll = overflow;
@@ -719,17 +739,17 @@ static void phos_gui_update_elem(phos_gui_elem *e)
 			e -> text.scroll = 0.0f;
 		}
 
-		float vis_width = vis_bounds.width + e -> left_padding + e -> right_padding;
-
 		char buf[PHOS_GUI_MAX_TEXT_LEN + 1];
 		memcpy(buf, e -> text.str, e -> text.cursor_pos);
 		buf[e -> text.cursor_pos] = '\0';
 
 		float caret_x = MeasureTextEx(*e -> text.font, buf, e -> text.font_size, 0.0f).x;
 
-		if(caret_x - e -> text.scroll > vis_width)
-			e -> text.scroll = caret_x - vis_width;
+		// right-side check (include cursor width because the cursor takes up that many more pixels)
+		if(caret_x + PHOS_GUI_CURSOR_WIDTH - e -> text.scroll > vis_width)
+			e -> text.scroll = caret_x + PHOS_GUI_CURSOR_WIDTH - vis_width;
 
+		// left-side check (don't include cursor width)
 		if(caret_x < e -> text.scroll)
 			e -> text.scroll = caret_x;
 
@@ -737,7 +757,7 @@ static void phos_gui_update_elem(phos_gui_elem *e)
 	}
 }
 // TODO create phos_gui_update function for specific window scaling so GetMousePosition() always works!!
-void phos_gui_update(phos_gui *gui)
+void phos_gui_update(phos_gui *gui, float dt)
 {
 	if(!gui)
 	{
@@ -747,7 +767,7 @@ void phos_gui_update(phos_gui *gui)
 
 	// update elems:
 	for(size_t i = 0; i < gui -> num_elems; ++i)
-		phos_gui_update_elem(gui -> elems[i]);
+		phos_gui_update_elem(gui -> elems[i], dt);
 
 	// update event listeners
 	for(size_t i = 0; i < event_listeners.size; ++i)
@@ -769,8 +789,9 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 	else if(e -> hovered)
 		e_color = e -> hover_color;
 
-	// create elem rect:
-	Rectangle e_rect = { e -> pos.x, e -> pos.y, e -> size.x, e -> size.y };
+	// create elem rects:
+	Rectangle vis_bounds = phos_gui_get_visible_elem_rect(e);
+	Rectangle log_bounds = phos_gui_get_logical_elem_rect(e);
 
 	// create elem ellipse info:
 	float e_rx = e -> size.x / 2.0f;
@@ -780,7 +801,7 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 	if(e -> bg_texture && IsTextureValid(*e -> bg_texture))
 	{
 		Rectangle src = { 0, 0, e -> bg_texture -> width, e -> bg_texture -> height };
-		DrawTexturePro(*e -> bg_texture, src, e_rect, PHOS_GUI_WIN_ORIGIN, e -> rotation, e_color);
+		DrawTexturePro(*e -> bg_texture, src, vis_bounds, PHOS_GUI_WIN_ORIGIN, e -> rotation, e_color);
 	}
 	// else just draw base shape (if set)
 	else if(e -> render_mode == PHOS_GUI_FILL_OUTLINE || e -> render_mode == PHOS_GUI_FILL)
@@ -788,32 +809,10 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 		switch(e -> shape)
 		{
 			case PHOS_GUI_RECT:
-				DrawRectanglePro(e_rect, PHOS_GUI_WIN_ORIGIN, e -> rotation, e_color);
+				DrawRectanglePro(vis_bounds, PHOS_GUI_WIN_ORIGIN, e -> rotation, e_color);
 				break;
 			case PHOS_GUI_ELLIPSE:
 				DrawEllipse(e -> pos.x + e_rx, e -> pos.y + e_ry, e_rx, e_ry, e_color);
-				break;
-		}
-	}
-
-	// render outline (if set)
-	if(e -> render_mode == PHOS_GUI_FILL_OUTLINE || e -> render_mode == PHOS_GUI_OUTLINE)
-	{
-		// get outline color
-		Color outline_color = e -> outline_color;
-
-		// if the elem is just being outlined, switch its outline color for 'e_color' so mouse state affects the elem visually
-		if(e -> render_mode == PHOS_GUI_OUTLINE)
-			outline_color = e_color;
-
-		switch(e -> shape)
-		{
-			case PHOS_GUI_RECT:
-				DrawRectangleLinesEx(e_rect, e -> outline_thickness, outline_color);
-				break;
-			case PHOS_GUI_ELLIPSE:
-				for(int i = 0; i < e -> outline_thickness + 1; ++i)
-					DrawEllipseLines(e -> pos.x + e_rx, e -> pos.y + e_ry, e_rx - i * 0.7f, e_ry - i * 0.7f, outline_color);
 				break;
 		}
 	}
@@ -830,7 +829,8 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 			switch(e -> type)
 			{
 				case PHOS_GUI_BUTTON:
-					DrawTextEx(*e -> text.font, e -> text.str, e -> text.pos, e -> text.font_size, 0.0f, e -> text.color);
+					Vector2 text_pos = Vector2Add(e -> text.pos, (Vector2) { e -> left_padding, e -> top_padding} );
+					DrawTextEx(*e -> text.font, e -> text.str, text_pos, e -> text.font_size, 0.0f, e -> text.color);
 					break;
 				case PHOS_GUI_TEXT_FIELD:
 					// calculate where to draw the text
@@ -846,8 +846,7 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 					else
 						DrawTextEx(*e -> text.font, e -> text.str, draw_pos, e -> text.font_size, 0.0f, e -> text.color);
 
-					Rectangle vis_bounds = phos_gui_get_elem_rect(e);
-					float vis_width = vis_bounds.width - e -> left_padding - e -> right_padding;
+					float log_width = log_bounds.width - e -> left_padding - e -> right_padding;
 
 					// render cursor (only if placeholder text is not being rendered and text field has focus)
 					if(strlen(e -> text.str) > 0 && e -> has_focus)
@@ -858,13 +857,35 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 
 						float caret_x = MeasureTextEx(*e -> text.font, buf, e -> text.font_size, 0.0f).x;
 
-						float cx = e -> pos.x + e -> left_padding + caret_x + PHOS_GUI_CURSOR_WIDTH - e -> text.scroll;
+						float cx = log_bounds.x + caret_x - e -> text.scroll;
 						DrawRectangle(cx, e -> text.pos.y, PHOS_GUI_CURSOR_WIDTH, e -> text.font_size, e -> text.color);
 					}
 
 					EndScissorMode();
 					break;
 			}
+		}
+	}
+
+	// render outline (if set)
+	if(e -> render_mode == PHOS_GUI_FILL_OUTLINE || e -> render_mode == PHOS_GUI_OUTLINE)
+	{
+		// get outline color
+		Color outline_color = e -> outline_color;
+
+		// if the elem is just being outlined, switch its outline color for 'e_color' so mouse state affects the elem visually
+		if(e -> render_mode == PHOS_GUI_OUTLINE)
+			outline_color = e_color;
+
+		switch(e -> shape)
+		{
+			case PHOS_GUI_RECT:
+				DrawRectangleLinesEx(vis_bounds, e -> outline_thickness, outline_color);
+				break;
+			case PHOS_GUI_ELLIPSE:
+				for(int i = 0; i < e -> outline_thickness + 1; ++i)
+					DrawEllipseLines(e -> pos.x + e_rx, e -> pos.y + e_ry, e_rx - i * 0.7f, e_ry - i * 0.7f, outline_color);
+				break;
 		}
 	}
 }

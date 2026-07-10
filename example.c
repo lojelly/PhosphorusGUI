@@ -17,24 +17,24 @@ int main(void)
 	SetTargetFPS(60);
 
 	phos_gui gui = {0};
-	gui.num_elems = 0;
 
 	phos_gui_elem elem1 = (phos_gui_elem) {0};
 	strcpy(elem1.id, "<auto-gen>");
 	phos_gui_add_elem(&gui, &elem1);
 
 	elem1.type = PHOS_GUI_TEXT_FIELD;
-	phos_gui_set_elem_bounds(&elem1, 200, 300, 300, 150);
+	phos_gui_set_elem_bounds(&elem1, 200, 300, 400, 150);
 	phos_gui_gen_elem_colors(&elem1, WHITE, -0.25f, -0.4f);
 	elem1.bg_texture = phos_gui_load_texture("../test_btn.png");
 	elem1.text.font = phos_gui_load_font("../test_font.ttf");
-	phos_gui_init_text(&elem1, "", 32.0f, BLACK);
+	phos_gui_init_text(&elem1, "", PHOS_GUI_DEFAULT_FONT_SIZE, BLACK);
 	phos_gui_init_placeholder_text(&elem1, "Enter name:", GRAY);
-	elem1.text.max_len = 30;
+	elem1.text.max_len = 300;
 	elem1.left_padding = 8.5f;
-	elem1.right_padding = -30.0f;
-	Rectangle text_bounds = phos_gui_get_text_bounds(&elem1, elem1.text.placeholder_str);
-	elem1.text.pos = phos_gui_align(&elem1, PHOS_GUI_ALIGN_LEFT, elem1.left_padding, -text_bounds.height / 2.0f);
+	elem1.top_padding = -phos_gui_get_text_bounds(&elem1, elem1.text.placeholder_str).height / 2.0f;
+	vl_log(VL_DEBUG, "elem1.top_padding = %f\n", elem1.top_padding);
+	elem1.right_padding = 30.0f;
+	elem1.text.pos = phos_gui_align(&elem1, PHOS_GUI_ALIGN_LEFT);
 	elem1.text.accept_nums = false;
 	elem1.text.accept_specials = false;
 
@@ -46,7 +46,7 @@ int main(void)
 		vl_update(dt);
 
 		// update gui
-		phos_gui_update(&gui);
+		phos_gui_update(&gui, dt);
 
 
 

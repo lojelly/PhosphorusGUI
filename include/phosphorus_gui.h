@@ -89,7 +89,11 @@ typedef enum phos_gui_alignment
 	/**
 	  Indicates the targeted item should be aligned to the left.
 	*/
-	PHOS_GUI_ALIGN_LEFT
+	PHOS_GUI_ALIGN_LEFT,
+	/**
+	  Indicates the targeted item should be aligned to the right.
+	*/
+	PHOS_GUI_ALIGN_RIGHT,
 } phos_gui_alignment;
 
 
@@ -108,6 +112,11 @@ typedef enum phos_gui_alignment
   The max length of a text component's string.
 */
 #define PHOS_GUI_MAX_TEXT_LEN 128
+
+/**
+  The default font size for a text component.
+*/
+#define PHOS_GUI_DEFAULT_FONT_SIZE 32.0f
 
 /**
   A phos_gui_text_component represents a piece of
@@ -345,18 +354,26 @@ typedef struct phos_gui_elem
 
 	/**
 	  Padding on the top side of the element.
+
+	  @note Make sure this value remains >= 0.
 	*/
 	float top_padding;
 	/**
 	  Padding on the left side of the element.
+
+	  @note Make sure this value remains >= 0.
 	*/
 	float left_padding;
 	/**
 	  Padding on the right side of the element.
+	  
+	  @note Make sure this value remains >= 0.
 	*/
 	float right_padding;
 	/**
 	  Padding on the bottom side of the element.
+
+	  @note Make sure this value remains >= 0.
 	*/
 	float bottom_padding;
 
@@ -463,9 +480,19 @@ PHOS_GUI_API Vector2 phos_gui_get_elem_center(phos_gui_elem *elem);
 PHOS_GUI_API Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem);
 
 /**
-  Returns the bounds of an element.
+  Returns the logical bounds of an element.
+
+  These bounds will include the padding values of the element.
 */
-PHOS_GUI_API Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem);
+PHOS_GUI_API Rectangle phos_gui_get_logical_elem_rect(const phos_gui_elem *const elem);
+/**
+  Returns the visible bounds of an element.
+
+  These bounds are the same as the 'pos' and 'size'
+  vector fields in the element. Padding is not included
+  here.
+*/
+PHOS_GUI_API Rectangle phos_gui_get_visible_elem_rect(const phos_gui_elem *const elem);
 
 /**
   Returns the bounds of an element's text component.
@@ -526,10 +553,10 @@ PHOS_GUI_API void phos_gui_gen_elem_colors(phos_gui_elem *elem, Color default_co
 PHOS_GUI_API void phos_gui_set_text_contents(phos_gui_elem *elem, const char *str);
 
 /**
-  Aligns a targted item based on an alignment + padding and returns
-  the new position of the targeted item.
+  Calculates the position of an object if it were aligned with the given element
+  using the given alignment.
 */
-PHOS_GUI_API Vector2 phos_gui_align(phos_gui_elem *elem, phos_gui_alignment alignment, float pad_x, float pad_y);
+PHOS_GUI_API Vector2 phos_gui_align(phos_gui_elem *elem, phos_gui_alignment alignment);
 
 /**
   Adds an event listener to an element.
@@ -574,7 +601,7 @@ PHOS_GUI_API phos_gui_elem *phos_gui_get_elem(const char *ID);
 /**
   Updates a phos_gui's elements.
 */
-PHOS_GUI_API void phos_gui_update(phos_gui *gui);
+PHOS_GUI_API void phos_gui_update(phos_gui *gui, float dt);
 /**
   Renders a phos_gui's elements.
 */
