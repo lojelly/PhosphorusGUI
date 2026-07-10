@@ -1,24 +1,24 @@
 #include <math.h>
-
+#include <ctype.h>
 #include "dynamic_array_spellbook.h"
 #include "vibrant_logs.h"
 #include "phosphorus_gui.h"
 
-// registry of elems and UI contexts:
+// array of element pointers
 typedef struct phos_gui_elem_arr
 {
 	phos_gui_elem **data;
 	size_t size, capacity;
 } phos_gui_elem_arr;
 
-// custom phos_gui_texture (holds file path as well as Texture2D)
+// custom phos_gui texture (holds file path as well as Texture2D)
 typedef struct phos_gui_tex
 {
 	Texture2D tex;
 	const char *file_path;
 } phos_gui_tex;
 
-// custom phos_gui_font (holds file path as well as Font)
+// custom phos_gui font (holds file path as well as Font)
 typedef struct phos_gui_font
 {
 	Font font;
@@ -39,54 +39,74 @@ typedef struct phos_gui_font_arr
 	size_t size, capacity;
 } phos_gui_font_arr;
 
-static bool phos_gui_is_init = false;
-static phos_gui_elem_arr phos_gui_elem_registry;
-static phos_gui_tex_arr phos_gui_textures;
-static phos_gui_font_arr phos_gui_fonts;
+// event listener
+typedef struct phos_gui_event_listener
+{
+	phos_gui_elem *target;
+	bool *event;
+	phos_gui_event_listener_action action;
+} phos_gui_event_listener;
+
+// array of event listeners
+typedef struct phos_gui_event_listener_arr
+{
+	phos_gui_event_listener *data;
+	size_t size, capacity;
+} phos_gui_event_listener_arr;
+
+static bool init = false;
+static phos_gui_elem_arr elem_registry;
+static phos_gui_event_listener_arr event_listeners;
+static phos_gui_tex_arr textures;
+static phos_gui_font_arr fonts;
+
+// for elements with "<auto-gen>" ID, ensures unique auto-generated IDs
 static int phos_gui_auto_id = 0;
 
 
 void phos_gui_init()
 {
-	if(phos_gui_is_init)
+	if(init)
 	{
 		vl_log(VL_ERROR, "Cannot re-initialize PhosphorusGUI!\n");
 		return;
 	}
 
-	dynas_init(&phos_gui_elem_registry);
-	dynas_init(&phos_gui_textures);
-	dynas_init(&phos_gui_fonts);
+	dynas_init(&elem_registry);
+	dynas_init(&event_listeners);
+	dynas_init(&textures);
+	dynas_init(&fonts);
 
-	phos_gui_is_init = true;
+	init = true;
 }
 void phos_gui_shutdown()
 {
-	if(!phos_gui_is_init)
+	if(!init)
 	{
 		vl_log(VL_ERROR, "PhosphorusGUI was never initialized, cannot shutdown!\n");
 		return;
 	}
 
-	dynas_free(&phos_gui_elem_registry);
+	dynas_free(&elem_registry);
+	dynas_free(&event_listeners);
 
 	// unload every texture loaded
-	for(size_t i = 0; i < phos_gui_textures.size; ++i)
+	for(size_t i = 0; i < textures.size; ++i)
 	{
-		UnloadTexture(phos_gui_textures.data[i].tex);
-		vl_log(VL_SUCCESS, "Unloaded texture: '%s'!\n", phos_gui_textures.data[i].file_path);
+		UnloadTexture(textures.data[i].tex);
+		vl_log(VL_SUCCESS, "Unloaded texture: '%s'!\n", textures.data[i].file_path);
 	}
-	dynas_free(&phos_gui_textures);
+	dynas_free(&textures);
 
 	// unload every font loaded
-	for(size_t i = 0; i < phos_gui_fonts.size; ++i)
+	for(size_t i = 0; i < fonts.size; ++i)
 	{
-		UnloadFont(phos_gui_fonts.data[i].font);
-		vl_log(VL_SUCCESS, "Unloaded font: '%s'!\n", phos_gui_fonts.data[i].file_path);
+		UnloadFont(fonts.data[i].font);
+		vl_log(VL_SUCCESS, "Unloaded font: '%s'!\n", fonts.data[i].file_path);
 	}
-	dynas_free(&phos_gui_fonts);
+	dynas_free(&fonts);
 
-	phos_gui_is_init = false;
+	init = false;
 }
 
 void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vector2 size)
@@ -142,13 +162,46 @@ Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem)
 	v = phos_gui_get_elem_center(elem);
 
 	// measure text
-	Vector2 text_bounds = MeasureTextEx(*elem -> text.font, elem -> text.str, elem -> text.font_size, 0.0f);
+	Vector2 text_size = MeasureTextEx(*elem -> text.font, elem -> text.str, elem -> text.font_size, 0.0f);
 
 	// minus half the text's bounds
-	v.x -= text_bounds.x / 2.0f;
-	v.y -= text_bounds.y / 2.0f;
+	v.x -= text_size.x / 2.0f;
+	v.y -= text_size.y / 2.0f;
 
 	return v;
+}
+
+Rectangle phos_gui_get_text_bounds(phos_gui_elem *elem, const char *str)
+{
+	Rectangle r = {0};
+
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot obtain text bounds for null UI element!\n");
+		return r;
+	}
+	if(!elem -> text.font || !IsFontValid(*elem -> text.font) || elem -> text.font_size <= 0.0f)
+	{
+		vl_log(VL_ERROR, "Cannot obtain text bounds for invalid font on element: '%s'!\n", elem -> id);
+		return r;
+	}
+	if(strlen(elem -> text.str) == 0)
+	{
+		vl_log(VL_WARNING, "Cannot obtain text bounds for empty text on element: '%s'!\n", elem -> id);
+		return r;
+	}
+
+	// width and height of the text
+	Vector2 text_size = MeasureTextEx(*elem -> text.font, str, elem -> text.font_size, 0.0f);
+
+	r.width = text_size.x;
+	r.height = text_size.y;
+
+	// TODO add padding to element?
+	r.x = elem -> pos.x;
+	r.y = elem -> pos.y;
+
+	return r;
 }
 
 void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, float h)
@@ -226,6 +279,48 @@ void phos_gui_set_text_contents(phos_gui_elem *elem, const char *str)
 	elem -> text.cursor_pos = strlen(str);
 }
 
+Vector2 phos_gui_align(phos_gui_elem *elem, phos_gui_alignment alignment, float pad_x, float pad_y)
+{
+	Vector2 v = {0};
+
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot align null UI element!\n");
+		return v;
+	}
+
+	switch(alignment)
+	{
+		case PHOS_GUI_ALIGN_LEFT:
+			v.x = elem -> pos.x + pad_x;
+			v.y = elem -> pos.y + elem -> size.y / 2.0f + pad_y;
+			break;
+	}
+
+	return v;
+}
+
+void phos_gui_add_event_listener(phos_gui_elem *elem, bool *event, phos_gui_event_listener_action action)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot add event listener to null UI element!\n");
+		return;
+	}
+	if(!event)
+	{
+		vl_log(VL_ERROR, "Cannot listen for null event!\n");
+		return;
+	}
+	if(!action)
+	{
+		vl_log(VL_ERROR, "Cannot execute null phos_gui_event_listener_action!\n");
+		return;
+	}
+
+	// TODO
+}
+
 PHOS_GUI_API int phos_gui_register_elem(phos_gui_elem *elem)
 {
 	if(!elem)
@@ -233,22 +328,27 @@ PHOS_GUI_API int phos_gui_register_elem(phos_gui_elem *elem)
 		vl_log(VL_ERROR, "Cannot register null UI element!\n");
 		return 0;
 	}
-	if(!phos_gui_is_init)
+	if(!init)
 	{
 		vl_log(VL_ERROR, "Cannot register element, phos_gui_init() was never called!\n");
 		return 0;
 	}
 
-	// first auto-generate element's ID if it is set to "<auto-gen>"
-	if(strcmp(elem -> id, "<auto-gen>") == 0)
+	// first check to see if the element's ID is set to "!<auto-gen>"
+	if(strcmp(elem -> id, "!<auto-gen>") == 0)
+	{
+		sprintf(elem -> id, "<auto-gen>");
+	}
+	// or auto-generate element's ID if it is set to "<auto-gen>"
+	else if(strcmp(elem -> id, "<auto-gen>") == 0)
 	{
 		sprintf(elem -> id, "elem_#%d", phos_gui_auto_id++);
 	}
 
 	// find duplicate pointers and IDs:
-	for(size_t i = 0; i < phos_gui_elem_registry.size; ++i)
+	for(size_t i = 0; i < elem_registry.size; ++i)
 	{
-		phos_gui_elem *e = phos_gui_elem_registry.data[i];
+		phos_gui_elem *e = elem_registry.data[i];
 
 		if(e)
 		{
@@ -266,7 +366,7 @@ PHOS_GUI_API int phos_gui_register_elem(phos_gui_elem *elem)
 	}
 
 	// no duplicate, the elem can be registered
-	dynas_add(&phos_gui_elem_registry, elem);
+	dynas_add(&elem_registry, elem);
 
 	vl_log(VL_SUCCESS, "Registered element with ID: '%s'!\n", elem -> id);
 
@@ -304,15 +404,15 @@ phos_gui_elem *phos_gui_get_elem(const char *ID)
 		vl_log(VL_ERROR, "Cannot obtain UI element with null ID!\n");
 		return NULL;
 	}
-	if(!phos_gui_is_init)
+	if(!init)
 	{
 		vl_log(VL_ERROR, "Cannot obtain UI element, phos_gui_init() was never called!\n");
 		return NULL;
 	}
 
-	for(size_t i = 0; i < phos_gui_elem_registry.size; ++i)
+	for(size_t i = 0; i < elem_registry.size; ++i)
 	{
-		phos_gui_elem *e = phos_gui_elem_registry.data[i];
+		phos_gui_elem *e = elem_registry.data[i];
 
 		if(e)
 			if(strcmp(e -> id, ID) == 0)
@@ -371,6 +471,39 @@ static void phos_gui_update_elem(phos_gui_elem *e)
 	// check type of element:
 	if(e -> type == PHOS_GUI_TEXT_FIELD)
 	{
+		// only type into text field if it has focus
+		if(e -> has_focus)
+		{
+			int k = GetKeyPressed();
+			e -> text.key_typed = k;
+
+			if(k != KEY_NULL)
+				e -> text.edited = true;
+			else
+				e -> text.edited = false;
+
+			// check for valid key
+			if(k > KEY_NULL && isprint(k))
+			{
+				char ch = (char) k;
+				// add char to end of string (if possible)
+				if(e -> text.len < e -> text.max_len && e -> text.len < PHOS_GUI_MAX_TEXT_LEN)
+				{
+					e -> text.str[e -> text.len++] = ch;
+					e -> text.str[e -> text.len] = '\0';
+					e -> text.cursor_pos++;
+				}
+			}
+			else if(k == KEY_BACKSPACE)
+			{
+				// remove last typed char
+				if(e -> text.len > 0)
+				{
+					e -> text.str[--e -> text.len] = '\0';
+					e -> text.cursor_pos--;
+				}
+			}
+		}
 	}
 }
 // TODO create phos_gui_update function for specific window scaling so GetMousePosition() always works!!
@@ -446,14 +579,28 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 	}
 
 	// render text component of element (if valid):
-	switch(e -> type)
+	if(e -> text.font && IsFontValid(*e -> text.font))
 	{
-		case PHOS_GUI_BUTTON:
-			if(e -> text.font && IsFontValid(*e -> text.font))
-				DrawTextEx(*e -> text.font, e -> text.str, e -> text.pos, e -> text.font_size, 0.0f, e -> text.color);
-			break;
-		case PHOS_GUI_TEXT_FIELD:
-			break;
+		if(e -> text.font_size <= 0.0f || ColorIsEqual(e -> text.color, BLANK))
+		{
+			vl_delay_log(VL_WARNING, 1.0f, "This element's ('%s') text component will not render correctly due to invalid font size, or the color's alpha is 0!\n", e -> id);
+		}
+		else
+		{
+			switch(e -> type)
+			{
+				case PHOS_GUI_BUTTON:
+					DrawTextEx(*e -> text.font, e -> text.str, e -> text.pos, e -> text.font_size, 0.0f, e -> text.color);
+					break;
+				case PHOS_GUI_TEXT_FIELD:
+					// determine if text field's main text, or placeholder text should be rendered
+					if(strlen(e -> text.str) == 0 && strlen(e -> text.placeholder_str) > 0)
+						DrawTextEx(*e -> text.font, e -> text.placeholder_str, e -> text.pos, e -> text.font_size, 0.0f, e -> text.placeholder_color);
+					else
+						DrawTextEx(*e -> text.font, e -> text.str, e -> text.pos, e -> text.font_size, 0.0f, e -> text.color);
+					break;
+			}
+		}
 	}
 }
 void phos_gui_render(const phos_gui *const gui)
@@ -477,9 +624,9 @@ Texture2D *phos_gui_load_texture(const char *file_path)
 	}
 
 	// see if an existing texture has been loaded with the given file path
-	for(size_t i = 0; i < phos_gui_textures.size; ++i)
-		if(strcmp(phos_gui_textures.data[i].file_path, file_path) == 0)
-			return &phos_gui_textures.data[i].tex;
+	for(size_t i = 0; i < textures.size; ++i)
+		if(strcmp(textures.data[i].file_path, file_path) == 0)
+			return &textures.data[i].tex;
 	
 	Texture2D tex = LoadTexture(file_path);
 
@@ -491,11 +638,11 @@ Texture2D *phos_gui_load_texture(const char *file_path)
 
 	phos_gui_tex pg_tex = { .tex = tex, .file_path = file_path };
 
-	dynas_add(&phos_gui_textures, pg_tex);
+	dynas_add(&textures, pg_tex);
 
 	vl_log(VL_SUCCESS, "Loaded texture: '%s'!\n", file_path);
 
-	return &phos_gui_textures.data[phos_gui_textures.size - 1].tex;
+	return &textures.data[textures.size - 1].tex;
 }
 
 Font *phos_gui_load_font(const char *file_path)
@@ -507,9 +654,9 @@ Font *phos_gui_load_font(const char *file_path)
 	}
 
 	// see if an existing font has been loaded with the given file path
-	for(size_t i = 0; i < phos_gui_fonts.size; ++i)
-		if(strcmp(phos_gui_fonts.data[i].file_path, file_path) == 0)
-			return &phos_gui_fonts.data[i].font;
+	for(size_t i = 0; i < fonts.size; ++i)
+		if(strcmp(fonts.data[i].file_path, file_path) == 0)
+			return &fonts.data[i].font;
 
 	Font font = LoadFont(file_path);
 
@@ -521,9 +668,9 @@ Font *phos_gui_load_font(const char *file_path)
 
 	phos_gui_font pg_font = { .font = font, .file_path = file_path };
 
-	dynas_add(&phos_gui_fonts, pg_font);
+	dynas_add(&fonts, pg_font);
 
 	vl_log(VL_SUCCESS, "Loaded font: '%s'!\n", file_path);
 
-	return &phos_gui_fonts.data[phos_gui_fonts.size - 1].font;
+	return &fonts.data[fonts.size - 1].font;
 }

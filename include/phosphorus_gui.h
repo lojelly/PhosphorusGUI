@@ -81,6 +81,17 @@ typedef enum phos_gui_elem_render_mode
 	PHOS_GUI_OUTLINE,
 } phos_gui_elem_render_mode;
 
+/**
+  The different alignments.
+*/
+typedef enum phos_gui_alignment
+{
+	/**
+	  Indicates the targeted item should be aligned to the left.
+	*/
+	PHOS_GUI_ALIGN_LEFT
+} phos_gui_alignment;
+
 
 /**
   The max number of elements within a single
@@ -106,8 +117,19 @@ typedef struct phos_gui_text_component
 {
 	/**
 	  This text component's actual string contents.
+
+	  This buffer allocates (PHOS_GUI_MAX_TEXT_LEN + 1) bytes.
 	*/
 	char str[PHOS_GUI_MAX_TEXT_LEN + 1];
+	/**
+	  For some elements, they may require placeholder
+	  text.
+
+	  Use this buffer for placeholder text specifically.
+
+	  Just like the 'str' field, it also allocates (PHOS_GUI_MAX_TEXT_LEN + 1) bytes.
+	*/
+	char placeholder_str[PHOS_GUI_MAX_TEXT_LEN + 1];
 
 	/**
 	  This text component's font.
@@ -125,6 +147,13 @@ typedef struct phos_gui_text_component
 	  @note This value should be less than or equal to PHOS_GUI_MAX_TEXT_LEN.
 	*/
 	size_t max_len;
+	/**
+	  The current number of chars that have been typed into this text component.
+
+	  @note This value should be less than or equal to PHOS_GUI_MAX_TEXT_LEN or
+	  the text component's 'max_len' field.
+	*/
+	size_t len;
 
 	/**
 	  The position of the cursor in this text component. This position is
@@ -143,14 +172,31 @@ typedef struct phos_gui_text_component
 	float font_size;
 
 	/**
-	  The color of the text.
+	  The color of the text component's main contents ('str').
 	*/
 	Color color;
+	/**
+	  The color of the placeholder text ('placeholder_str').
+	*/
+	Color placeholder_color;
+
+	/**
+	  The last key the user typed into this text component.
+
+	  If there was no character typed, it will be equal to KEY_NULL.
+
+	  @note To convert to a char, cast it to (char).
+	*/
+	int key_typed;
 
 	/**
 	  Whether or not the user can edit this text component.
 	*/
 	bool editable;
+	/**
+	  Whether or not the text field was edited by the user this frame.
+	*/
+	bool edited;
 	
 	// TODO implement acceptance fields (accepts_chars, accepts_nums, accepts_special_chars, etc)
 } phos_gui_text_component;
@@ -174,7 +220,11 @@ typedef struct phos_gui_elem
 	  @important If you assign the ID to
 	  '<auto-gen>' then the library will
 	  automatically generate an ID for
-	  the element.
+	  the element. If you just so happen
+	  to name an element '<auto-gen>' then
+	  instead name the element '!<auto-gen>'
+	  and PhosphorusGUI will properly name the
+	  element '<auto-gen>.'
 	*/
 	char id[PHOS_GUI_MAX_ID_LEN + 1];
 
@@ -286,6 +336,15 @@ typedef struct phos_gui_elem
 } phos_gui_elem;
 
 /**
+  An alias for a function pointer used by PhosphorusGUI
+  in event listeners.
+
+  The function should return nothing, and it takes in
+  the target element of the event listener.
+*/
+typedef void (*phos_gui_event_listener_action) (phos_gui_elem*);
+
+/**
   A phos_gui stores up to 64 UI elements.
 */
 typedef struct phos_gui
@@ -345,6 +404,15 @@ PHOS_GUI_API Vector2 phos_gui_get_elem_center(phos_gui_elem *elem);
 PHOS_GUI_API Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem);
 
 /**
+  Returns the bounds of an element's text component.
+
+  @note Because an element contains primary text ('str') and
+  placeholder text ('placeholder_str'), you must also pass
+  the target string to use.
+*/
+PHOS_GUI_API Rectangle phos_gui_get_text_bounds(phos_gui_elem *elem, const char *str);
+
+/**
   Quickly sets the bounds of an element (its position and size).
 */
 PHOS_GUI_API void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, float h);
@@ -376,6 +444,26 @@ PHOS_GUI_API void phos_gui_gen_elem_colors(phos_gui_elem *elem, Color default_co
   Sets the contents of the given element's text component.
 */
 PHOS_GUI_API void phos_gui_set_text_contents(phos_gui_elem *elem, const char *str);
+
+/**
+  Aligns a targted item based on an alignment + padding and returns
+  the new position of the targeted item.
+*/
+PHOS_GUI_API Vector2 phos_gui_align(phos_gui_elem *elem, phos_gui_alignment alignment, float pad_x, float pad_y);
+
+/**
+  Adds an event listener to an element.
+
+  PhosphorusGUI automatically manages all event
+  listeners added through this function.
+
+  @param elem The element to add a listener to.
+  @param eval The boolean value, or the event. This value
+  is checked by PhosphorusGUI to update and execute the event listener.
+  @param action The phos_gui_event_listener_action to execute when the
+  boolean value given is true.
+*/
+PHOS_GUI_API void phos_gui_add_event_listener(phos_gui_elem *elem, bool *event, phos_gui_event_listener_action action);
 
 /**
   Registers a UI element using the element's ID.

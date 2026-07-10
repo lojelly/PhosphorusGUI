@@ -30,12 +30,19 @@ int main(void)
 	phos_gui_add_elem(&gui, &elem);
 
 	phos_gui_elem elem2 = (phos_gui_elem) {0};
-	elem2.type = PHOS_GUI_BUTTON;
+	elem2.type = PHOS_GUI_TEXT_FIELD;
+	elem2.text.max_len = 10;
+	elem2.text.len = 0;
 	strcpy(elem2.id, "<auto-gen>");
-	phos_gui_set_elem_bounds(&elem2, 200, 300, 150, 150);
+	phos_gui_set_elem_bounds(&elem2, 200, 300, 300, 150);
 	phos_gui_gen_elem_colors(&elem2, WHITE, -0.25f, -0.4f);
 	elem2.bg_texture = phos_gui_load_texture("../test_btn.png");
 	elem2.text.font = phos_gui_load_font("../test_font.ttf");
+	strcpy(elem2.text.placeholder_str, "Enter text here:");
+	elem2.text.placeholder_color = GRAY;
+	elem2.text.color = BLACK;
+	elem2.text.font_size = 20;
+	elem2.text.pos = phos_gui_align(&elem2, PHOS_GUI_ALIGN_LEFT, 5.0f, -phos_gui_get_text_bounds(&elem2, elem2.text.placeholder_str).height / 2.0f);
 
 	phos_gui_add_elem(&gui, &elem2);
 
@@ -48,6 +55,7 @@ int main(void)
 
 		// update gui
 		phos_gui_update(&gui);
+
 
 
 		// render stage:
