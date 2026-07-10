@@ -15,24 +15,6 @@
 #include "raylib.h"
 
 
-
-// UTILS:
-
-
-
-
-
-
-
-// BUILDING GUI ELEMENTS WITH DYNAMIC COMPONENTS:
-
-
-/**
-  A background texture component.
-*/
-#define PHOS_GUI_BG_TEXTURE_COMPONENT(name) \
-	Texture2D name
-
 /**
   A click callback component. Click callbacks provide
   elements with actions upon being clicked.
@@ -43,62 +25,61 @@
   @param ... The argument types the callback function should expect
   when called.
 */
-#define PHOS_GUI_CLICK_CALLBACK_COMPONENT(return_type, name, ...) \
+#define PHOS_GUI_CLICK_CALLBACK(return_type, name, ...) \
 	return_type (*name) (__VA_ARGS__)
 
-/**
-  A text component.
-*/
-#define PHOS_GUI_TEXT_COMPONENT(name, max_len) \
-	char name[max_len]
 
 /**
-  A Vector2 component. Vector2 components hold 2 float values.
+  The different types of elements.
 */
-#define PHOS_GUI_VEC2_COMPONENT(name) \
-	Vector2 name
+typedef enum phos_gui_elem_type
+{
+	/**
+	  The button element type.
+	*/
+	PHOS_GUI_BUTTON,
+	/**
+	  The text field element type.
+	*/
+	PHOS_GUI_TEXT_FIELD
+} phos_gui_elem_type;
 
 /**
-  A color component.
+  The different shapes of elements.
 */
-#define PHOS_GUI_COLOR_COMPONENT(name) \
-	Color name
+typedef enum phos_gui_elem_shape
+{
+	/**
+	  The default type of all elements: the rectangle shape.
+	*/
+	PHOS_GUI_RECT,
+	/**
+	  The ellipse shape.
+	*/
+	PHOS_GUI_ELLIPSE
+} phos_gui_elem_shape;
 
 /**
-  The standard components of any UI element: position and size.
+  The different render modes of elements.
 */
-#define PHOS_GUI_STD_COMPONENTS \
-	PHOS_GUI_VEC2_COMPONENT(pos); \
-	PHOS_GUI_VEC2_COMPONENT(size)
+typedef enum phos_gui_elem_render_mode
+{
+	/**
+	  The default type of all elements.
 
-/**
-  The standard mouse state information on an interactable UI element.
-
-  'has_focus' determines whether or not the element has been clicked
-  and therefore is focused.
-
-  'hovered' determines if the mouse if currently over the element.
-
-  'clicked' determines if the mouse is currently hovered over
-  the element AND the left mouse button was pressed once.
-
-  'pressed' determines if the mouse is currently hovered over
-  the element AND the left mouse button is being held down
-  at the same time.
-*/
-#define PHOS_GUI_STD_MOUSE_INFO \
-	bool has_focus; \
-	bool hovered; \
-	bool clicked; \
-	bool pressed
-
-
-
-
-
-
-
-// USING PRE-MADE ELEMENTS IN PhosphorusGUI:
+	  Results in the element's shape being filled,
+	  then outlined.
+	*/
+	PHOS_GUI_FILL_OUTLINE,
+	/**
+	  Results in just the element's shape being filled.
+	*/
+	PHOS_GUI_FILL,
+	/**
+	  Results in just the element's outline being rendered.
+	*/
+	PHOS_GUI_OUTLINE,
+} phos_gui_elem_render_mode;
 
 
 /**
@@ -113,12 +94,78 @@
 #define PHOS_GUI_MAX_ID_LEN 32
 
 /**
-  A phos_gui_elem represents a single UI element.
+  The max length of a text component's string.
+*/
+#define PHOS_GUI_MAX_TEXT_LEN 128
 
-  phos_gui_elems come with pre-configured UI components.
+/**
+  A phos_gui_text_component represents a piece of
+  text within an element.
+*/
+typedef struct phos_gui_text_component
+{
+	/**
+	  This text component's actual string contents.
+	*/
+	char str[PHOS_GUI_MAX_TEXT_LEN + 1];
+
+	/**
+	  This text component's font.
+
+	  @important If you load the font yourself,
+	  it is up to you to unload it later. However,
+	  if you use phos_gui_load_font(...) instead,
+	  PhosphorusGUI will handle it all for you.
+	*/
+	Font *font;
+
+	/**
+	  The max number of chars that can be typed into this text component.
+
+	  @note This value should be less than or equal to PHOS_GUI_MAX_TEXT_LEN.
+	*/
+	size_t max_len;
+
+	/**
+	  The position of the cursor in this text component. This position is
+	  used as an index into the 'str' field of the text component.
+	*/
+	size_t cursor_pos;
+
+	/**
+	  The position of the text within its parent element.
+	*/
+	Vector2 pos;
+
+	/**
+	  This text component's font size.
+	*/
+	float font_size;
+
+	/**
+	  The color of the text.
+	*/
+	Color color;
+
+	/**
+	  Whether or not the user can edit this text component.
+	*/
+	bool editable;
+	
+	// TODO implement acceptance fields (accepts_chars, accepts_nums, accepts_special_chars, etc)
+} phos_gui_text_component;
+
+/**
+  A phos_gui_elem represents a single UI element
+  within a phos_gui.
 */
 typedef struct phos_gui_elem
 {
+	/**
+	  This element's text component.
+	*/
+	phos_gui_text_component text;
+
 	/**
 	  This UI element's ID.
 
@@ -130,6 +177,17 @@ typedef struct phos_gui_elem
 	  the element.
 	*/
 	char id[PHOS_GUI_MAX_ID_LEN + 1];
+
+	/**
+	  This UI element's background texture.
+
+	  @important If you load the texture yourself,
+	  it is up to you to unload it later. However,
+	  if you use phos_gui_load_texture(...) instead,
+	  PhosphorusGUI will handle it all for you.
+	*/
+	Texture2D *bg_texture;
+
 	/**
 	  The element's position.
 	*/
@@ -138,6 +196,93 @@ typedef struct phos_gui_elem
 	  The element's size.
 	*/
 	Vector2 size;
+
+	/**
+	  The type of this element.
+	*/
+	phos_gui_elem_type type;
+	/**
+	  The shape of this element.
+	*/
+	phos_gui_elem_shape shape;
+	/**
+	  How this element should be rendered.
+
+	  @important If this is set to PHOS_GUI_OUTLINE,
+	  PhosphorusGUI will not use the element's outline color field when
+	  rendering it. It will instead use the element's 'color' field (while
+	  also still taking mouse hover and press effects into account).
+	*/
+	phos_gui_elem_render_mode render_mode;
+
+	/**
+	  The element's color.
+
+	  This represents the element's
+	  default color.
+	*/
+	Color color;
+	/**
+	  The element's hover color.
+
+	  This color is used when the mouse
+	  is hovered over this element.
+	*/
+	Color hover_color;
+	/**
+	  The element's press color.
+
+	  This color is used when the mouse
+	  is held down over this element.
+	*/
+	Color press_color;
+	/**
+	  The element's outline color.
+
+	  @note If set to { 0, 0, 0, 0 }, it will
+	  not be visible.
+
+	  @important If the render mode of the element is set to PHOS_GUI_OUTLINE,
+	  do not set this value, as PhosphorusGUI will use the 'color' field of
+	  the element instead.
+	*/
+	Color outline_color;
+
+	/**
+	  The element's rotation in degrees.
+	*/
+	float rotation;
+	/**
+	  The thickness of the element's outline.
+
+	  @note If set to 0, it will not be visible.
+	*/
+	float outline_thickness;
+
+	/**
+	  Determines if this element has focus.
+
+	  An element gains focus when the user clicks
+	  it.
+
+	  An element loses focus when the user clicks
+	  somewhere else on screen.
+	*/
+	bool has_focus;
+	/**
+	  Determines if the mouse is over this element.
+	*/
+	bool hovered;
+	/**
+	  Determines if the mouse is clicked while
+	  hovered over this element.
+	*/
+	bool clicked;
+	/**
+	  Determines if the mouse is held down while
+	  hovered over this element.
+	*/
+	bool pressed;
 } phos_gui_elem;
 
 /**
@@ -148,21 +293,12 @@ typedef struct phos_gui
 	/**
 	  The elements inside the GUI.
 	*/
-	phos_gui_elem elems[PHOS_GUI_MAX_ELEMS];
+	phos_gui_elem *elems[PHOS_GUI_MAX_ELEMS];
 	/**
 	  The current amount of elements inside this GUI.
 	*/
 	size_t num_elems;
 } phos_gui;
-
-
-
-
-
-
-
-
-// CORE FUNCTIONS:
 
 
 /**
@@ -177,13 +313,15 @@ typedef struct phos_gui
 
 /**
   Initializes the PhosphorusGUI library.
+
+  @important Do not forget to call phos_gui_shutdown() before
+  the end of the program and before CloseWindow()!
 */
 PHOS_GUI_API void phos_gui_init(void);
 /**
   Frees all resources used by the PhosphorusGUI library.
 */
 PHOS_GUI_API void phos_gui_shutdown(void);
-
 
 /**
   Centers a UI element inside the given bounds.
@@ -194,6 +332,50 @@ PHOS_GUI_API void phos_gui_shutdown(void);
 */
 PHOS_GUI_API void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vector2 size);
 
+/**
+  Returns the center of an element.
+*/
+PHOS_GUI_API Vector2 phos_gui_get_elem_center(phos_gui_elem *elem);
+/**
+  Returns the center of an element while taking its text component into account.
+
+  @note Make sure you call this function after the element's text component's contents
+  have been set.
+*/
+PHOS_GUI_API Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem);
+
+/**
+  Quickly sets the bounds of an element (its position and size).
+*/
+PHOS_GUI_API void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, float h);
+
+/**
+  Quickly sets up the outline of an element (the color and line thickness).
+*/
+PHOS_GUI_API void phos_gui_set_elem_outline(phos_gui_elem *elem, Color color, float thickness);
+
+/**
+  Quickly sets up an element's colors.
+*/
+PHOS_GUI_API void phos_gui_set_elem_colors(phos_gui_elem *elem, Color color, Color hover_color, Color press_color);
+/**
+  Quickly generates an element's colors.
+
+  This function uses the ColorBrightness(...) function
+  to quickly generate the hover and press color of
+  an element based on the default color given here.
+  All you have to provide is the brightness
+  factors for each respective color.
+
+  @note This function will set the 'color' field of the element
+  to the default color given.
+*/
+PHOS_GUI_API void phos_gui_gen_elem_colors(phos_gui_elem *elem, Color default_color, float hover_color_factor, float press_color_factor);
+
+/**
+  Sets the contents of the given element's text component.
+*/
+PHOS_GUI_API void phos_gui_set_text_contents(phos_gui_elem *elem, const char *str);
 
 /**
   Registers a UI element using the element's ID.
@@ -220,3 +402,38 @@ PHOS_GUI_API int phos_gui_add_elem(phos_gui *gui, phos_gui_elem *elem);
   Obtains a UI element with a specific ID.
 */
 PHOS_GUI_API phos_gui_elem *phos_gui_get_elem(const char *ID);
+
+/**
+  Updates a phos_gui's elements.
+*/
+PHOS_GUI_API void phos_gui_update(phos_gui *gui);
+/**
+  Renders a phos_gui's elements.
+*/
+PHOS_GUI_API void phos_gui_render(const phos_gui *const gui);
+
+/**
+  Loads a texture.
+
+  PhosphorusGUI automatically handles and manages all textures loaded this way.
+
+  When phos_gui_shutdown() is called, all the textures loaded through this function
+  are automatically freed and unloaded.
+
+  @important If a texture has already been loaded with the given file path,
+  the existing texture is returned.
+*/
+PHOS_GUI_API Texture2D *phos_gui_load_texture(const char *file_path);
+
+/**
+  Loads a font.
+
+  PhosphorusGUI automatically handles and manages all fonts loaded this way.
+
+  When phos_gui_shutdown() is called, all the fonts loaded through this function
+  are automatically freed and unloaded.
+
+  @important If a font has already been loaded with the given file path,
+  the existing font is returned.
+*/
+PHOS_GUI_API Font *phos_gui_load_font(const char *file_path);
