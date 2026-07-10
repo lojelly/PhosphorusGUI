@@ -413,6 +413,22 @@ PHOS_GUI_API Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem);
 PHOS_GUI_API Rectangle phos_gui_get_text_bounds(phos_gui_elem *elem, const char *str);
 
 /**
+  Initializes an element's text component.
+
+  @note This function initializes the main
+  text of the element ('str'). To initialize placeholder
+  text, use phos_gui_init_placeholder_text(...).
+*/
+PHOS_GUI_API void phos_gui_init_text(phos_gui_elem *elem, const char *str, float font_size, Color color);
+/**
+  Initializes an element's text component.
+
+  @note This function initializes the placeholder
+  text of the text component.
+*/
+PHOS_GUI_API void phos_gui_init_placeholder_text(phos_gui_elem *elem, const char *str, Color color);
+
+/**
   Quickly sets the bounds of an element (its position and size).
 */
 PHOS_GUI_API void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, float h);

@@ -197,11 +197,65 @@ Rectangle phos_gui_get_text_bounds(phos_gui_elem *elem, const char *str)
 	r.width = text_size.x;
 	r.height = text_size.y;
 
-	// TODO add padding to element?
+	// TODO add padding to element struct?
 	r.x = elem -> pos.x;
 	r.y = elem -> pos.y;
 
 	return r;
+}
+
+void phos_gui_init_text(phos_gui_elem *elem, const char *str, float font_size, Color color)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot initialize text component on null UI element!\n");
+		return;
+	}
+	if(!str)
+	{
+		vl_log(VL_ERROR, "Cannot initialize text component with null string!\n");
+		return;
+	}
+	if(strlen(str) >= PHOS_GUI_MAX_TEXT_LEN)
+	{
+		vl_log(VL_ERROR, "String is too long! The max is PHOS_GUI_MAX_TEXT_LEN!\n");
+		return;
+	}
+	if(font_size <= 0.0f)
+	{
+		vl_log(VL_ERROR, "Text cannot have a font size of 0 or less!\n");
+		return;
+	}
+
+	elem -> text.len = strlen(str);
+	strcpy(elem -> text.str, str);
+	elem -> text.max_len = PHOS_GUI_MAX_TEXT_LEN;
+	elem -> text.color = color;
+	elem -> text.font_size = font_size;
+	elem -> text.editable = true;
+	elem -> text.edited = false;
+	elem -> text.cursor_pos = elem -> text.len;
+}
+void phos_gui_init_placeholder_text(phos_gui_elem *elem, const char *str, Color color)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot initialize placeholder text on null UI element!\n");
+		return;
+	}
+	if(!str)
+	{
+		vl_log(VL_ERROR, "Cannot initialize placeholder text with null string!\n");
+		return;
+	}
+	if(strlen(str) >= PHOS_GUI_MAX_TEXT_LEN)
+	{
+		vl_log(VL_ERROR, "String is too long! The max is PHOS_GUI_MAX_TEXT_LEN!\n");
+		return;
+	}
+
+	strcpy(elem -> text.placeholder_str, str);
+	elem -> text.placeholder_color = color;
 }
 
 void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, float h)
