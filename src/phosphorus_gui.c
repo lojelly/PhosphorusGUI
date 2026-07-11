@@ -142,10 +142,26 @@ void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vector2 size)
 	}
 
 	Vector2 elem_size = elem -> size;
+
 	Vector2 container_center = { origin.x + size.x / 2.0f, origin.y + size.y / 2.0f };
+	
 	Vector2 elem_centered = { container_center.x - elem_size.x / 2.0f, container_center.y - elem_size.y / 2.0f };
 
-	elem -> pos = elem_centered;
+	phos_gui_set_elem_bounds(elem, elem_centered.x, elem_centered.y, elem -> size.x, elem -> size.y);
+}
+
+void phos_gui_move_elem(phos_gui_elem *elem, float x, float y)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot move a null UI element!\n");
+		return;
+	}
+
+	elem -> pos.x += x;
+	elem -> text.pos.x += x;
+	elem -> pos.y += y;
+	elem -> text.pos.y += y;
 }
 
 Vector2 phos_gui_get_elem_center(phos_gui_elem *elem)
@@ -336,8 +352,18 @@ void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, fl
 		return;
 	}
 
+	// save current elem pos
+	Vector2 elem_pos = elem -> pos;
+
+	// save new elem bounds
 	elem -> pos = (Vector2) { x, y };
 	elem -> size = (Vector2) { w, h };
+
+	// calculate difference between elem positions
+	Vector2 diff = Vector2Subtract(elem -> pos, elem_pos);
+
+	// move text based on 'diff'
+	elem -> text.pos = Vector2Add(elem -> text.pos, diff);
 }
 
 void phos_gui_set_elem_outline(phos_gui_elem *elem, Color color, float thickness)
@@ -420,8 +446,8 @@ Vector2 phos_gui_align(phos_gui_elem *elem, phos_gui_alignment alignment)
 			v.y = elem -> pos.y + elem -> size.y / 2.0f + elem -> top_padding;
 			break;
 		case PHOS_GUI_ALIGN_RIGHT:
-			v.x = elem -> pos.x + elem -> size.x - elem -> right_padding;
-			v.y = elem -> pos.y + elem -> size.y / 2.0f - elem -> bottom_padding;
+			v.x = elem -> pos.x + elem -> size.x - elem -> left_padding - elem -> right_padding;
+			v.y = elem -> pos.y + elem -> size.y / 2.0f - elem -> top_padding - elem -> bottom_padding;
 			break;
 	}
 
@@ -812,7 +838,7 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 				DrawRectanglePro(vis_bounds, PHOS_GUI_WIN_ORIGIN, e -> rotation, e_color);
 				break;
 			case PHOS_GUI_ELLIPSE:
-				DrawEllipse(e -> pos.x + e_rx, e -> pos.y + e_ry, e_rx, e_ry, e_color);
+				DrawEllipse(vis_bounds.x + e_rx, vis_bounds.y + e_ry, e_rx, e_ry, e_color);
 				break;
 		}
 	}
@@ -821,16 +847,13 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 	if(e -> text.font && IsFontValid(*e -> text.font))
 	{
 		if(e -> text.font_size <= 0.0f || ColorIsEqual(e -> text.color, BLANK))
-		{
 			vl_delay_log(VL_WARNING, 1.0f, "This element's ('%s') text component will not render correctly due to invalid font size, or the color's alpha is 0!\n", e -> id);
-		}
 		else
 		{
 			switch(e -> type)
 			{
 				case PHOS_GUI_BUTTON:
-					Vector2 text_pos = Vector2Add(e -> text.pos, (Vector2) { e -> left_padding, e -> top_padding} );
-					DrawTextEx(*e -> text.font, e -> text.str, text_pos, e -> text.font_size, 0.0f, e -> text.color);
+					DrawTextEx(*e -> text.font, e -> text.str, e -> text.pos, e -> text.font_size, 0.0f, e -> text.color);
 					break;
 				case PHOS_GUI_TEXT_FIELD:
 					// calculate where to draw the text
@@ -838,7 +861,7 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 					draw_pos.x -= e -> text.scroll;
 
 					// begin scissor mode to cut off text that has been scrolled off
-					BeginScissorMode(e -> pos.x, e -> pos.y, e -> size.x, e -> size.y);
+					BeginScissorMode(vis_bounds.x, vis_bounds.y, vis_bounds.width, vis_bounds.height);
 
 					// determine if text field's main text, or placeholder text should be rendered
 					if(strlen(e -> text.str) == 0 && strlen(e -> text.placeholder_str) > 0)

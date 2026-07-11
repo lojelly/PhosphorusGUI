@@ -468,6 +468,11 @@ PHOS_GUI_API void phos_gui_shutdown(void);
 PHOS_GUI_API void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vector2 size);
 
 /**
+  Moves an element x pixels horizontally and y pixels vertically.
+*/
+PHOS_GUI_API void phos_gui_move_elem(phos_gui_elem *elem, float x, float y);
+
+/**
   Returns the center of an element.
 */
 PHOS_GUI_API Vector2 phos_gui_get_elem_center(phos_gui_elem *elem);
@@ -554,7 +559,8 @@ PHOS_GUI_API void phos_gui_set_text_contents(phos_gui_elem *elem, const char *st
 
 /**
   Calculates the position of an object if it were aligned with the given element
-  using the given alignment.
+  using the given alignment. The returned position is not a relative position, it
+  is absolute.
 */
 PHOS_GUI_API Vector2 phos_gui_align(phos_gui_elem *elem, phos_gui_alignment alignment);
 

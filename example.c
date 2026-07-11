@@ -6,7 +6,6 @@ int main(void)
 	vl_init();
 
 	vl_config *vlcfg = vl_curr_config();
-	vlcfg -> log_level = VL_ERROR;
 	vlcfg -> print_date = false;
 	vlcfg -> print_month_name = false;
 	vlcfg -> print_time = true;
@@ -24,19 +23,17 @@ int main(void)
 
 	elem1.type = PHOS_GUI_TEXT_FIELD;
 	phos_gui_set_elem_bounds(&elem1, 200, 300, 400, 150);
-	phos_gui_gen_elem_colors(&elem1, WHITE, -0.25f, -0.4f);
+	phos_gui_gen_elem_colors(&elem1, WHITE, -0.2f, -0.35f);
 	elem1.bg_texture = phos_gui_load_texture("../test_btn.png");
 	elem1.text.font = phos_gui_load_font("../test_font.ttf");
 	phos_gui_init_text(&elem1, "", PHOS_GUI_DEFAULT_FONT_SIZE, BLACK);
 	phos_gui_init_placeholder_text(&elem1, "Enter name:", GRAY);
-	elem1.text.max_len = 300;
 	elem1.left_padding = 8.5f;
 	elem1.top_padding = -phos_gui_get_text_bounds(&elem1, elem1.text.placeholder_str).height / 2.0f;
-	vl_log(VL_DEBUG, "elem1.top_padding = %f\n", elem1.top_padding);
 	elem1.right_padding = 30.0f;
 	elem1.text.pos = phos_gui_align(&elem1, PHOS_GUI_ALIGN_LEFT);
-	elem1.text.accept_nums = false;
-	elem1.text.accept_specials = false;
+	phos_gui_center_elem(&elem1, PHOS_GUI_WIN_ORIGIN, PHOS_GUI_WIN_SIZE);
+	phos_gui_move_elem(&elem1, 100, 50);
 
 	while(!WindowShouldClose())
 	{
