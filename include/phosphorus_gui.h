@@ -65,6 +65,15 @@ typedef enum phos_gui_elem_render_mode
 	  Results in just the element's outline being rendered.
 	*/
 	PHOS_GUI_OUTLINE,
+	/**
+	  Results in the element's shape not being rendered.
+
+	  The element's shape will be used for other things,
+	  but the main content of the element will not be
+	  rendered using its shape. Instead, PhosphorusGUI
+	  now expects the element to have a texture set on it.
+	*/
+	PHOS_GUI_TEXTURE
 } phos_gui_elem_render_mode;
 
 /**
@@ -73,17 +82,17 @@ typedef enum phos_gui_elem_render_mode
 typedef enum phos_gui_alignment
 {
 	/**
-	  Indicates the targeted item should be aligned to the inner
-	  top of an element. The inner top represents the visual top
-	  of the element + top padding.
-	*/
-	PHOS_GUI_ALIGN_INNER_TOP,
-	/**
 	  Indicates the targeted item should be aligned to the inner left
 	  of an element. The inner left represents the visual left
 	  of the element + left padding.
 	*/
 	PHOS_GUI_ALIGN_INNER_LEFT,
+	/**
+	  Indicates the targeted item should be aligned to the inner
+	  top of an element. The inner top represents the visual top
+	  of the element + top padding.
+	*/
+	PHOS_GUI_ALIGN_INNER_TOP,
 	/**
 	  Indicates the targeted item should be aligned to the inner right
 	  of an element. The inner right represents the visual right
@@ -97,11 +106,37 @@ typedef enum phos_gui_alignment
 	*/
 	PHOS_GUI_ALIGN_INNER_BOTTOM,
 	/**
-	  Indicates the targeted item should result in the center
+	  Indicates the targeted item should be placed in the center
 	  of an element.
 	*/
-	PHOS_GUI_ALIGN_INNER_CENTER
+	PHOS_GUI_ALIGN_INNER_CENTER,
+	/**
+	  Indicates the targeted item should be placed directly above
+	  an element.
+	*/
+	PHOS_GUI_ALIGN_ABOVE
 } phos_gui_alignment;
+
+/**
+  The different layout types.
+*/
+typedef enum phos_gui_layout_type
+{
+	/**
+	  Indicates that all items are organized vertically.
+
+	  When margin collisions occur, this layout resolves
+	  them by pushing the colliding objects down.
+	*/
+	PHOS_GUI_VERTICAL_LAYOUT,
+	/**
+	  Indicates that all items are organized horizontally.
+
+	  When margin collisions occur, this layout resolves
+	  them by pushing the colliding objects to the side.
+	*/
+	PHOS_GUI_HORIZONTAL_LAYOUT,
+} phos_gui_layout_type;
 
 
 /**
@@ -360,17 +395,17 @@ typedef struct phos_gui_elem
 	float outline_thickness;
 
 	/**
-	  Padding on the top side of the element.
-
-	  @note Make sure this value remains >= 0.
-	*/
-	float top_padding;
-	/**
 	  Padding on the left side of the element.
 
 	  @note Make sure this value remains >= 0.
 	*/
 	float left_padding;
+	/**
+	  Padding on the top side of the element.
+
+	  @note Make sure this value remains >= 0.
+	*/
+	float top_padding;
 	/**
 	  Padding on the right side of the element.
 	  
@@ -383,6 +418,31 @@ typedef struct phos_gui_elem
 	  @note Make sure this value remains >= 0.
 	*/
 	float bottom_padding;
+
+	/**
+	  The left margin value.
+
+	  @note Make sure this value remains >= 0.
+	*/
+	float left_margin;
+	/**
+	  The top margin value.
+
+	  @note Make sure this value remains >= 0.
+	*/
+	float top_margin;
+	/**
+	  The right margin value.
+
+	  @note Make sure this value remains >= 0.
+	*/
+	float right_margin;
+	/**
+	  The bottom margin value.
+
+	  @note Make sure this value remains >= 0.
+	*/
+	float bottom_margin;
 
 	/**
 	  Determines if this element has focus.
@@ -440,6 +500,10 @@ typedef struct phos_gui
 	  The current amount of elements inside this GUI.
 	*/
 	size_t num_elems;
+	/**
+	  The layout of this GUI.
+	*/
+	phos_gui_layout_type layout_type;
 } phos_gui;
 
 
@@ -464,6 +528,45 @@ PHOS_GUI_API void phos_gui_init(void);
   Frees all resources used by the PhosphorusGUI library.
 */
 PHOS_GUI_API void phos_gui_shutdown(void);
+
+/**
+  Toggles debug mode of the program.
+
+  Debug mode renders some extra information
+  about elements, and the program itself.
+  
+  @note The padding will be rendered as a red
+  rectangle, and the margin will be
+  rendered as a green rectangle.
+*/
+PHOS_GUI_API void phos_gui_toggle_debug_mode(void);
+
+/**
+  Sets the current phos_gui to use for updating
+  and rendering.
+
+  Because a program can have multiple different
+  screens and scenes, it is best to create and set
+  them up in your main function, then just
+  manage switching between them when necessary.
+  PhosphorusGUI will handle everything else.
+
+  @important You can pass NULL into function
+  to signal to PhosphorusGUI there is no GUI
+  to render at the moment.
+*/
+PHOS_GUI_API void phos_gui_set_gui(phos_gui *new_gui);
+/**
+  Returns the current phos_gui instance PhosphorusGUI
+  is working on.
+*/
+PHOS_GUI_API phos_gui *phos_gui_get_curr_gui(void);
+/**
+  Returns the previous phos_gui instance PhosphorusGUI
+  was working on. If there was no previous phos_gui,
+  then this function returns NULL instead.
+*/
+PHOS_GUI_API phos_gui *phos_gui_get_prev_gui(void);
 
 /**
   Centers a UI element inside the given bounds.
@@ -492,11 +595,19 @@ PHOS_GUI_API Vector2 phos_gui_get_elem_center(phos_gui_elem *elem);
 PHOS_GUI_API Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem);
 
 /**
-  Returns the logical bounds of an element.
-
-  These bounds will include the padding values of the element.
+  Returns the inner bounds of an element.
+  
+  The inner bounds of an element represents the element's contents bounds,
+  as well as the element's padding.
 */
-PHOS_GUI_API Rectangle phos_gui_get_logical_elem_rect(const phos_gui_elem *const elem);
+PHOS_GUI_API Rectangle phos_gui_get_inner_elem_rect(const phos_gui_elem *const elem);
+/**
+  Returns the outer bounds of an element.
+
+  The outer bounds of an element represents the element's visual bounds,
+  as well as the element's margin.
+*/
+PHOS_GUI_API Rectangle phos_gui_get_outer_elem_rect(const phos_gui_elem *const elem);
 /**
   Returns the visible bounds of an element.
 
@@ -594,6 +705,9 @@ PHOS_GUI_API Vector2 phos_gui_align_text(phos_gui_elem *elem, phos_gui_alignment
   PhosphorusGUI automatically manages all event
   listeners added through this function.
 
+  @note For an event listener on an element to execute,
+  the given element must have focus.
+
   @param elem The element to add a listener to.
   @param event The condition of the event. This is a function
   that is executed to determine if the action should execute.
@@ -605,7 +719,11 @@ PHOS_GUI_API void phos_gui_add_event_listener(phos_gui_elem *elem, phos_gui_even
 /**
   Sets the padding on an element.
 */
-PHOS_GUI_API void phos_gui_set_elem_padding(phos_gui_elem *elem, float top, float left, float bottom, float right);
+PHOS_GUI_API void phos_gui_set_elem_padding(phos_gui_elem *elem, float left, float top, float right, float bottom);
+/**
+  Sets the margin on an element.
+*/
+PHOS_GUI_API void phos_gui_set_elem_margin(phos_gui_elem *elem, float left, float top, float right, float bottom);
 
 /**
   Registers a UI element using the element's ID.
@@ -629,18 +747,35 @@ PHOS_GUI_API int phos_gui_register_elem(phos_gui_elem *elem);
 */
 PHOS_GUI_API int phos_gui_add_elem(phos_gui *gui, phos_gui_elem *elem);
 /**
+  Adds a UI element to the given phos_gui instance,
+  as well as gives the element an ID.
+
+  @see phos_gui_add_elem(phos_gui*, phos_gui_elem*)
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_add_elem_id(phos_gui *gui, phos_gui_elem *elem, const char *ID);
+/**
   Obtains a UI element with a specific ID.
 */
 PHOS_GUI_API phos_gui_elem *phos_gui_get_elem(const char *ID);
 
 /**
-  Updates a phos_gui's elements.
+  Updates the current phos_gui's elements.
+
+  If there is no GUI set, the function does send
+  a delayed warning message just in case, but other
+  than that, nothing happens.
 */
-PHOS_GUI_API void phos_gui_update(phos_gui *gui, float dt);
+PHOS_GUI_API void phos_gui_update(float dt);
 /**
-  Renders a phos_gui's elements.
+  Renders the current phos_gui's elements.
+
+  If there is no GUI set, the function does send
+  a delayed warning message just in case, but other
+  than that, nothing happens.
 */
-PHOS_GUI_API void phos_gui_render(const phos_gui *const gui);
+PHOS_GUI_API void phos_gui_render(void);
 
 /**
   Loads a texture.

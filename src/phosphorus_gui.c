@@ -5,6 +5,10 @@
 #include "phosphorus_gui.h"
 #include "raymath.h"
 
+#define PHOS_GUI_DEBUG_PADDING_COLOR RED
+#define PHOS_GUI_DEBUG_MARGIN_COLOR GREEN
+#define PHOS_GUI_DEBUG_LINE_THICKNESS 7.5f
+
 #define PHOS_GUI_CURSOR_WIDTH 3
 #define PHOS_GUI_KEY_REPEAT_DELAY 0.5f
 #define PHOS_GUI_KEY_REPEAT_INTERVAL 0.033f
@@ -83,6 +87,11 @@ static phos_gui_key_timer backspace_timer = {0};
 static phos_gui_key_timer left_arrow_timer = {0};
 static phos_gui_key_timer right_arrow_timer = {0};
 
+static bool in_debug_mode = false;
+
+static phos_gui *prev_gui = NULL;
+static phos_gui *curr_gui = NULL;
+
 
 void phos_gui_init()
 {
@@ -131,6 +140,25 @@ void phos_gui_shutdown()
 	dynas_free(&fonts);
 
 	init = false;
+}
+
+void phos_gui_toggle_debug_mode()
+{
+	in_debug_mode = !in_debug_mode;
+}
+
+void phos_gui_set_gui(phos_gui *new_gui)
+{
+	prev_gui = curr_gui;
+	curr_gui = new_gui;
+}
+phos_gui *phos_gui_get_curr_gui()
+{
+	return curr_gui;
+}
+phos_gui *phos_gui_get_prev_gui()
+{
+	return prev_gui;
 }
 
 void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vector2 size)
@@ -211,20 +239,43 @@ Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem)
 	return v;
 }
 
-Rectangle phos_gui_get_logical_elem_rect(const phos_gui_elem *const elem)
+Rectangle phos_gui_get_inner_elem_rect(const phos_gui_elem *const elem)
 {
 	Rectangle r = {0};
 
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot obtain rectangle bounds for a null UI element!\n");
+		vl_log(VL_ERROR, "Cannot obtain inner rect for a null UI element!\n");
 		return r;
 	}
 
-	r.x = elem -> pos.x + elem -> left_padding;
-	r.y = elem -> pos.y + elem -> top_padding;
-	r.width = elem -> size.x - elem -> left_padding - elem -> right_padding;
-	r.height = elem -> size.y - elem -> top_padding - elem -> bottom_padding;
+	// iner rect is visible rect + padding
+	r = phos_gui_get_visible_elem_rect(elem);
+
+	r.x += elem -> left_padding;
+	r.y += elem -> top_padding;
+	r.width = r.width - elem -> left_padding - elem -> right_padding;
+	r.height = r.height - elem -> top_padding - elem -> bottom_padding;
+
+	return r;
+}
+Rectangle phos_gui_get_outer_elem_rect(const phos_gui_elem *const elem)
+{
+	Rectangle r = {0};
+
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot obtain outer rect for a null UI element!\n");
+		return r;
+	}
+
+	// outer rect is visible rect - margin
+	r = phos_gui_get_visible_elem_rect(elem);
+
+	r.x -= elem -> left_margin;
+	r.y -= elem -> top_margin;
+	r.width = r.width + elem -> left_margin + elem -> right_margin;
+	r.height = r.height + elem -> top_margin + elem -> bottom_margin;
 
 	return r;
 }
@@ -234,7 +285,7 @@ Rectangle phos_gui_get_visible_elem_rect(const phos_gui_elem *const elem)
 
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot obtain rectangle bounds for a null UI element!\n");
+		vl_log(VL_ERROR, "Cannot obtain visible bounds for a null UI element!\n");
 		return r;
 	}
 
@@ -318,9 +369,7 @@ static void phos_gui_update_text_scrolling(phos_gui_elem *e)
 	float overflow = text_bounds.width - vis_width;
 
 	if(overflow > 0.0f)
-	{
 		e -> text.max_scroll = overflow;
-	}
 	else
 	{
 		e -> text.max_scroll = 0.0f;
@@ -517,17 +566,20 @@ Vector2 phos_gui_align(phos_gui_elem *elem, phos_gui_alignment alignment, Vector
 			v.x = content_left;
 			v.y = content_top + (content_height - object_size.y) / 2.0f;
 			break;
-		case PHOS_GUI_ALIGN_INNER_RIGHT:
-			v.x = content_right - object_size.x;
-			v.y = content_top + (content_height - object_size.y) / 2.0f;
-			break;
 		case PHOS_GUI_ALIGN_INNER_BOTTOM:
 			v.x = content_left + (content_width - object_size.x)  / 2.0f;
 			v.y = content_bottom - object_size.y;
 			break;
+		case PHOS_GUI_ALIGN_INNER_RIGHT:
+			v.x = content_right - object_size.x;
+			v.y = content_top + (content_height - object_size.y) / 2.0f;
+			break;
 		case PHOS_GUI_ALIGN_INNER_CENTER:
 			v.x = content_left + (content_width - object_size.x) / 2.0f;
 			v.y = content_top + (content_height - object_size.y) / 2.0f;
+			break;
+		case PHOS_GUI_ALIGN_ABOVE:
+			// TODO
 			break;
 	}
 
@@ -570,7 +622,7 @@ void phos_gui_add_event_listener(phos_gui_elem *elem, phos_gui_event_listener_co
 	dynas_add(&event_listeners, el);
 }
 
-void phos_gui_set_elem_padding(phos_gui_elem *elem, float top, float left, float bottom, float right)
+void phos_gui_set_elem_padding(phos_gui_elem *elem, float left, float top, float right, float bottom)
 {
 	if(!elem)
 	{
@@ -578,10 +630,23 @@ void phos_gui_set_elem_padding(phos_gui_elem *elem, float top, float left, float
 		return;
 	}
 
-	elem -> top_padding = top;
 	elem -> left_padding = left;
-	elem -> bottom_padding = bottom;
+	elem -> top_padding = top;
 	elem -> right_padding = right;
+	elem -> bottom_padding = bottom;
+}
+void phos_gui_set_elem_margin(phos_gui_elem *elem, float left, float top, float right, float bottom)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot set margin on a null UI element!\n");
+		return;
+	}
+
+	elem -> left_margin = left;
+	elem -> top_margin = top;
+	elem -> right_margin = right;
+	elem -> bottom_margin = bottom;
 }
 
 PHOS_GUI_API int phos_gui_register_elem(phos_gui_elem *elem)
@@ -640,6 +705,89 @@ PHOS_GUI_API int phos_gui_register_elem(phos_gui_elem *elem)
 
 	return 1;
 }
+
+static void phos_gui_resolve_margin_collisions(phos_gui *gui)
+{
+	// iterate over all elements in the gui
+	for(size_t i = 0; i < gui -> num_elems - 1; ++i)
+	{
+		// re-iterate over all other elements
+		for(size_t j = 1; j < gui -> num_elems; ++j)
+		{
+			// get elems:
+			phos_gui_elem *e1 = gui -> elems[i];
+			phos_gui_elem *e2 = gui -> elems[j];
+
+			// create margin rects
+			Rectangle margin1 = phos_gui_get_outer_elem_rect(e1);
+			Rectangle margin2 = phos_gui_get_outer_elem_rect(e2);
+
+			// check collision
+			bool collision = CheckCollisionRecs(margin1, margin2);
+
+			// resolve collision
+			if(collision)
+			{
+				// calculate widths and heights of margins
+				float margin1_right = margin1.x + margin1.width;
+				float margin1_bottom = margin1.y + margin1.height;
+
+				float margin2_right = margin2.x + margin2.width;
+				float margin2_bottom = margin2.y + margin2.height;
+
+				/* to calculate overlap:
+
+				20					   40
+
+				   --------------------
+				   -			      -
+				   -				  -
+				   -		30		  -         50
+				   -		+++++++++ - ++++++++
+				   -		+		  -        +
+				   --------------------		   +
+							+				   +
+							+				   +
+							++++++++++++++++++++
+
+
+
+					r1 = [20, 40]
+					r2 = [30, 50]
+
+					the two left edges, 20 and 30, are compared, and 30 is greater, so it is chosen as a starting point.
+
+					the two right edges, 40 and 50, are compared, and 40 is smaller, so it is chosen as the ending point.
+
+					now just do 40 - 30 to obtain the length of the horizontal overlap: 10.
+
+					apply the same logic to the y-axes, and you can obtain vertical overlap.
+				*/
+
+				float overlap_x = fminf(margin1_right, margin2_right) - fmaxf(margin1.x, margin2.x);
+				float overlap_y = fminf(margin1_bottom, margin2_bottom) - fmaxf(margin1.y, margin2.y);
+
+				// push the items apart using overlap values
+				switch(gui -> layout_type)
+				{
+					case PHOS_GUI_VERTICAL_LAYOUT:
+						if(e1 -> pos.y < e2 -> pos.y)
+							phos_gui_move_elem(e2, 0, overlap_y);
+						else if(e2 -> pos.y < e1 -> pos.y)
+							phos_gui_move_elem(e1, 0, overlap_y);
+						break;
+					case PHOS_GUI_HORIZONTAL_LAYOUT:
+						if(e1 -> pos.x < e2 -> pos.x)
+							phos_gui_move_elem(e2, overlap_x, 0);
+						else if(e2 -> pos.x < e1 -> pos.x)
+							phos_gui_move_elem(e1, overlap_x, 0);
+						break;
+				}
+			}
+		}
+	}
+}
+
 int phos_gui_add_elem(phos_gui *gui, phos_gui_elem *elem)
 {
 	if(!gui || !elem)
@@ -663,7 +811,24 @@ int phos_gui_add_elem(phos_gui *gui, phos_gui_elem *elem)
 	}
 	gui -> elems[gui -> num_elems++] = elem;
 
+	// resolve any collisions after adding element
+	phos_gui_resolve_margin_collisions(gui);
+
 	return 1;
+}
+int phos_gui_add_elem_id(phos_gui *gui, phos_gui_elem *elem, const char *ID)
+{
+	if(!gui || !elem || !ID)
+	{
+		vl_log(VL_ERROR, "Failed to add UI element. Make sure 'gui', 'elem' and 'ID' are not NULL!\n");
+		return 0;
+	}
+
+	// copy ID into element's ID
+	strcpy(elem -> id, ID);
+
+	// add normally
+	return phos_gui_add_elem(gui, elem);
 }
 phos_gui_elem *phos_gui_get_elem(const char *ID)
 {
@@ -694,12 +859,18 @@ phos_gui_elem *phos_gui_get_elem(const char *ID)
 static void phos_gui_move_cursor_left(phos_gui_elem *e)
 {
 	if(e -> text.cursor_pos > 0)
+	{
 		e -> text.cursor_pos--;
+		phos_gui_update_text_scrolling(e);
+	}
 }
 static void phos_gui_move_cursor_right(phos_gui_elem *e)
 {
 	if(e -> text.cursor_pos < e -> text.len)
+	{
 		e -> text.cursor_pos++;
+		phos_gui_update_text_scrolling(e);
+	}
 }
 static void phos_gui_backspace(phos_gui_elem *e)
 {
@@ -857,26 +1028,35 @@ static void phos_gui_update_elem(phos_gui_elem *e, float dt)
 	}
 }
 // TODO create phos_gui_update function for specific window scaling so GetMousePosition() always works!!
-void phos_gui_update(phos_gui *gui, float dt)
+void phos_gui_update(float dt)
 {
-	if(!gui)
+	if(!curr_gui)
 	{
-		vl_delay_log(VL_ERROR, 1.0f, "Cannot update null phos_gui!\n");
+		vl_delay_log(VL_WARNING, 10.0f, "No phos_gui set, skipping updating.\n");
 		return;
 	}
 
+	// if any margin collisions, resolve them immediately
+	phos_gui_resolve_margin_collisions(curr_gui);
+
 	// update elems:
-	for(size_t i = 0; i < gui -> num_elems; ++i)
-		phos_gui_update_elem(gui -> elems[i], dt);
+	for(size_t i = 0; i < curr_gui -> num_elems; ++i)
+		phos_gui_update_elem(curr_gui -> elems[i], dt);
 
 	// update event listeners
 	for(size_t i = 0; i < event_listeners.size; ++i)
 	{
-		// eval condition
-		bool exec = event_listeners.data[i].event(event_listeners.data[i].target);
+		// eval condition function and check to see if the target elem has focus
+		bool exec = event_listeners.data[i].event(event_listeners.data[i].target) && event_listeners.data[i].target -> has_focus;
 		if(exec)
 			event_listeners.data[i].action(event_listeners.data[i].target);
 	}
+}
+
+static void phos_gui_render_ellipse_outline(Vector2 pos, float rx, float ry, float line_thickness, Color color)
+{
+	for(int i = 0; i < line_thickness + 1; ++i)
+		DrawEllipseLines(pos.x + rx, pos.y + ry, rx - i * 0.7f, ry - i * 0.7f, color);
 }
 
 static void phos_gui_render_elem(const phos_gui_elem *const e)
@@ -891,7 +1071,7 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 
 	// create elem rects:
 	Rectangle vis_bounds = phos_gui_get_visible_elem_rect(e);
-	Rectangle log_bounds = phos_gui_get_logical_elem_rect(e);
+	Rectangle inner_bounds = phos_gui_get_inner_elem_rect(e);
 
 	// create elem ellipse info:
 	float e_rx = e -> size.x / 2.0f;
@@ -900,8 +1080,14 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 	// draw elem bg if it is valid
 	if(e -> bg_texture && IsTextureValid(*e -> bg_texture))
 	{
-		Rectangle src = { 0, 0, e -> bg_texture -> width, e -> bg_texture -> height };
-		DrawTexturePro(*e -> bg_texture, src, vis_bounds, PHOS_GUI_WIN_ORIGIN, e -> rotation, e_color);
+		// warn if the render mode is not PHOS_GUI_TEXTURE
+		if(e -> render_mode != PHOS_GUI_TEXTURE)
+			vl_delay_log(VL_WARNING, 3.0f, "This element ('%s') does not have the PHOS_GUI_TEXTURE render mode, skipping rendering texture.\n", e -> id);
+		else
+		{
+			Rectangle src = { 0, 0, e -> bg_texture -> width, e -> bg_texture -> height };
+			DrawTexturePro(*e -> bg_texture, src, vis_bounds, PHOS_GUI_WIN_ORIGIN, e -> rotation, e_color);
+		}
 	}
 	// else just draw base shape (if set)
 	else if(e -> render_mode == PHOS_GUI_FILL_OUTLINE || e -> render_mode == PHOS_GUI_FILL)
@@ -924,8 +1110,9 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 			vl_delay_log(VL_WARNING, 1.0f, "This element's ('%s') text component will not render correctly due to invalid font size, or the color's alpha is 0!\n", e -> id);
 		else
 		{
-			// begin scissor mode to cut off text that has been scrolled off
-			BeginScissorMode(vis_bounds.x, vis_bounds.y, vis_bounds.width, vis_bounds.height);
+			/* begin scissor mode to cut off text that has been scrolled off (USE PADDED REGION, NOT VISUAL)
+			note: add PHOS_GUI_CURSOR_WIDTH to scissor rect so the cursor is not cut off at the right side */
+			BeginScissorMode(inner_bounds.x, inner_bounds.y, inner_bounds.width + PHOS_GUI_CURSOR_WIDTH, inner_bounds.height);
 
 			switch(e -> type)
 			{
@@ -951,7 +1138,6 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 						buf[e -> text.cursor_pos] = '\0';
 
 						float caret_x = MeasureTextEx(*e -> text.font, buf, e -> text.font_size, 0.0f).x;
-
 						float cx = draw_pos.x + caret_x;
 						DrawRectangle(cx, draw_pos.y, PHOS_GUI_CURSOR_WIDTH, e -> text.font_size, e -> text.color);
 					}
@@ -978,22 +1164,45 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 				DrawRectangleLinesEx(vis_bounds, e -> outline_thickness, outline_color);
 				break;
 			case PHOS_GUI_ELLIPSE:
-				for(int i = 0; i < e -> outline_thickness + 1; ++i)
-					DrawEllipseLines(e -> pos.x + e_rx, e -> pos.y + e_ry, e_rx - i * 0.7f, e_ry - i * 0.7f, outline_color);
+				phos_gui_render_ellipse_outline(e -> pos, e_rx, e_ry, e -> outline_thickness, outline_color);
+				break;
+		}
+	}
+
+	// if debug mode enabled, draw outlines around element margin and padding
+	if(in_debug_mode)
+	{
+		// get elem bounds
+		Rectangle padding_bounds = phos_gui_get_inner_elem_rect(e);
+		Rectangle margin_bounds = phos_gui_get_outer_elem_rect(e);
+
+		// convert bounds to positions
+		Vector2 padding_pos = { padding_bounds.x, padding_bounds.y };
+		Vector2 margin_pos = { margin_bounds.x, margin_bounds.y };
+
+		switch(e -> shape)
+		{
+			case PHOS_GUI_RECT:
+				DrawRectangleLinesEx(padding_bounds, PHOS_GUI_DEBUG_LINE_THICKNESS, PHOS_GUI_DEBUG_PADDING_COLOR);
+				DrawRectangleLinesEx(margin_bounds, PHOS_GUI_DEBUG_LINE_THICKNESS, PHOS_GUI_DEBUG_MARGIN_COLOR);
+				break;
+			case PHOS_GUI_ELLIPSE:
+				phos_gui_render_ellipse_outline(padding_pos, padding_bounds.width / 2.0f, padding_bounds.height / 2.0f, PHOS_GUI_DEBUG_LINE_THICKNESS, PHOS_GUI_DEBUG_PADDING_COLOR);
+				phos_gui_render_ellipse_outline(margin_pos, margin_bounds.width / 2.0f, margin_bounds.height / 2.0f, PHOS_GUI_DEBUG_LINE_THICKNESS, PHOS_GUI_DEBUG_MARGIN_COLOR);
 				break;
 		}
 	}
 }
-void phos_gui_render(const phos_gui *const gui)
+void phos_gui_render()
 {
-	if(!gui)
+	if(!curr_gui)
 	{
-		vl_delay_log(VL_ERROR, 1.0f, "Cannot render null phos_gui!\n");
+		vl_delay_log(VL_WARNING, 10.0f, "No phos_gui set, skipping rendering.\n");
 		return;
 	}
 
-	for(size_t i = 0; i < gui -> num_elems; ++i)
-		phos_gui_render_elem(gui -> elems[i]);
+	for(size_t i = 0; i < curr_gui -> num_elems; ++i)
+		phos_gui_render_elem(curr_gui -> elems[i]);
 }
 
 Texture2D *phos_gui_load_texture(const char *file_path)
