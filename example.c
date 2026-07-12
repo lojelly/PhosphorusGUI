@@ -38,6 +38,10 @@ int main(void)
 
 	phos_gui_set_gui(&gui);
 
+	vl_log(VL_DEBUG, "gui.num_elems = %zu\n", gui.num_elems);
+	vl_log(VL_DEBUG, "elem1 ptr: %p\n", &elem1);
+	vl_log(VL_DEBUG, "elem2 ptr: %p\n", &elem2);
+
 	while(!WindowShouldClose())
 	{
 		float dt = GetFrameTime();

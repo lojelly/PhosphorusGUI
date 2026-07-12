@@ -389,6 +389,12 @@ typedef struct phos_gui_elem
 	  the element instead.
 	*/
 	Color outline_color;
+	/**
+	  The element's outline color, but when it is focused.
+
+	  @see outline_color
+	*/
+	Color focus_outline_color;
 
 	/**
 	  The element's rotation in degrees.

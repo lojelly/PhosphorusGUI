@@ -115,6 +115,9 @@ static bool in_debug_mode = false;
 static phos_gui *prev_gui = NULL;
 static phos_gui *curr_gui = NULL;
 
+// keep track of current 'goto' elem in the current GUI
+static size_t curr_gui_elem_num = 0;
+
 
 void phos_gui_init()
 {
@@ -208,6 +211,9 @@ void phos_gui_set_gui(phos_gui *new_gui)
 
 		vl_log(VL_SUCCESS, "Registered GUI with ID: '%s'!\n", new_gui -> ID);
 	}
+
+	// reset 'goto' elem tracker to end of list
+	curr_gui_elem_num = new_gui -> num_elems;
 }
 void phos_gui_set_gui_by_id(const char *ID)
 {
@@ -1075,6 +1081,61 @@ static void phos_gui_update_key_timer(phos_gui_elem *e, float dt, phos_gui_key_t
 		kt -> active = false;
 }
 
+static void phos_gui_goto_next_elem()
+{
+	if(!curr_gui)
+	{
+		vl_log(VL_WARNING, "No current GUI, cannot go to next element!\n");
+		return;
+	}
+
+	// go to next elem or loop back
+	curr_gui_elem_num++;
+	if(curr_gui_elem_num >= curr_gui -> num_elems)
+		curr_gui_elem_num = 0;
+
+	// mark that elem as focused
+	curr_gui -> elems[curr_gui_elem_num] -> has_focus = true;
+
+	vl_log(VL_DEBUG, "curr focus elem: %p\n", curr_gui -> elems[curr_gui_elem_num]);
+}
+static void phos_gui_goto_prev_elem()
+{
+	if(!curr_gui)
+	{
+		vl_log(VL_WARNING, "No current GUI, cannot go to previous element!\n");
+		return;
+	}
+
+	// loop back, or go to previous elem
+	if(curr_gui_elem_num == 0)
+		curr_gui_elem_num = curr_gui -> num_elems - 1;
+	else
+		curr_gui_elem_num--;
+
+	// mark that elem as focused
+	curr_gui -> elems[curr_gui_elem_num] -> has_focus = true;
+
+	vl_log(VL_DEBUG, "curr focus elem: %p\n", curr_gui -> elems[curr_gui_elem_num]);
+}
+static bool phos_gui_travel_elems()
+{
+	// goto prev or next elem
+	bool tab_pressed = IsKeyPressed(KEY_TAB);
+	if(IsKeyDown(KEY_LEFT_SHIFT) && tab_pressed)
+	{
+		phos_gui_goto_prev_elem();
+		return true;
+	}
+	else if(tab_pressed)
+	{
+		phos_gui_goto_next_elem();
+		return true;
+	}
+
+	return false;
+}
+
 static void phos_gui_update_elem(phos_gui_elem *e, float dt)
 {
 	// get mouse information
@@ -1195,6 +1256,7 @@ static void phos_gui_update_elem(phos_gui_elem *e, float dt)
 			phos_gui_update_text_scrolling(e);
 	}
 }
+
 // TODO create phos_gui_update function for specific window scaling so GetMousePosition() always works!!
 void phos_gui_update(float dt)
 {
@@ -1206,6 +1268,9 @@ void phos_gui_update(float dt)
 
 	// if any margin collisions, resolve them immediately
 	phos_gui_resolve_margin_collisions(curr_gui);
+
+	// 'tab' and 'shift+tab' to travel between elems
+	phos_gui_travel_elems();
 
 	// update elems:
 	for(size_t i = 0; i < curr_gui -> num_elems; ++i)
@@ -1236,6 +1301,11 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 		e_color = e -> press_color;
 	else if(e -> hovered)
 		e_color = e -> hover_color;
+
+	// see if elem has focus and is the current GUI elem, and if so, use hover color
+	if(curr_gui -> elems[curr_gui_elem_num] == e)
+		if(e -> has_focus)
+			e_color = e -> hover_color;
 
 	// create elem rects:
 	Rectangle vis_bounds = phos_gui_get_visible_elem_rect(e);
@@ -1321,6 +1391,9 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 	{
 		// get outline color
 		Color outline_color = e -> outline_color;
+
+		if(e -> has_focus)
+			outline_color = e -> focus_outline_color;
 
 		// if the elem is just being outlined, switch its outline color for 'e_color' so mouse state affects the elem visually
 		if(e -> render_mode == PHOS_GUI_OUTLINE)
