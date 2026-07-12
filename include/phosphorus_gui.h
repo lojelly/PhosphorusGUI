@@ -586,6 +586,15 @@ PHOS_GUI_API void phos_gui_toggle_debug_mode(void);
 */
 PHOS_GUI_API void phos_gui_set_gui(phos_gui *new_gui);
 /**
+  Sets the current phos_gui to use for updating
+  and rendering.
+
+  This function searches for the phos_gui matching the given ID.
+
+  @see phos_gui_set_gui(phos_gui*)
+*/
+PHOS_GUI_API void phos_gui_set_gui_by_id(const char *ID);
+/**
   Returns the current phos_gui instance PhosphorusGUI
   is working on.
 */

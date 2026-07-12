@@ -209,6 +209,25 @@ void phos_gui_set_gui(phos_gui *new_gui)
 		vl_log(VL_SUCCESS, "Registered GUI with ID: '%s'!\n", new_gui -> ID);
 	}
 }
+void phos_gui_set_gui_by_id(const char *ID)
+{
+	if(!ID || strlen(ID) == 0)
+	{
+		vl_log(VL_ERROR, "Cannot set phos_gui with an invalid ID!\n");
+		return;
+	}
+
+	// try to get phos_gui with matching ID
+	phos_gui *gui = phos_gui_get_gui(ID);
+
+	if(!gui)
+	{
+		vl_log(VL_ERROR, "Failed to set the current GUI, no matching phos_gui found!\n");
+		return;
+	}
+
+	phos_gui_set_gui(gui);
+}
 phos_gui *phos_gui_get_curr_gui()
 {
 	return curr_gui;
