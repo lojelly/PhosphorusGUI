@@ -75,9 +75,17 @@ typedef struct phos_gui_blueprint_arr
 	size_t size, capacity;
 } phos_gui_blueprint_arr;
 
+// gui registry:
+typedef struct phos_gui_arr
+{
+	phos_gui **data;
+	size_t size, capacity;
+} phos_gui_arr;
+
 static bool init = false;
 static phos_gui_elem_arr elem_registry;
 static phos_gui_blueprint_arr blueprint_registry;
+static phos_gui_arr gui_registry;
 static phos_gui_event_listener_arr event_listeners;
 static phos_gui_tex_arr textures;
 static phos_gui_font_arr fonts;
@@ -85,6 +93,7 @@ static phos_gui_font_arr fonts;
 // for objects with "<auto-gen>" ID, ensures unique auto-generated IDs
 static size_t elem_auto_id = 0;
 static size_t blueprint_auto_id = 0;
+static size_t gui_auto_id = 0;
 
 // keyboard input
 typedef struct phos_gui_key_timer
@@ -117,6 +126,7 @@ void phos_gui_init()
 
 	dynas_init(&elem_registry);
 	dynas_init(&blueprint_registry);
+	dynas_init(&gui_registry);
 	dynas_init(&event_listeners);
 	dynas_init(&textures);
 	dynas_init(&fonts);
@@ -137,6 +147,7 @@ void phos_gui_shutdown()
 
 	dynas_free(&elem_registry);
 	dynas_free(&blueprint_registry);
+	dynas_free(&gui_registry);
 	dynas_free(&event_listeners);
 
 	// unload every texture loaded
@@ -163,10 +174,40 @@ void phos_gui_toggle_debug_mode()
 	in_debug_mode = !in_debug_mode;
 }
 
+static void phos_gui_auto_gen_id(const char *ID, char *target, const char *prefix, size_t *generator)
+{
+	if(strcmp(ID, "!<auto-gen>") == 0)
+		sprintf(target, "<auto-gen>");
+	else if(strcmp(ID, "<auto-gen>") == 0)
+		sprintf(target, "%s_#%zu", prefix, (*generator)++);
+}
+
 void phos_gui_set_gui(phos_gui *new_gui)
 {
 	prev_gui = curr_gui;
 	curr_gui = new_gui;
+
+	// only register non-null pointers:
+	if(new_gui)
+	{
+		// see if a duplicate is found
+		for(size_t i = 0; i < gui_registry.size; ++i)
+		{
+			phos_gui *saved_gui = gui_registry.data[i];
+
+			// if a match is found, the GUI is already registered:
+			if(saved_gui == new_gui)
+				return;
+		}
+
+		// auto-gen ID if necessary
+		phos_gui_auto_gen_id(new_gui -> ID, new_gui -> ID, "gui", &gui_auto_id);
+
+		// register the phos_gui
+		dynas_add(&gui_registry, new_gui);
+
+		vl_log(VL_SUCCESS, "Registered GUI with ID: '%s'!\n", new_gui -> ID);
+	}
 }
 phos_gui *phos_gui_get_curr_gui()
 {
@@ -175,6 +216,24 @@ phos_gui *phos_gui_get_curr_gui()
 phos_gui *phos_gui_get_prev_gui()
 {
 	return prev_gui;
+}
+phos_gui *phos_gui_get_gui(const char *ID)
+{
+	if(!ID || strlen(ID) == 0)
+	{
+		vl_log(VL_ERROR, "Cannot search for a phos_gui with an invalid ID!\n");
+		return NULL;
+	}
+
+	// try to find the matching GUI
+	for(size_t i = 0; i < gui_registry.size; ++i)
+	{
+		if(strcmp(gui_registry.data[i] -> ID, ID) == 0)
+			return gui_registry.data[i];
+	}
+
+	vl_log(VL_ERROR, "No phos_gui found with the ID: '%s'!\n", ID);
+	return NULL;
 }
 
 void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vector2 size)
@@ -665,13 +724,6 @@ void phos_gui_set_elem_margin(phos_gui_elem *elem, float left, float top, float 
 	elem -> bottom_margin = bottom;
 }
 
-static void phos_gui_auto_gen_id(const char *ID, char *target, size_t *generator)
-{
-	if(strcmp(ID, "!<auto-gen>") == 0)
-		sprintf(target, "<auto-gen>");
-	else if(strcmp(ID, "<auto-gen>") == 0)
-		sprintf(target, "elem_#%zu", (*generator)++);
-}
 static int phos_gui_register_elem(phos_gui_elem *elem)
 {
 	if(!elem)
@@ -691,7 +743,7 @@ static int phos_gui_register_elem(phos_gui_elem *elem)
 	}
 
 	// auto-generate if necessary
-	phos_gui_auto_gen_id(elem -> ID, elem -> ID, &elem_auto_id);
+	phos_gui_auto_gen_id(elem -> ID, elem -> ID, "elem", &elem_auto_id);
 
 	// find duplicate pointers and IDs:
 	for(size_t i = 0; i < elem_registry.size; ++i)
@@ -889,7 +941,7 @@ void phos_gui_clone_elem(phos_gui_elem *elem, const char *ID)
 	phos_gui_blueprint blueprint = {0};
 
 	// auto-generate ID if necessary
-	phos_gui_auto_gen_id(ID, blueprint.ID, &blueprint_auto_id);
+	phos_gui_auto_gen_id(ID, blueprint.ID, "blueprint", &blueprint_auto_id);
 
 	// see if a duplicate blueprint exists
 	for(size_t i = 0; i < blueprint_registry.size; ++i)

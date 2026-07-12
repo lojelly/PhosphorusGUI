@@ -305,7 +305,7 @@ typedef struct phos_gui_elem
 	  The ID should be unique.
 
 	  @important If you assign the ID to
-	  '<auto-gen>' then the library will
+	  '<auto-gen>' then PhosphorusGUI will
 	  automatically generate an ID for
 	  the element. If you just so happen
 	  to name an element '<auto-gen>' then
@@ -507,6 +507,20 @@ typedef struct phos_gui
 	*/
 	phos_gui_elem *elems[PHOS_GUI_MAX_ELEMS];
 	/**
+	  This GUI's ID.
+
+	  The ID should be unique.
+
+	  @important If you assign the ID to
+	  '<auto-gen>' then PhosphorusGUI will
+	  automatically generate an ID for
+	  the GUI. If you need to name an element
+	  '<auto-gen>' then instead name the element
+	  '!<auto-gen>' and PhosphorusGUI will properly name the
+	  element '<auto-gen>.'
+	*/
+	char ID[PHOS_GUI_MAX_ID_LEN + 1];
+	/**
 	  The current amount of elements inside this GUI.
 	*/
 	size_t num_elems;
@@ -561,6 +575,11 @@ PHOS_GUI_API void phos_gui_toggle_debug_mode(void);
   manage switching between them when necessary.
   PhosphorusGUI will handle everything else.
 
+  @note Every time PhosphorusGUI reads a new phos_gui
+  pointer here, it will automatically register the phos_gui
+  instance. It means you can later use phos_gui_get_gui(const char *ID)
+  to obtain that phos_gui instance from anywhere in the program.
+
   @important You can pass NULL into function
   to signal to PhosphorusGUI there is no GUI
   to render at the moment.
@@ -577,6 +596,11 @@ PHOS_GUI_API phos_gui *phos_gui_get_curr_gui(void);
   then this function returns NULL instead.
 */
 PHOS_GUI_API phos_gui *phos_gui_get_prev_gui(void);
+/**
+  Returns the phos_gui instance with the given ID,
+  or NULL if no phos_gui is found.
+*/
+PHOS_GUI_API phos_gui *phos_gui_get_gui(const char *ID);
 
 /**
   Centers a UI element inside the given bounds.

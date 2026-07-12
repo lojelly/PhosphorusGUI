@@ -10,6 +10,7 @@ int main(void)
 	SetTargetFPS(60);
 
 	phos_gui gui = {0};
+	strcpy(gui.ID, "<auto-gen>");
 
 	phos_gui_elem elem1 = {0};
 	phos_gui_add_elem_id(&gui, &elem1, "<auto-gen>");
