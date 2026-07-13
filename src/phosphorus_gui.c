@@ -116,7 +116,10 @@ static phos_gui *prev_gui = NULL;
 static phos_gui *curr_gui = NULL;
 
 // keep track of current 'goto' elem in the current GUI
-static size_t curr_gui_elem_num = 0;
+static int curr_gui_elem_num = -1;
+
+static float win_scale_x = 1.0f;
+static float win_scale_y = 1.0f;
 
 
 void phos_gui_init()
@@ -212,8 +215,8 @@ void phos_gui_set_gui(phos_gui *new_gui)
 		vl_log(VL_SUCCESS, "Registered GUI with ID: '%s'!\n", new_gui -> ID);
 	}
 
-	// reset 'goto' elem tracker to end of list
-	curr_gui_elem_num = new_gui -> num_elems;
+	// reset 'goto' elem tracker
+	curr_gui_elem_num = -1;
 }
 void phos_gui_set_gui_by_id(const char *ID)
 {
@@ -575,7 +578,7 @@ void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, fl
 	elem -> text.pos = Vector2Add(elem -> text.pos, diff);
 }
 
-void phos_gui_set_elem_outline(phos_gui_elem *elem, Color color, float thickness)
+void phos_gui_set_elem_outline(phos_gui_elem *elem, Color default_color, Color focus_color, float thickness)
 {
 	if(!elem)
 	{
@@ -588,11 +591,14 @@ void phos_gui_set_elem_outline(phos_gui_elem *elem, Color color, float thickness
 		vl_log(VL_WARNING, "Element outline disabled: '%s'.\n", elem -> ID);
 	}
 
-	// determine which color field to use based on render mode
-	if(elem -> render_mode == PHOS_GUI_OUTLINE)
-		elem -> color = color;
+	// if the element's outline will be rendered only, set its primary color to the default outline color given
+	/*if(elem -> render_mode == PHOS_GUI_OUTLINE)
+		elem -> color = default_color;
 	else
-		elem -> outline_color = color;
+		// else, use the normal 'outline_color' field
+		elem -> outline_color = default_color;*/
+	elem -> outline_color = default_color;
+	elem -> focus_outline_color = focus_color;
 	elem -> outline_thickness = thickness;
 }
 
@@ -1030,6 +1036,12 @@ void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID)
 	phos_gui_add_elem(bp -> elem -> gui, target_elem);
 }
 
+void phos_gui_set_win_scale(float x, float y)
+{
+	win_scale_x = x;
+	win_scale_y = y;
+}
+
 static void phos_gui_move_cursor_left(phos_gui_elem *e)
 {
 	if(e -> text.cursor_pos > 0)
@@ -1089,6 +1101,10 @@ static void phos_gui_goto_next_elem()
 		return;
 	}
 
+	// curr elem loses focus
+	if(curr_gui_elem_num >= 0)
+		curr_gui -> elems[curr_gui_elem_num] -> has_focus = false;
+
 	// go to next elem or loop back
 	curr_gui_elem_num++;
 	if(curr_gui_elem_num >= curr_gui -> num_elems)
@@ -1107,16 +1123,18 @@ static void phos_gui_goto_prev_elem()
 		return;
 	}
 
+	// curr elem loses focus
+	if(curr_gui_elem_num >= 0)
+		curr_gui -> elems[curr_gui_elem_num] -> has_focus = false;
+
 	// loop back, or go to previous elem
-	if(curr_gui_elem_num == 0)
+	if(curr_gui_elem_num <= 0)
 		curr_gui_elem_num = curr_gui -> num_elems - 1;
 	else
 		curr_gui_elem_num--;
 
 	// mark that elem as focused
 	curr_gui -> elems[curr_gui_elem_num] -> has_focus = true;
-
-	vl_log(VL_DEBUG, "curr focus elem: %p\n", curr_gui -> elems[curr_gui_elem_num]);
 }
 static bool phos_gui_travel_elems()
 {
@@ -1141,11 +1159,22 @@ static void phos_gui_update_elem(phos_gui_elem *e, float dt)
 	// get mouse information
 	Vector2 mouse_pos = GetMousePosition();
 
+	// take window scale into affect
+	mouse_pos.x /= win_scale_x;
+	mouse_pos.y /= win_scale_y;
+
 	bool mouse_clicked = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
 	bool mouse_down = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
 
+	bool no_focus = !e -> has_focus;
+
 	// see if mouse over element:
-	if(mouse_pos.x > e -> pos.x && mouse_pos.x < e -> pos.x + e -> size.x && mouse_pos.y > e -> pos.y && mouse_pos.y < e -> pos.y + e -> size.y)
+	
+	float elem_x = e -> pos.x;
+	float elem_y = e -> pos.y;
+	float elem_w = e -> size.x;
+	float elem_h = e -> size.y;
+	if(mouse_pos.x > elem_x && mouse_pos.x < elem_x + elem_w && mouse_pos.y > elem_y && mouse_pos.y < elem_y + elem_h)
 	{
 		e -> hovered = true;
 
@@ -1180,6 +1209,12 @@ static void phos_gui_update_elem(phos_gui_elem *e, float dt)
 		e -> clicked = false;
 		e -> pressed = false;
 	}
+
+	// if elem now has focus, it gained focus
+	if(no_focus && e -> has_focus)
+		e -> gained_focus = true;
+	else
+		e -> gained_focus = false;
 
 	// check type of element:
 	if(e -> type == PHOS_GUI_TEXT_FIELD)
@@ -1274,7 +1309,13 @@ void phos_gui_update(float dt)
 
 	// update elems:
 	for(size_t i = 0; i < curr_gui -> num_elems; ++i)
+	{
 		phos_gui_update_elem(curr_gui -> elems[i], dt);
+
+		// if elem gained focus, make this elem the current one
+		if(curr_gui -> elems[i] -> gained_focus)
+			curr_gui_elem_num = i;
+	}
 
 	// update event listeners
 	for(size_t i = 0; i < event_listeners.size; ++i)
@@ -1302,11 +1343,6 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 	else if(e -> hovered)
 		e_color = e -> hover_color;
 
-	// see if elem has focus and is the current GUI elem, and if so, use hover color
-	if(curr_gui -> elems[curr_gui_elem_num] == e)
-		if(e -> has_focus)
-			e_color = e -> hover_color;
-
 	// create elem rects:
 	Rectangle vis_bounds = phos_gui_get_visible_elem_rect(e);
 	Rectangle inner_bounds = phos_gui_get_inner_elem_rect(e);
@@ -1316,16 +1352,10 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 	float e_ry = e -> size.y / 2.0f;
 
 	// draw elem bg if it is valid
-	if(e -> bg_texture && IsTextureValid(*e -> bg_texture))
+	if(e -> texture && IsTextureValid(*e -> texture))
 	{
-		// warn if the render mode is not PHOS_GUI_TEXTURE
-		if(e -> render_mode != PHOS_GUI_TEXTURE)
-			vl_delay_log(VL_WARNING, 3.0f, "This element ('%s') does not have the PHOS_GUI_TEXTURE render mode, skipping rendering texture.\n", e -> ID);
-		else
-		{
-			Rectangle src = { 0, 0, e -> bg_texture -> width, e -> bg_texture -> height };
-			DrawTexturePro(*e -> bg_texture, src, vis_bounds, PHOS_GUI_WIN_ORIGIN, e -> rotation, e_color);
-		}
+		Rectangle src = { 0, 0, e -> texture -> width, e -> texture -> height };
+		DrawTexturePro(*e -> texture, src, vis_bounds, PHOS_GUI_WIN_ORIGIN, e -> rotation, e_color);
 	}
 	// else just draw base shape (if set)
 	else if(e -> render_mode == PHOS_GUI_FILL_OUTLINE || e -> render_mode == PHOS_GUI_FILL)
@@ -1396,8 +1426,8 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 			outline_color = e -> focus_outline_color;
 
 		// if the elem is just being outlined, switch its outline color for 'e_color' so mouse state affects the elem visually
-		if(e -> render_mode == PHOS_GUI_OUTLINE)
-			outline_color = e_color;
+		/*if(e -> render_mode == PHOS_GUI_OUTLINE)
+			outline_color = e_color;*/
 
 		switch(e -> shape)
 		{

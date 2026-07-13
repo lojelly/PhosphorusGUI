@@ -71,7 +71,8 @@ typedef enum phos_gui_elem_render_mode
 	  The element's shape will be used for other things,
 	  but the main content of the element will not be
 	  rendered using its shape. Instead, PhosphorusGUI
-	  now expects the element to have a texture set on it.
+	  now expects the element to have a texture set on it,
+	  and you only want the texture rendered.
 	*/
 	PHOS_GUI_TEXTURE
 } phos_gui_elem_render_mode;
@@ -323,12 +324,18 @@ typedef struct phos_gui_elem
 	/**
 	  This UI element's background texture.
 
+	  @note When an element has a valid, non-null
+	  texture, that texture is rendered instead
+	  of the element's shape. Additionally,
+	  when using a texture, the render mode of the
+	  element is expected to be PHOS_GUI_TEXTURE.
+
 	  @important If you load the texture yourself,
 	  it is up to you to unload it later. However,
 	  if you use phos_gui_load_texture(...) instead,
 	  PhosphorusGUI will handle it all for you.
 	*/
-	Texture2D *bg_texture;
+	Texture2D *texture;
 
 	/**
 	  The element's position.
@@ -458,7 +465,7 @@ typedef struct phos_gui_elem
 	float bottom_margin;
 
 	/**
-	  Determines if this element has focus.
+	  Determines if this element currently has focus.
 
 	  An element gains focus when the user clicks
 	  it.
@@ -467,6 +474,12 @@ typedef struct phos_gui_elem
 	  somewhere else on screen.
 	*/
 	bool has_focus;
+	/**
+	  Determines if the element gained focus this frame.
+
+	  @see has_focus
+	*/
+	bool gained_focus;
 	/**
 	  Determines if the mouse is over this element.
 	*/
@@ -698,8 +711,11 @@ PHOS_GUI_API void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y
 
 /**
   Quickly sets up the outline of an element (the color and line thickness).
+
+  @note Elements have two outline colors, the default outline color, and then
+  an outline color for when the element has focus.
 */
-PHOS_GUI_API void phos_gui_set_elem_outline(phos_gui_elem *elem, Color color, float thickness);
+PHOS_GUI_API void phos_gui_set_elem_outline(phos_gui_elem *elem, Color default_color, Color focus_color, float thickness);
 
 /**
   Quickly sets up an element's colors.
@@ -827,6 +843,19 @@ PHOS_GUI_API void phos_gui_clone_elem(phos_gui_elem *elem, const char *ID);
   @see phos_gui_remove_elem(phos_gui*, phos_gui_elem*)
 */
 PHOS_GUI_API void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID);
+
+/**
+  Sets the global window scale in PhosphorusGUI.
+
+  If your window is using a custom aspect ratio or
+  scaling method, the mouse information PhosphorusGUI
+  reads may be incorrect. This function will let
+  PhosphorusGUI know more about the window and your
+  program.
+
+  @note This function does not affect the window.
+*/
+PHOS_GUI_API void phos_gui_set_win_scale(float x, float y);
 
 /**
   Updates the current phos_gui's elements.
