@@ -154,22 +154,22 @@ typedef enum phos_gui_alignment
 	*/
 	PHOS_GUI_ALIGN_INNER_CENTER,
 	/**
-	  Indicates the targeted item should be placed in the top-left
+	  Indicates the targeted item should be placed in the inner top-left
 	  corner of an element.
 	*/
 	PHOS_GUI_ALIGN_INNER_TOP_LEFT,
 	/**
-	  Indicates the targeted item should be placed in the top-right
+	  Indicates the targeted item should be placed in the inner top-right
 	  corner of an element.
 	*/
 	PHOS_GUI_ALIGN_INNER_TOP_RIGHT,
 	/**
-	  Indicates the targeted item should be placed in the bottom-left
+	  Indicates the targeted item should be placed in the inner bottom-left
 	  corner of an element.
 	*/
 	PHOS_GUI_ALIGN_INNER_BOTTOM_LEFT,
 	/**
-	  Indicates the targeted item should be placed in the bottom-right
+	  Indicates the targeted item should be placed in the inner bottom-right
 	  corner of an element.
 	*/
 	PHOS_GUI_ALIGN_INNER_BOTTOM_RIGHT,
@@ -193,6 +193,26 @@ typedef enum phos_gui_alignment
 	  an element.
 	*/
 	PHOS_GUI_ALIGN_BOTTOM,
+	/**
+	  Indicates the targeted item should be placed in the outer top-left
+	  corner of an element.
+	*/
+	PHOS_GUI_ALIGN_TOP_LEFT,
+	/**
+	  Indicates the targeted item should be placed in the outer top-right
+	  corner of an element.
+	*/
+	PHOS_GUI_ALIGN_TOP_RIGHT,
+	/**
+	  Indicates the targeted item should be placed in the outer bottom-left
+	  corner of an element.
+	*/
+	PHOS_GUI_ALIGN_BOTTOM_LEFT,
+	/**
+	  Indicates the targeted item should be placed in the outer bottom-right
+	  corner of an element.
+	*/
+	PHOS_GUI_ALIGN_BOTTOM_RIGHT,
 } phos_gui_alignment;
 
 /**

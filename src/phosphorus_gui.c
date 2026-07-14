@@ -720,6 +720,22 @@ Vector2 phos_gui_get_proposed_align_pos(const phos_gui_elem *const reference_ele
 			v.x = elem_left + (elem_width - target_object_size.x) / 2.0f;
 			v.y = elem_bottom;
 			break;
+		case PHOS_GUI_ALIGN_TOP_LEFT:
+			v.x = elem_left - target_object_size.x;
+			v.y = elem_top - target_object_size.y;
+			break;
+		case PHOS_GUI_ALIGN_TOP_RIGHT:
+			v.x = elem_right;
+			v.y = elem_top - target_object_size.y;
+			break;
+		case PHOS_GUI_ALIGN_BOTTOM_LEFT:
+			v.x = elem_left - target_object_size.x;
+			v.y = elem_bottom;
+			break;
+		case PHOS_GUI_ALIGN_BOTTOM_RIGHT:
+			v.x = elem_right;
+			v.y = elem_bottom;
+			break;
 	}
 
 	return v;

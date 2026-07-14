@@ -28,7 +28,7 @@ int main(void)
 	phos_gui_setup_elem(&elem1, PHOS_GUI_TYPE_BUTTON, PHOS_GUI_RENDER_FILL, 0, 0, 100, 100);
 	phos_gui_gen_color_set(&elem1.primary_colors, WHITE, -0.1f, -0.2f, 0.0f);
 	phos_gui_add_elem_to_container(&elem1, &elem0);
-	phos_gui_align_elem(&elem1, PHOS_GUI_ALIGN_INNER_BOTTOM_RIGHT, &elem0);
+	phos_gui_align_elem(&elem1, PHOS_GUI_ALIGN_INNER_CENTER, &elem0);
 
 	while(!WindowShouldClose())
 	{
