@@ -8,7 +8,7 @@
 
 #define PHOS_GUI_DEBUG_PADDING_COLOR RED
 #define PHOS_GUI_DEBUG_MARGIN_COLOR GREEN
-#define PHOS_GUI_DEBUG_LINE_THICKNESS 7.5f
+#define PHOS_GUI_DEBUG_LINE_THICKNESS 5.0f
 
 #define PHOS_GUI_CURSOR_WIDTH 3
 #define PHOS_GUI_KEY_REPEAT_DELAY 0.5f
@@ -77,7 +77,7 @@ static phos_gui_arr gui_registry;
 static phos_gui_tex_arr textures;
 static phos_gui_font_arr fonts;
 
-// for objects with "<auto-gen>" ID, ensures unique auto-generated IDs
+// for objects with "auto" ID, ensures unique auto-generated IDs
 static size_t elem_auto_id = 0;
 static size_t blueprint_auto_id = 0;
 static size_t gui_auto_id = 0;
@@ -167,9 +167,9 @@ void phos_gui_toggle_debug_mode()
 
 static void phos_gui_auto_gen_id(const char *ID, char *target, const char *prefix, size_t *generator)
 {
-	if(strcmp(ID, "!<auto-gen>") == 0)
-		sprintf(target, "<auto-gen>");
-	else if(strcmp(ID, "<auto-gen>") == 0)
+	if(strcmp(ID, "!auto") == 0)
+		sprintf(target, "!auto");
+	else if(strcmp(ID, "auto") == 0)
 		sprintf(target, "%s_#%zu", prefix, (*generator)++);
 }
 
@@ -274,10 +274,17 @@ void phos_gui_move_elem(phos_gui_elem *elem, float x, float y)
 		return;
 	}
 
+	// first move elem
 	elem -> pos.x += x;
-	elem -> text.pos.x += x;
 	elem -> pos.y += y;
+
+	// then move elem's text component
+	elem -> text.pos.x += x;
 	elem -> text.pos.y += y;
+
+	// then move elem's child elements the same amount of pixels
+	for(size_t i = 0; i < elem -> num_children; ++i)
+		phos_gui_move_elem(elem -> children[i], x, y);
 }
 
 Vector2 phos_gui_get_elem_center(phos_gui_elem *elem)
@@ -290,12 +297,13 @@ Vector2 phos_gui_get_elem_center(phos_gui_elem *elem)
 		return v;
 	}
 
-	// start at origin
-	v = elem -> pos;
+	// start at inner origin
+	Rectangle inner_rect = phos_gui_get_inner_elem_rect(elem);
+	v = (Vector2) { inner_rect.x, inner_rect.y };
 
 	// add half the elem size
-	v.x += elem -> size.x / 2.0f;
-	v.y += elem -> size.y / 2.0f;
+	v.x += inner_rect.width / 2.0f;
+	v.y += inner_rect.height / 2.0f;
 
 	return v;
 }
@@ -576,6 +584,10 @@ void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, fl
 
 	// move text based on 'diff'
 	elem -> text.pos = Vector2Add(elem -> text.pos, diff);
+
+	// then move elem's child elements the same amount of pixels
+	for(size_t i = 0; i < elem -> num_children; ++i)
+		phos_gui_move_elem(elem -> children[i], diff.x, diff.y);
 }
 
 void phos_gui_init_color_set(phos_gui_color_set *set, Color normal_color, Color hover_color, Color press_color, Color focus_color)
@@ -676,9 +688,37 @@ Vector2 phos_gui_get_proposed_align_pos(const phos_gui_elem *const reference_ele
 			v.x = content_left + (content_width - target_object_size.x) / 2.0f;
 			v.y = content_top + (content_height - target_object_size.y) / 2.0f;
 			break;
-		case PHOS_GUI_ALIGN_ABOVE:
+		case PHOS_GUI_ALIGN_INNER_TOP_LEFT:
+			v.x = content_left;
+			v.y = content_top;
+			break;
+		case PHOS_GUI_ALIGN_INNER_TOP_RIGHT:
+			v.x = content_right - target_object_size.x;
+			v.y = content_top;
+			break;
+		case PHOS_GUI_ALIGN_INNER_BOTTOM_LEFT:
+			v.x = content_left;
+			v.y = content_bottom - target_object_size.y;
+			break;
+		case PHOS_GUI_ALIGN_INNER_BOTTOM_RIGHT:
+			v.x = content_right - target_object_size.x;
+			v.y = content_bottom - target_object_size.y;
+			break;
+		case PHOS_GUI_ALIGN_LEFT:
+			v.x = elem_left - target_object_size.x;
+			v.y = elem_top + (elem_height - target_object_size.y) / 2.0f;
+			break;
+		case PHOS_GUI_ALIGN_TOP:
 			v.x = elem_left + (elem_width - target_object_size.x) / 2.0f;
 			v.y = elem_top - target_object_size.y;
+			break;
+		case PHOS_GUI_ALIGN_RIGHT:
+			v.x = elem_right;
+			v.y = elem_top + (elem_height - target_object_size.y) / 2.0f;
+			break;
+		case PHOS_GUI_ALIGN_BOTTOM:
+			v.x = elem_left + (elem_width - target_object_size.x) / 2.0f;
+			v.y = elem_bottom;
 			break;
 	}
 
@@ -744,6 +784,20 @@ void phos_gui_set_elem_margin(phos_gui_elem *elem, float left, float top, float 
 	elem -> top_margin = top;
 	elem -> right_margin = right;
 	elem -> bottom_margin = bottom;
+}
+
+void phos_gui_setup_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot setup null UI element!\n");
+		return;
+	}
+
+	elem -> type = type;
+	elem -> render_mode = render_mode;
+	elem -> pos = (Vector2) { x, y };
+	elem -> size = (Vector2) { w, h };
 }
 
 static int phos_gui_register_elem(phos_gui_elem *elem)
@@ -812,6 +866,10 @@ static void phos_gui_resolve_margin_collisions(phos_gui *gui)
 			phos_gui_elem *e1 = gui -> elems[i];
 			phos_gui_elem *e2 = gui -> elems[j];
 
+			// if these elems have a parent-child relationship, ignore their margins
+			if(e1 -> parent == e2 || e2 -> parent == e1)
+				continue;
+
 			// create margin rects
 			Rectangle margin1 = phos_gui_get_outer_elem_rect(e1);
 			Rectangle margin2 = phos_gui_get_outer_elem_rect(e2);
@@ -864,13 +922,13 @@ static void phos_gui_resolve_margin_collisions(phos_gui *gui)
 				// push the items apart using overlap values
 				switch(gui -> layout_type)
 				{
-					case PHOS_GUI_VERTICAL_LAYOUT:
+					case PHOS_GUI_LAYOUT_VERTICAL:
 						if(e1 -> pos.y < e2 -> pos.y)
 							phos_gui_move_elem(e2, 0, overlap_y);
 						else if(e2 -> pos.y < e1 -> pos.y)
 							phos_gui_move_elem(e1, 0, overlap_y);
 						break;
-					case PHOS_GUI_HORIZONTAL_LAYOUT:
+					case PHOS_GUI_LAYOUT_HORIZONTAL:
 						if(e1 -> pos.x < e2 -> pos.x)
 							phos_gui_move_elem(e2, overlap_x, 0);
 						else if(e2 -> pos.x < e1 -> pos.x)
@@ -931,11 +989,19 @@ int phos_gui_add_elem_id(phos_gui *gui, phos_gui_elem *elem, const char *ID)
 	// add normally
 	return phos_gui_add_elem(gui, elem);
 }
-int phos_gui_add_elem_to_container(phos_gui_elem *container, phos_gui_elem *elem)
+int phos_gui_add_elem_to_container(phos_gui_elem *elem, phos_gui_elem *container)
 {
 	if(!container || !elem)
 	{
 		vl_log(VL_ERROR, "Failed to add element to container! Make sure 'container' and 'elem' are not NULL!\n");
+		return 0;
+	}
+
+	// try to add elem to same phos_gui
+	int success = phos_gui_add_elem(container -> gui, elem);
+	if(success == 0)
+	{
+		vl_log(VL_ERROR, "Failed to add element to container!\n");
 		return 0;
 	}
 
@@ -947,8 +1013,10 @@ int phos_gui_add_elem_to_container(phos_gui_elem *container, phos_gui_elem *elem
 	}
 	container -> children[container -> num_children++] = elem;
 
-	// add elem to same phos_gui
-	return phos_gui_add_elem(container -> gui, elem);
+	// the element's parent becomes the container
+	elem -> parent = container;
+
+	return 1;
 }
 phos_gui_elem *phos_gui_get_elem(const char *ID)
 {
@@ -1049,7 +1117,7 @@ void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID)
 
 	// start creating new instance
 	*target_elem = *bp -> elem;
-	strcpy(target_elem -> ID, "<auto-gen>");
+	strcpy(target_elem -> ID, "auto");
 
 	// add and register the elem
 	phos_gui_add_elem(bp -> elem -> gui, target_elem);
@@ -1160,8 +1228,15 @@ static void phos_gui_goto_prev_elem()
 	else
 		curr_gui_elem_num--;
 
-	// mark that elem as focused
-	curr_gui -> elems[curr_gui_elem_num] -> has_focus = true;
+	// get new elem
+	phos_gui_elem *elem = curr_gui -> elems[curr_gui_elem_num];
+
+	// mark that elem as focused (if a valid elem type)
+	if(elem -> type != PHOS_GUI_TYPE_INVALID &&
+			elem -> type != PHOS_GUI_TYPE_BASIC)
+	{
+		elem -> has_focus = true;
+	}
 }
 static bool phos_gui_travel_elems()
 {
@@ -1183,6 +1258,12 @@ static bool phos_gui_travel_elems()
 
 static void phos_gui_update_elem(phos_gui_elem *e, float dt)
 {
+	/* no checks to see what kind of element is given,
+	   as it is expected for the calling function to check
+	   for the type. (ex phos_gui_update(...) calls this
+	   function, but it only calls it on valid elements.
+	*/
+
 	// get mouse information
 	Vector2 mouse_pos = phos_gui_get_mouse_pos();
 
@@ -1240,7 +1321,7 @@ static void phos_gui_update_elem(phos_gui_elem *e, float dt)
 		e -> gained_focus = false;
 
 	// check type of element:
-	if(e -> type == PHOS_GUI_TEXT_FIELD)
+	if(e -> type == PHOS_GUI_TYPE_TEXT_FIELD)
 	{
 		// reset 'edited' field
 		e -> text.edited = false;
@@ -1332,16 +1413,25 @@ void phos_gui_update(float dt)
 	// update elems:
 	for(size_t i = 0; i < curr_gui -> num_elems; ++i)
 	{
-		if(curr_gui -> elems[i] -> type == PHOS_GUI_INVALID_ELEM_TYPE)
+		// get elem at i
+		phos_gui_elem *elem = curr_gui -> elems[i];
+
+		// cannot update invalid elements
+		if(elem -> type == PHOS_GUI_TYPE_INVALID)
 		{
-			vl_delay_log(VL_ERROR, 1.0f, "Element has invalid type: '%s'!\n", curr_gui -> elems[i] -> ID);
+			vl_delay_log(VL_ERROR, 1.0f, "Element has invalid type: '%s'!\n", elem -> ID);
 			continue;
 		}
 
-		phos_gui_update_elem(curr_gui -> elems[i], dt);
+		// and skip basic elems
+		else if(elem -> type == PHOS_GUI_TYPE_BASIC)
+			continue;
+
+		// update the element
+		phos_gui_update_elem(elem, dt);
 
 		// if elem gained focus, make this elem the current one
-		if(curr_gui -> elems[i] -> gained_focus)
+		if(elem -> gained_focus)
 			curr_gui_elem_num = i;
 	}
 
@@ -1361,16 +1451,15 @@ static Color phos_gui_resolve_elem_color(const phos_gui_elem *const e, const pho
 	// get the normal color of elem
 	Color color = colors -> normal_color;
 
-	// check for focus (hovered + pressed/clicked)
-	if(e -> has_focus)
-		color = colors -> focus_color;
-	// then check if just hovered
+	// 1. check to see if mouse button held down over element
+	if(e -> pressed)
+		color = colors -> press_color;
+	// 2. check to see if they only have the mouse over the element
 	else if(e -> hovered)
 		color = colors -> hover_color;
-
-	// re-check for left mouse button down + hovered, and if so, use press color
-	if(IsMouseButtonDown(MOUSE_BUTTON_LEFT) && e -> hovered)
-		color = colors -> press_color;
+	// 3. check to see if the elem has focus
+	else if(e -> has_focus)
+		color = colors -> focus_color;
 
 	return color;
 }
@@ -1395,17 +1484,17 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 		DrawTexturePro(*e -> texture, src, vis_bounds, PHOS_GUI_WIN_ORIGIN, e -> rotation, primary_color);
 	}
 	// else just draw base shape (if set)
-	else if(e -> render_mode == PHOS_GUI_FILL_OUTLINE || e -> render_mode == PHOS_GUI_FILL)
+	else if(e -> render_mode == PHOS_GUI_RENDER_FILL_OUTLINE || e -> render_mode == PHOS_GUI_RENDER_FILL)
 	{
 		switch(e -> shape)
 		{
-			case PHOS_GUI_RECT:
+			case PHOS_GUI_SHAPE_RECT:
 				DrawRectanglePro(vis_bounds, PHOS_GUI_WIN_ORIGIN, e -> rotation, primary_color);
 				break;
-			case PHOS_GUI_ELLIPSE:
+			case PHOS_GUI_SHAPE_ELLIPSE:
 				DrawEllipse(vis_bounds.x + e_rx, vis_bounds.y + e_ry, e_rx, e_ry, primary_color);
 				break;
-			case PHOS_GUI_ROUND_RECT:
+			case PHOS_GUI_SHAPE_ROUND_RECT:
 				DrawRectangleRounded(vis_bounds, e -> corner_radius, PHOS_GUI_ROUND_RECT_SEGMENTS, primary_color);
 				break;
 		}
@@ -1424,10 +1513,12 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 
 			switch(e -> type)
 			{
-				case PHOS_GUI_BUTTON:
+				// for basic elems and buttons, just render text with the set attributes
+				case PHOS_GUI_TYPE_BASIC:
+				case PHOS_GUI_TYPE_BUTTON:
 					DrawTextEx(*e -> text.font, e -> text.str, e -> text.pos, e -> text.font_size, 0.0f, e -> text.color);
 					break;
-				case PHOS_GUI_TEXT_FIELD:
+				case PHOS_GUI_TYPE_TEXT_FIELD:
 					// calculate where to draw the text
 					Vector2 draw_pos = e -> text.pos;
 					draw_pos.x -= e -> text.scroll;
@@ -1460,22 +1551,28 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 	}
 
 	// render outline (if set)
-	if(e -> render_mode == PHOS_GUI_FILL_OUTLINE || e -> render_mode == PHOS_GUI_OUTLINE)
+	if(e -> render_mode == PHOS_GUI_RENDER_FILL_OUTLINE || e -> render_mode == PHOS_GUI_RENDER_OUTLINE)
 	{
-		// get outline color
-		Color outline_color = phos_gui_resolve_elem_color(e, &e -> outline_colors);
-
-		switch(e -> shape)
+		// if thickness is 0 or less, warn
+		if(e -> outline_thickness <= 0.0f)
+			vl_delay_log(VL_WARNING, 5.0f, "Element's ('%s') outline thickness is invalid: %f\n", e -> ID, e -> outline_thickness);
+		else
 		{
-			case PHOS_GUI_RECT:
-				DrawRectangleLinesEx(vis_bounds, e -> outline_thickness, outline_color);
-				break;
-			case PHOS_GUI_ELLIPSE:
-				phos_gui_render_ellipse_outline(e -> pos, e_rx, e_ry, e -> outline_thickness, outline_color);
-				break;
-			case PHOS_GUI_ROUND_RECT:
-				DrawRectangleRoundedLinesEx(vis_bounds, e -> corner_radius, PHOS_GUI_ROUND_RECT_SEGMENTS, e -> outline_thickness, outline_color);
-				break;
+			// get outline color
+			Color outline_color = phos_gui_resolve_elem_color(e, &e -> outline_colors);
+
+			switch(e -> shape)
+			{
+				case PHOS_GUI_SHAPE_RECT:
+					DrawRectangleLinesEx(vis_bounds, e -> outline_thickness, outline_color);
+					break;
+				case PHOS_GUI_SHAPE_ELLIPSE:
+					phos_gui_render_ellipse_outline(e -> pos, e_rx, e_ry, e -> outline_thickness, outline_color);
+					break;
+				case PHOS_GUI_SHAPE_ROUND_RECT:
+					DrawRectangleRoundedLinesEx(vis_bounds, e -> corner_radius, PHOS_GUI_ROUND_RECT_SEGMENTS, e -> outline_thickness, outline_color);
+					break;
+			}
 		}
 	}
 
@@ -1492,15 +1589,15 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 
 		switch(e -> shape)
 		{
-			case PHOS_GUI_RECT:
+			case PHOS_GUI_SHAPE_RECT:
 				DrawRectangleLinesEx(padding_bounds, PHOS_GUI_DEBUG_LINE_THICKNESS, PHOS_GUI_DEBUG_PADDING_COLOR);
 				DrawRectangleLinesEx(margin_bounds, PHOS_GUI_DEBUG_LINE_THICKNESS, PHOS_GUI_DEBUG_MARGIN_COLOR);
 				break;
-			case PHOS_GUI_ELLIPSE:
+			case PHOS_GUI_SHAPE_ELLIPSE:
 				phos_gui_render_ellipse_outline(padding_pos, padding_bounds.width / 2.0f, padding_bounds.height / 2.0f, PHOS_GUI_DEBUG_LINE_THICKNESS, PHOS_GUI_DEBUG_PADDING_COLOR);
 				phos_gui_render_ellipse_outline(margin_pos, margin_bounds.width / 2.0f, margin_bounds.height / 2.0f, PHOS_GUI_DEBUG_LINE_THICKNESS, PHOS_GUI_DEBUG_MARGIN_COLOR);
 				break;
-			case PHOS_GUI_ROUND_RECT:
+			case PHOS_GUI_SHAPE_ROUND_RECT:
 				DrawRectangleRoundedLinesEx(padding_bounds, e -> corner_radius, PHOS_GUI_ROUND_RECT_SEGMENTS, e -> outline_thickness, PHOS_GUI_DEBUG_PADDING_COLOR);
 				DrawRectangleRoundedLinesEx(margin_bounds, e -> corner_radius, PHOS_GUI_ROUND_RECT_SEGMENTS, e -> outline_thickness, PHOS_GUI_DEBUG_MARGIN_COLOR);
 				break;
@@ -1517,13 +1614,20 @@ void phos_gui_render()
 
 	for(size_t i = 0; i < curr_gui -> num_elems; ++i)
 	{
-		if(curr_gui -> elems[i] -> type == PHOS_GUI_INVALID_ELEM_TYPE)
+		// get elem
+		phos_gui_elem *elem = curr_gui -> elems[i];
+
+		if(elem -> type == PHOS_GUI_TYPE_INVALID)
 		{
-			vl_delay_log(VL_ERROR, 1.0f, "Element has invalid type: '%s'!\n", curr_gui -> elems[i] -> ID);
+			vl_delay_log(VL_ERROR, 1.0f, "Element has invalid type: '%s'!\n", elem -> ID);
 			continue;
 		}
 
-		phos_gui_render_elem(curr_gui -> elems[i]);
+		phos_gui_render_elem(elem);
+
+		// warn about empty containers
+		if(elem -> type == PHOS_GUI_TYPE_CONTAINER && elem -> num_children == 0)
+			vl_delay_log(VL_WARNING, 10.0f, "Element is a container but has no children: '%s'!\n", elem -> ID);
 	}
 }
 

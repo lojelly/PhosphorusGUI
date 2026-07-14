@@ -37,7 +37,17 @@ typedef enum phos_gui_elem_type
 	  
 	  Indicates invalid state.
 	*/
-	PHOS_GUI_INVALID_ELEM_TYPE,
+	PHOS_GUI_TYPE_INVALID,
+	/**
+	  The most basic element type.
+
+	  This type indicates the element has no extra
+	  functionality, and it should simply be rendered
+	  using its set attributes. However, basic elements
+	  are not updated like other elements; they do not
+	  process mouse or keyboard input.
+	*/
+	PHOS_GUI_TYPE_BASIC,
 	/**
 	  The container element type.
 
@@ -47,15 +57,15 @@ typedef enum phos_gui_elem_type
 	  parent element of all the child elements. Container
 	  elements behave like any other type of element.
 	*/
-	PHOS_GUI_CONTAINER,
+	PHOS_GUI_TYPE_CONTAINER,
 	/**
 	  The button element type.
 	*/
-	PHOS_GUI_BUTTON,
+	PHOS_GUI_TYPE_BUTTON,
 	/**
 	  The text field element type.
 	*/
-	PHOS_GUI_TEXT_FIELD
+	PHOS_GUI_TYPE_TEXT_FIELD
 } phos_gui_elem_type;
 
 /**
@@ -66,15 +76,15 @@ typedef enum phos_gui_elem_shape
 	/**
 	  The default type of all elements: the rectangle shape.
 	*/
-	PHOS_GUI_RECT,
+	PHOS_GUI_SHAPE_RECT,
 	/**
 	  The ellipse shape.
 	*/
-	PHOS_GUI_ELLIPSE,
+	PHOS_GUI_SHAPE_ELLIPSE,
 	/**
 	  The rounded-rectangle shape.
 	*/
-	PHOS_GUI_ROUND_RECT
+	PHOS_GUI_SHAPE_ROUND_RECT
 } phos_gui_elem_shape;
 
 /**
@@ -88,15 +98,15 @@ typedef enum phos_gui_elem_render_mode
 	  Results in the element's shape being filled,
 	  then outlined.
 	*/
-	PHOS_GUI_FILL_OUTLINE,
+	PHOS_GUI_RENDER_FILL_OUTLINE,
 	/**
 	  Results in just the element's shape being filled.
 	*/
-	PHOS_GUI_FILL,
+	PHOS_GUI_RENDER_FILL,
 	/**
 	  Results in just the element's outline being rendered.
 	*/
-	PHOS_GUI_OUTLINE,
+	PHOS_GUI_RENDER_OUTLINE,
 	/**
 	  Results in the element's shape not being rendered.
 
@@ -106,7 +116,7 @@ typedef enum phos_gui_elem_render_mode
 	  now expects the element to have a texture set on it,
 	  and you only want the texture rendered.
 	*/
-	PHOS_GUI_TEXTURE
+	PHOS_GUI_RENDER_TEXTURE
 } phos_gui_elem_render_mode;
 
 /**
@@ -144,10 +154,45 @@ typedef enum phos_gui_alignment
 	*/
 	PHOS_GUI_ALIGN_INNER_CENTER,
 	/**
+	  Indicates the targeted item should be placed in the top-left
+	  corner of an element.
+	*/
+	PHOS_GUI_ALIGN_INNER_TOP_LEFT,
+	/**
+	  Indicates the targeted item should be placed in the top-right
+	  corner of an element.
+	*/
+	PHOS_GUI_ALIGN_INNER_TOP_RIGHT,
+	/**
+	  Indicates the targeted item should be placed in the bottom-left
+	  corner of an element.
+	*/
+	PHOS_GUI_ALIGN_INNER_BOTTOM_LEFT,
+	/**
+	  Indicates the targeted item should be placed in the bottom-right
+	  corner of an element.
+	*/
+	PHOS_GUI_ALIGN_INNER_BOTTOM_RIGHT,
+	/**
+	  Indicates the targeted item should be placed directly to the left
+	  of an element.
+	*/
+	PHOS_GUI_ALIGN_LEFT,
+	/**
 	  Indicates the targeted item should be placed directly above
 	  an element.
 	*/
-	PHOS_GUI_ALIGN_ABOVE
+	PHOS_GUI_ALIGN_TOP,
+	/**
+	  Indicates the targeted item should be placed directly to the right
+	  of an element.
+	*/
+	PHOS_GUI_ALIGN_RIGHT,
+	/**
+	  Indicates the targeted item should be placed directly below
+	  an element.
+	*/
+	PHOS_GUI_ALIGN_BOTTOM,
 } phos_gui_alignment;
 
 /**
@@ -163,14 +208,14 @@ typedef enum phos_gui_layout_type
 
 	  @note This is the default layout type.
 	*/
-	PHOS_GUI_VERTICAL_LAYOUT,
+	PHOS_GUI_LAYOUT_VERTICAL,
 	/**
 	  Indicates that all items are organized horizontally.
 
 	  When margin collisions occur, this layout resolves
 	  them by pushing the colliding objects to the side.
 	*/
-	PHOS_GUI_HORIZONTAL_LAYOUT,
+	PHOS_GUI_LAYOUT_HORIZONTAL,
 } phos_gui_layout_type;
 
 
@@ -396,13 +441,11 @@ typedef struct phos_gui_elem
 	  The ID should be unique.
 
 	  @important If you assign the ID to
-	  '<auto-gen>' then PhosphorusGUI will
+	  'auto' then PhosphorusGUI will
 	  automatically generate an ID for
-	  the element. If you just so happen
-	  to name an element '<auto-gen>' then
-	  instead name the element '!<auto-gen>'
-	  and PhosphorusGUI will properly name the
-	  element '<auto-gen>.'
+	  the element. If you want the element to
+	  actually have the ID 'auto,' then set the
+	  ID to '!auto' and it will be properly set.
 	*/
 	char ID[PHOS_GUI_MAX_ID_LEN + 1];
 
@@ -597,12 +640,11 @@ typedef struct phos_gui
 	  The ID should be unique.
 
 	  @important If you assign the ID to
-	  '<auto-gen>' then PhosphorusGUI will
+	  'auto' then PhosphorusGUI will
 	  automatically generate an ID for
-	  the GUI. If you need to name an element
-	  '<auto-gen>' then instead name the element
-	  '!<auto-gen>' and PhosphorusGUI will properly name the
-	  element '<auto-gen>.'
+	  the element. If you want the element to
+	  actually have the ID 'auto,' then set the
+	  ID to '!auto' and it will be properly set. 
 	*/
 	char ID[PHOS_GUI_MAX_ID_LEN + 1];
 	/**
@@ -850,6 +892,11 @@ PHOS_GUI_API void phos_gui_set_elem_padding(phos_gui_elem *elem, float left, flo
 PHOS_GUI_API void phos_gui_set_elem_margin(phos_gui_elem *elem, float left, float top, float right, float bottom);
 
 /**
+  Sets some basic element attributes.
+*/
+PHOS_GUI_API void phos_gui_setup_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h);
+
+/**
   Adds a UI element to the given phos_gui instance.
 
   This automatically registers the element, and performs
@@ -880,7 +927,7 @@ PHOS_GUI_API int phos_gui_add_elem_id(phos_gui *gui, phos_gui_elem *elem, const 
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_add_elem_to_container(phos_gui_elem *container, phos_gui_elem *elem);
+PHOS_GUI_API int phos_gui_add_elem_to_container(phos_gui_elem *elem, phos_gui_elem *container);
 /**
   Obtains a UI element with a specific ID.
 */
