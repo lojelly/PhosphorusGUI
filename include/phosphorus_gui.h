@@ -1,10 +1,14 @@
 #pragma once
 
 #ifdef _WIN32
-	#ifdef PHOS_GUI_EXPORTS
-		#define PHOS_GUI_API __declspec(dllexport)
+	#ifdef PHOS_GUI_DLL
+		#ifdef PHOS_GUI_EXPORTS
+			#define PHOS_GUI_API __declspec(dllexport)
+		#else
+			#define PHOS_GUI_API __declspec(dllimport)
+		#endif
 	#else
-		#define PHOS_GUI_API __declspec(dllimport)
+		#define PHOS_GUI_API
 	#endif
 #else
 	#define PHOS_GUI_API
@@ -721,8 +725,10 @@ typedef struct phos_gui
 
   @important Do not forget to call phos_gui_shutdown() before
   the end of the program and before CloseWindow()!
+
+  @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API void phos_gui_init(void);
+PHOS_GUI_API int phos_gui_init(void);
 /**
   Frees all resources used by the PhosphorusGUI library.
 */

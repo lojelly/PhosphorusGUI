@@ -2,8 +2,8 @@
 #include <ctype.h>
 #include "dynamic_array_spellbook.h"
 #include "dynamic_map_spellbook.h"
-#include "raylib.h"
 #include "vibrant_logs.h"
+#include "plutonium_cs.h"
 #include "phosphorus_gui.h"
 #include "raymath.h"
 
@@ -80,47 +80,6 @@ static phos_gui_tex_arr textures;
 static phos_gui_font_arr fonts;
 
 
-// component system:
-
-// info for each component in the system
-typedef struct phos_gui_component_info
-{
-	// index for finding the actual component instance array later
-	size_t index;
-	// type of component
-	phos_gui_component_type type;
-} phos_gui_component_info;
-
-typedef struct phos_gui_component_id_arr
-{
-	// array containing component info
-	phos_gui_component_info *data;
-	size_t size, capacity;
-} phos_gui_component_id_arr;
-
-typedef struct phos_gui_component_id_registry
-{
-	// keys are element pointers
-	phos_gui_elem **keys;
-	/* values are arrays of component info structs.
-	   the reason the values are arrays is because the element could
-	   have multiple components, and each one has a different type, and
-	   different index into the whole component system.
-	*/
-	phos_gui_component_id_arr *values; // ex: { 0, 3, 4, 9 }
-	size_t size, capacity;
-} phos_gui_component_id_registry;
-
-typedef struct phos_gui_text_component_arr
-{
-	phos_gui_text_component *data;
-	size_t size, capacity;
-} phos_gui_text_component_arr;
-
-static phos_gui_component_id_registry component_id_registry;
-static phos_gui_text_component_arr text_components;
-
-
 // for objects with "auto" ID, ensures unique auto-generated IDs
 static size_t elem_auto_id = 0;
 static size_t blueprint_auto_id = 0;
@@ -175,32 +134,29 @@ static float win_scale_y = 1.0f;
 		phos_gui_assert_obj_ptr(map, values, __VA_ARGS__); \
 	} while(0)
 
-void phos_gui_init()
+int phos_gui_init()
 {
 	if(init)
 	{
 		vl_log(VL_ERROR, "Cannot re-initialize PhosphorusGUI!\n");
-		return;
+		return 0;
 	}
 
 	// simple registry arrays:
-	phos_gui_init_arr(&elem_registry);
-	phos_gui_init_arr(&blueprint_registry);
-	phos_gui_init_arr(&gui_registry);
+	phos_gui_init_arr(&elem_registry, 0);
+	phos_gui_init_arr(&blueprint_registry, 0);
+	phos_gui_init_arr(&gui_registry, 0);
 
 	// resources:
-	phos_gui_init_arr(&textures);
-	phos_gui_init_arr(&fonts);
-
-	// components:
-	phos_gui_init_map(&component_id_registry);
-	phos_gui_init_arr(&text_components);
+	phos_gui_init_arr(&textures, 0);
+	phos_gui_init_arr(&fonts, 0);
 
 	backspace_timer.key = KEY_BACKSPACE;
 	left_arrow_timer.key = KEY_LEFT;
 	right_arrow_timer.key = KEY_RIGHT;
 
 	init = true;
+	return 1;
 }
 void phos_gui_shutdown()
 {
@@ -232,20 +188,6 @@ void phos_gui_shutdown()
 		vl_log(VL_SUCCESS, "Unloaded font: '%s'!\n", fonts.data[i].file_path);
 	}
 	dynas_free(&fonts);
-
-	// components:
-
-	// for each component array in the component registry, free
-	for(size_t i = 0; i < component_id_registry.size; ++i)
-	{
-		vl_log(VL_SUCCESS, "Freed element's ('%s') component array in the registry!\n", component_id_registry.keys[i] -> ID);
-		dynas_free(&component_id_registry.values[i]);
-	}
-	// free the entire component registry
-	dynmaps_free(&component_id_registry);
-
-	// free specialized component arrays
-	dynas_free(&text_components);
 
 	init = false;
 }
@@ -369,9 +311,9 @@ void phos_gui_move_elem(phos_gui_elem *elem, float x, float y)
 	elem -> pos.y += y;
 
 	// then move elem's text component
-	if(phos_gui_elem_has_component(elem, PHOS_GUI_COMPONENT_TEXT))
+	if(pluto_cs_check_component(elem, PHOS_GUI_COMPONENT_TEXT))
 	{
-		phos_gui_text_component *txt = phos_gui_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+		phos_gui_text_component *txt = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
 		txt -> pos.x += x;
 		txt -> pos.y += y;
 	}
@@ -410,13 +352,13 @@ Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem)
 		vl_log(VL_ERROR, "Cannot obtain center of a null UI element!\n");
 		return v;
 	}
-	if(!phos_gui_elem_has_component(elem, PHOS_GUI_COMPONENT_TEXT))
+	if(!pluto_cs_check_component(elem, PHOS_GUI_COMPONENT_TEXT))
 	{
 		vl_log(VL_ERROR, "Cannot obtain text center of a UI element ('%s') with no text component!\n", elem -> ID);
 		return v;
 	}
 
-	phos_gui_text_component *txt = phos_gui_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	phos_gui_text_component *txt = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
 
 	if(!txt -> font)
 	{
@@ -711,9 +653,9 @@ void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, fl
 	Vector2 diff = Vector2Subtract(elem -> pos, elem_pos);
 
 	// move text based on 'diff'
-	if(phos_gui_elem_has_component(elem, PHOS_GUI_COMPONENT_TEXT))
+	if(pluto_cs_check_component(elem, PHOS_GUI_COMPONENT_TEXT))
 	{
-		phos_gui_text_component *txt = phos_gui_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+		phos_gui_text_component *txt = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
 		txt -> pos = Vector2Add(txt -> pos, diff);
 	}
 
@@ -1402,167 +1344,6 @@ void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID)
 	phos_gui_add_elem(bp -> elem -> gui, target_elem);
 }
 
-void *phos_gui_add_component(phos_gui_elem *elem, phos_gui_component_type type)
-{
-	if(!elem)
-	{
-		vl_log(VL_ERROR, "Cannot add a component to a null UI element!\n");
-		return NULL;
-	}
-
-	// see if the elem is in the component registry
-	int elem_registered = 0;
-	dynmaps_find_entry(&component_id_registry, elem, elem_registered);
-
-	// the component array the elem will be working with (only contains component IDs (ex. PHOS_GUI_COMPONENT_TEXT))
-	phos_gui_component_id_arr *elem_component_ids = NULL;
-
-	// see if the element should be registered
-	if(elem_registered == -1)
-	{
-		// copy a local component ID arr into the map
-		dynmaps_set(&component_id_registry, elem, (phos_gui_component_id_arr) {0});
-
-		// init the component ID array LIVING IN THE MAP, not this local 'components' variable:
-
-		// first get the pointer to the array in the map
-		dynmaps_get(&component_id_registry, elem, elem_component_ids);
-
-		// init the array from the map
-		if(elem_component_ids)
-			phos_gui_init_arr(elem_component_ids, NULL);
-
-		vl_log(VL_SUCCESS, "Element '%s' registered in component system!\n", elem -> ID);
-	}
-	else
-		// if the element is already registered, just obtain its component array
-		dynmaps_get(&component_id_registry, elem, elem_component_ids);
-
-	if(!elem_component_ids)
-	{
-		vl_log(VL_ERROR, "Failed to obtain element's component array: '%s'!\n", elem -> ID);
-		return NULL;
-	}
-
-	switch(type)
-	{
-		case PHOS_GUI_COMPONENT_TEXT:
-			// get index into text component array
-			size_t index = text_components.size;
-
-			// create text component and save it in the array
-			phos_gui_text_component text_component = { .owner = elem };
-			dynas_add(&text_components, text_component);
-			if(!text_components.data)
-			{
-				vl_log(VL_ERROR, "Failed to allocate memory!\n");
-				return NULL;
-			}
-
-			// local text component info
-			phos_gui_component_info info = {
-				.type = PHOS_GUI_COMPONENT_TEXT,
-				.index = index
-			};
-			
-			// add component type ID to elem's component ID array
-			dynas_add(elem_component_ids, info);
-			
-			// return the pointer to the text component IN THE ENTIRE TEXT COMPONENT ARRAY
-			return &text_components.data[index];
-		default:
-			vl_log(VL_ERROR, "Invalid component type: %d!\n", type);
-			return NULL;
-	};
-}
-bool phos_gui_elem_has_component(const phos_gui_elem *const elem, phos_gui_component_type type)
-{
-	if(!elem)
-	{
-		vl_log(VL_ERROR, "Cannot determine if a null UI element has a component!\n");
-		return false;
-	}
-
-	// see if the element is registered, and if not, return false
-	int elem_registered;
-	dynmaps_find_entry(&component_id_registry, elem, elem_registered);
-
-	if(elem_registered == -1)
-		return false;
-
-	// elem is registered, so obtain its component info
-	phos_gui_component_id_arr *elem_component_ids = NULL;
-	dynmaps_get(&component_id_registry, elem, elem_component_ids);
-	if(elem_component_ids == NULL)
-	{
-		vl_delay_log(VL_WARNING, 5.0f, "Element '%s' component array empty or not created yet!\n", elem -> ID);
-		return false;
-	}
-
-	for(size_t i = 0; i < elem_component_ids -> size; ++i)
-	{
-		// get info at i
-		phos_gui_component_info *info = &elem_component_ids -> data[i];
-
-		// if matched type, return true
-		if(info -> type == type)
-			return true;
-	}
-
-	// component was never found or no types matched
-	return false;
-}
-void *phos_gui_get_component(const phos_gui_elem *const elem, phos_gui_component_type type)
-{
-	if(!elem)
-	{
-		vl_log(VL_ERROR, "Cannot obtain components on a null UI element!\n");
-		return NULL;
-	}
-
-	// see if the element is registered, and if not, return NULL
-	int elem_registered = 0;
-	dynmaps_find_entry(&component_id_registry, elem, elem_registered);
-
-	if(elem_registered == -1)
-	{
-		vl_delay_log(VL_WARNING, 5.0f, "Element '%s' not registered in component system, could not obtain the requested component: %d!\n", elem -> ID, type);
-		return NULL;
-	}
-
-	// elem is registered, so obtain its component info
-	phos_gui_component_id_arr *elem_component_ids = NULL;
-	dynmaps_get(&component_id_registry, elem, elem_component_ids);
-	if(elem_component_ids == NULL)
-	{
-		vl_delay_log(VL_WARNING, 5.0f, "Element '%s' component array empty or not created yet!\n", elem -> ID);
-		return NULL;
-	}
-
-	for(size_t i = 0; i < elem_component_ids -> size; ++i)
-	{
-		// get info at i
-		phos_gui_component_info *info = &elem_component_ids -> data[i];
-
-		// if matched type, return pointer to the component
-		if(info -> type == type)
-		{
-			switch(info -> type)
-			{
-				case PHOS_GUI_COMPONENT_TEXT:
-					return &text_components.data[info -> index];
-				default:
-					vl_log(VL_ERROR, "Invalid component type: %d!\n", info -> type);
-					return NULL;
-			}
-		}
-	}
-
-	// component was never found or no types matched
-	vl_delay_log(VL_ERROR, 5.0f, "Element '%s' does not have this component: %d!\n", elem -> ID, type);
-	return NULL;
-}
-
 void phos_gui_set_win_scale(float x, float y)
 {
 	win_scale_x = x;
@@ -1764,11 +1545,11 @@ static void phos_gui_update_elem(phos_gui_elem *e, float dt)
 	if(e -> type == PHOS_GUI_TYPE_TEXT_FIELD)
 	{
 		// get text component
-		if(!phos_gui_elem_has_component(e, PHOS_GUI_COMPONENT_TEXT))
+		if(!pluto_cs_check_component(e, PHOS_GUI_COMPONENT_TEXT))
 			vl_delay_log(VL_WARNING, 5.0f, "Element '%s' is a text field, but is missing a text component!\n", e -> ID);
 		else
 		{
-			phos_gui_text_component *text = phos_gui_get_component(e, PHOS_GUI_COMPONENT_TEXT);
+			phos_gui_text_component *text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXT);
 
 			// reset 'edited' field
 			text -> edited = false;
@@ -1952,9 +1733,9 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 	}
 
 	// render text component of element (if valid):
-	if(phos_gui_elem_has_component(e, PHOS_GUI_COMPONENT_TEXT))
+	if(pluto_cs_check_component(e, PHOS_GUI_COMPONENT_TEXT))
 	{
-		phos_gui_text_component *text = phos_gui_get_component(e, PHOS_GUI_COMPONENT_TEXT);
+		phos_gui_text_component *text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXT);
 
 		if(text -> font && IsFontValid(*text -> font))
 		{
