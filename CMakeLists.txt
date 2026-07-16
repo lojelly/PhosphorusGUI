@@ -25,3 +25,6 @@ endif()
 target_include_directories(phosphorus_gui PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 target_link_libraries(phosphorus_gui PUBLIC vibrant_logs dynamic_array_spellbook dynamic_map_spellbook plutonium_cs raylib)
+
+# testing lib | you can safely remove it:
+add_subdirectory(test)

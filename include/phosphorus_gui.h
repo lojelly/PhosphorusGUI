@@ -70,9 +70,13 @@
 */
 #define PHOS_GUI_FONT_SIZE_XHUGE 80.0f
 /**
-  The max font size in PhosphorusGUI.
+  Gigantic font size.
 */
-#define PHOS_GUI_FONT_SIZE_MAX 128.0f
+#define PHOS_GUI_FONT_SIZE_GIGANTIC 128.0f
+/**
+  Extremely gigantic font size.
+*/
+#define PHOS_GUI_FONT_SIZE_XGIGANTIC 256.0f
 
 /**
   The window's origin.
@@ -196,25 +200,25 @@ typedef enum phos_gui_alignment
 	/**
 	  Indicates the targeted item should be aligned to the inner left
 	  of an element. The inner left represents the visual left
-	  of the element + left padding.
+	  of the element.
 	*/
 	PHOS_GUI_ALIGN_INNER_LEFT,
 	/**
 	  Indicates the targeted item should be aligned to the inner
 	  top of an element. The inner top represents the visual top
-	  of the element + top padding.
+	  of the element.
 	*/
 	PHOS_GUI_ALIGN_INNER_TOP,
 	/**
 	  Indicates the targeted item should be aligned to the inner right
 	  of an element. The inner right represents the visual right
-	  of the element - right padding.
+	  of the element.
 	*/
 	PHOS_GUI_ALIGN_INNER_RIGHT,
 	/**
 	  Indicates the targeted item should be aligned to the inner bottom
 	  of an element. The inner bottom represents the visual bottom of
-	  the element - bottom padding.
+	  the element.
 	*/
 	PHOS_GUI_ALIGN_INNER_BOTTOM,
 	/**
@@ -292,17 +296,11 @@ typedef enum phos_gui_layout_type
 	/**
 	  Indicates that all items are organized vertically.
 
-	  When margin collisions occur, this layout resolves
-	  them by pushing the colliding objects down.
-
 	  @note This is the default layout type.
 	*/
 	PHOS_GUI_LAYOUT_VERTICAL,
 	/**
 	  Indicates that all items are organized horizontally.
-
-	  When margin collisions occur, this layout resolves
-	  them by pushing the colliding objects to the side.
 	*/
 	PHOS_GUI_LAYOUT_HORIZONTAL,
 } phos_gui_layout_type;
@@ -315,7 +313,7 @@ typedef enum phos_gui_component_type
 	/**
 	  The text component.
 	*/
-	PHOS_GUI_COMPONENT_TEXT,
+	PHOS_GUI_COMPONENT_TEXT = 1,
 } phos_gui_component_type;
 
 
@@ -576,6 +574,15 @@ typedef struct phos_gui_elem
 	  also still taking mouse hover and press effects into account).
 	*/
 	phos_gui_elem_render_mode render_mode;
+	/**
+	  If this element is a container, this determines
+	  how the container is formatted.
+
+	  If the element is not a container, this value
+	  is not used at all. Instead the 'layout_type' of
+	  the element's phos_gui is used.
+	*/
+	phos_gui_layout_type layout_type;
 
 	/**
 	  The element's rotation in degrees.
@@ -597,56 +604,6 @@ typedef struct phos_gui_elem
 	  0.0f (no roundness) and 1.0f (full roundness).
 	*/
 	float corner_radius;
-
-	/**
-	  Paddig on the left side of the element.
-
-	  @note Make sure this value remains >= 0.
-	*/
-	float left_padding;
-	/**
-	  Padding on the top side of the element.
-
-	  @note Make sure this value remains >= 0.
-	*/
-	float top_padding;
-	/**
-	  Padding on the right side of the element.
-	  
-	  @note Make sure this value remains >= 0.
-	*/
-	float right_padding;
-	/**
-	  Padding on the bottom side of the element.
-
-	  @note Make sure this value remains >= 0.
-	*/
-	float bottom_padding;
-
-	/**
-	  The left margin value.
-
-	  @note Make sure this value remains >= 0.
-	*/
-	float left_margin;
-	/**
-	  The top margin value.
-
-	  @note Make sure this value remains >= 0.
-	*/
-	float top_margin;
-	/**
-	  The right margin value.
-
-	  @note Make sure this value remains >= 0.
-	*/
-	float right_margin;
-	/**
-	  The bottom margin value.
-
-	  @note Make sure this value remains >= 0.
-	*/
-	float bottom_margin;
 
 	/**
 	  Determines if this element currently has focus.
@@ -723,7 +680,13 @@ typedef struct phos_gui
 /**
   Initializes the PhosphorusGUI library.
 
-  @important Do not forget to call phos_gui_shutdown() before
+  @important You must call pluto_cs_init()
+  before calling phos_gui_init(). PhosphorusGUI
+  expects PlutoniumCS's component system to be working
+  when it is called so that component types can be
+  automatically registered for you. PhosphorusGUI
+  will not call pluto_cs_init() or pluto_cs_shutdown()
+  for you. Do not forget to call phos_gui_shutdown() before
   the end of the program and before CloseWindow()!
 
   @return 1 on success, 0 on failure.
@@ -733,18 +696,6 @@ PHOS_GUI_API int phos_gui_init(void);
   Frees all resources used by the PhosphorusGUI library.
 */
 PHOS_GUI_API void phos_gui_shutdown(void);
-
-/**
-  Toggles debug mode of the program.
-
-  Debug mode renders some extra information
-  about elements, and the program itself.
-  
-  @note The padding will be rendered as a red
-  rectangle, and the margin will be
-  rendered as a green rectangle.
-*/
-PHOS_GUI_API void phos_gui_toggle_debug_mode(void);
 
 /**
   Sets the current phos_gui to use for updating
@@ -804,7 +755,7 @@ PHOS_GUI_API void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vect
 /**
   Moves an element x pixels horizontally and y pixels vertically.
 */
-PHOS_GUI_API void phos_gui_move_elem(phos_gui_elem *elem, float x, float y);
+PHOS_GUI_API void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y);
 
 /**
   Returns the center of an element.
@@ -819,27 +770,12 @@ PHOS_GUI_API Vector2 phos_gui_get_elem_center(phos_gui_elem *elem);
 PHOS_GUI_API Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem);
 
 /**
-  Returns the inner bounds of an element.
-  
-  The inner bounds of an element represents the element's contents bounds,
-  as well as the element's padding.
-*/
-PHOS_GUI_API Rectangle phos_gui_get_inner_elem_rect(const phos_gui_elem *const elem);
-/**
-  Returns the outer bounds of an element.
-
-  The outer bounds of an element represents the element's visual bounds,
-  as well as the element's margin.
-*/
-PHOS_GUI_API Rectangle phos_gui_get_outer_elem_rect(const phos_gui_elem *const elem);
-/**
-  Returns the visible bounds of an element.
+  Returns the bounds of an element.
 
   These bounds are the same as the 'pos' and 'size'
-  vector fields in the element. Padding is not included
-  here.
+  vector fields in the element.
 */
-PHOS_GUI_API Rectangle phos_gui_get_visible_elem_rect(const phos_gui_elem *const elem);
+PHOS_GUI_API Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem);
 
 /**
   Returns the bounds of a text component.
@@ -872,6 +808,15 @@ PHOS_GUI_API void phos_gui_init_text(phos_gui_text_component *text, const char *
   text of the text component.
 */
 PHOS_GUI_API void phos_gui_init_placeholder_text(phos_gui_text_component *text, const char *str, Color color);
+
+/**
+  Converts a Rectangle's position into a Vector2.
+*/
+PHOS_GUI_API Vector2 phos_gui_get_rect_pos(Rectangle r);
+/**
+  Converts a Rectangle's size into a Vector2.
+*/
+PHOS_GUI_API Vector2 phos_gui_get_rect_size(Rectangle r);
 
 /**
   Quickly sets the position of an element.
@@ -931,15 +876,22 @@ PHOS_GUI_API Vector2 phos_gui_get_proposed_align_pos(const phos_gui_elem *const 
 /**
   Calculates the position of the text component of an element based on an alignment.
 
-  @param reference_elem The element to align with.
+  @note This function uses the text component's owner as the reference
+  element to align with.
+
+  @param text_component The text component to align.
   @param alignment The alignment to use.
-  @param target_str The string buffer on the element to use when aligning. For example, to use placeholder text,
-  pass in 'reference_elem -> text.placeholder_str'.
+  @param target_str The string buffer on the text component to use when aligning. For example, to use placeholder text,
+  pass in 'text_component -> placeholder_str'.
+
+  @see phos_gui_get_proposed_align_pos(const phos_gui_elem *const, phos_gui_alignment, Vector2)
+  @see phos_gui_align_elem(phos_gui_elem*, phos_gui_alignment, const phos_gui_elem *const)
 */
-PHOS_GUI_API Vector2 phos_gui_get_proposed_text_align_pos(const phos_gui_text_component *const reference_text_component, phos_gui_alignment alignment, const char *target_str);
+PHOS_GUI_API Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_gui_alignment alignment, const char *target_str);
 /**
   Calculates the position of 'target_elem' if it were aligned with 'reference_elem'
-  using the given alignment.
+  using the given alignment. This function also aligns the element using the given reference
+  element and alignment.
 
   @param target_elem The element to move and align.
   @param alignment The alignment to use.
@@ -974,18 +926,9 @@ PHOS_GUI_API void phos_gui_clamp_elem_to_text(phos_gui_elem *elem, phos_gui_text
 PHOS_GUI_API void phos_gui_make_elem_fit_text(phos_gui_elem *elem, phos_gui_text_component *text_component, const char *text_component_target_str);
 
 /**
-  Sets the padding on an element.
-*/
-PHOS_GUI_API void phos_gui_set_elem_padding(phos_gui_elem *elem, float left, float top, float right, float bottom);
-/**
-  Sets the margin on an element.
-*/
-PHOS_GUI_API void phos_gui_set_elem_margin(phos_gui_elem *elem, float left, float top, float right, float bottom);
-
-/**
   Sets some basic element attributes.
 */
-PHOS_GUI_API void phos_gui_setup_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h);
+PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h);
 
 /**
   Adds a UI element to the given phos_gui instance.
@@ -993,8 +936,13 @@ PHOS_GUI_API void phos_gui_setup_elem(phos_gui_elem *elem, phos_gui_elem_type ty
   This automatically registers the element, and performs
   any other necessary actions to ensure the program works correctly.
 
+  @note This function only adds the given element to the given phos_gui.
+  To add the element and its children, use phos_gui_add_all_elems(...)
+
   @param gui The phos_gui instance to add an element to.
   @param elem The element to add to the phos_gui.
+
+  @see phos_gui_add_all_elems(phos_gui*, phos_gui_elem*)
 
   @return 1 on success, 0 on failure.
 */
@@ -1009,12 +957,34 @@ PHOS_GUI_API int phos_gui_add_elem(phos_gui *gui, phos_gui_elem *elem);
 */
 PHOS_GUI_API int phos_gui_add_elem_id(phos_gui *gui, phos_gui_elem *elem, const char *ID);
 /**
+  Adds a UI element along with all of its children
+  to a phos_gui instance.
+
+  @see phos_gui_add_elem(phos_gui*, phos_gui_elem*)
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_add_all_elems(phos_gui *gui, phos_gui_elem *elem);
+/**
+  Removes a UI element from a phos_gui.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_remove_elem(phos_gui *gui, phos_gui_elem *elem);
+/**
+  Removes a UI element from a phos_gui using an ID.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_remove_elem_id(phos_gui *gui, const char *ID);
+/**
   Adds a UI element to a container element.
 
-  @note This function expects the container to already
-  be added to a phos_gui instance. The function automatically
-  adds 'elem' to the container as well as the phos_gui the container
-  is already in.
+  @note The child element's position becomes
+  relative to the container's position.
+
+  @important This function does not add the element
+  or container to a phos_gui instance.
 
   @return 1 on success, 0 on failure.
 */
@@ -1042,10 +1012,8 @@ PHOS_GUI_API void phos_gui_clone_elem(phos_gui_elem *elem, const char *ID);
   Creates a new instance of a cloned element,
   and inserts the data into 'target_elem.'
 
-  @note The target element will have an auto-generated ID.
-  Additionally, this function is going to automatically add the target
-  element to the same phos_gui the original element belongs to.
-  You can undo it by using phos_gui_remove_elem(...).
+  @note This function does not automatically add the clone element to a phos_gui
+  instance. However, it does give the clone element an auto-generated ID.
 
   @see phos_gui_clone_elem(phos_gui_elem*, const char*)
   @see phos_gui_remove_elem(phos_gui*, phos_gui_elem*)
