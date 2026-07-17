@@ -13,6 +13,8 @@
 
 #define PHOS_GUI_ROUND_RECT_SEGMENTS 64
 
+#define PHOS_GUI_TEXT_PADDING 12.0f
+
 // array of element pointers
 typedef struct phos_gui_elem_arr
 {
@@ -366,7 +368,64 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y)
 	for(size_t i = 0; i < elem->num_children; ++i)
 		phos_gui_move_elem_xy(elem->children[i], x, y);
 }
-void phos_gui_resize_elem(phos_gui_elem *elem, float w, float h)
+
+static void phos_gui_resize_single_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
+{
+	// first see what new elem size would be
+	float new_w = elem->size.x + w;
+	float new_h = elem->size.y + h;
+
+	// see if size is now negative
+	if(new_w <= 0.0f || new_h <= 0.0f)
+	{
+		vl_log(VL_ERROR, "Cannot resize this elem ('%s') anymore, its size cannot be <= 0.0f!\n", elem->ID);
+		return;
+	}
+
+	phos_gui_text_component *elem_tx = NULL;
+	Vector2 old_rel_center_pos = {0};
+
+	if(opts & PHOS_GUI_OPTS_FIX_TEXT)
+	{
+		if(pluto_cs_check_component(elem, PHOS_GUI_COMPONENT_TEXT))
+		{
+			elem_tx = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+
+			Rectangle old_content = phos_gui_get_elem_content_area(elem);
+
+			if(old_content.width <= 0.0f || old_content.height <= 0.0f)
+			{
+				vl_log(VL_ERROR, "Invalid content size: %.2f, %.2f\n", old_content.width, old_content.height);
+				return;
+			}
+
+			// get old relative center pos
+			Vector2 old_text_bounds = phos_gui_get_text_bounds_v(elem_tx, elem_tx->str);
+
+			Vector2 old_text_center = {
+				elem_tx->pos.x + (old_text_bounds.x / 2.0f),
+				elem_tx->pos.y + (old_text_bounds.y / 2.0f)
+			};
+
+			old_rel_center_pos.x = (old_text_center.x - old_content.x) / old_content.width;
+			old_rel_center_pos.y = (old_text_center.y - old_content.y) / old_content.height;
+		}
+	}
+
+	// apply new size
+	elem->size = (Vector2) { new_w, new_h };
+
+	if(elem_tx)
+	{
+		// resize font
+		phos_gui_make_text_fit_elem(elem, elem_tx, elem_tx->str);
+		
+		// restore text's pos
+		Vector2 text_bounds = phos_gui_get_text_bounds_v(elem_tx, elem_tx->str);
+		elem_tx->pos = phos_gui_get_proposed_align_pos(elem, elem_tx->alignment, text_bounds);
+	}
+}
+void phos_gui_resize_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
 {
 	if(!elem)
 	{
@@ -374,25 +433,27 @@ void phos_gui_resize_elem(phos_gui_elem *elem, float w, float h)
 		return;
 	}
 
-	// first, see what new elem size would be
-	float new_w = elem -> size.x + w;
-	float new_h = elem -> size.y + h;
+	// resize the given elem
+	phos_gui_resize_single_elem_wh(elem, w, h, opts);
 
-	// see if size is now negative
-	if(new_w <= 0.0f || new_h <= 0.0f)
+	// pass changes down to children
+	if(elem->num_children > 0)
 	{
-		vl_log(VL_ERROR, "Cannot resize this element ('%s') anymore, its size cannot be negative!\n", elem->ID);
-		return;
+		// then shrink/expand the elem's child elements the same amount of pixels (only if PHOS_GUI_PASS_DOWN is set)
+		if(opts & PHOS_GUI_OPTS_PASS_DOWN_FIRST)
+		{
+			opts &= ~PHOS_GUI_OPTS_PASS_DOWN;
+
+			// resize child
+			phos_gui_resize_single_elem_wh(elem->children[0], w, h, opts);
+		}
+		else if(opts & PHOS_GUI_OPTS_PASS_DOWN)
+		{
+			for(size_t i = 0; i < elem->num_children; ++i)
+				// resize child
+				phos_gui_resize_elem_wh(elem->children[i], w, h, opts);
+		}
 	}
-
-	// apply change
-	elem->size = (Vector2) { new_w, new_h };
-
-	// TODO shrink/expand text component?
-
-	// then shrink/expand the elem's child elements the same amount of pixels
-	for(size_t i = 0; i < elem->num_children; ++i)
-		phos_gui_resize_elem(elem->children[i], w, h);
 }
 
 Vector2 phos_gui_get_elem_center(phos_gui_elem *elem)
@@ -465,6 +526,19 @@ Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem)
 	r.y = elem->pos.y;
 	r.width = elem->size.x;
 	r.height = elem->size.y;
+
+	return r;
+}
+Rectangle phos_gui_get_elem_content_area(const phos_gui_elem *const elem)
+{
+	Rectangle r = phos_gui_get_elem_rect(elem);
+	if(!elem)
+		return r;
+
+	r.x += elem->outline_thickness;
+	r.y += elem->outline_thickness;
+	r.width -= elem->outline_thickness;
+	r.height -= elem->outline_thickness;
 
 	return r;
 }
@@ -715,7 +789,7 @@ void phos_gui_init_color_set(phos_gui_color_set *set, Color normal_color, Color 
 		.press_color = press_color,
 		.focus_color = focus_color };
 }
-PHOS_GUI_API void phos_gui_fill_color_set(phos_gui_color_set *set, Color color)
+void phos_gui_fill_color_set(phos_gui_color_set *set, Color color)
 {
 	phos_gui_init_color_set(set, color, color, color, color);
 }
@@ -761,115 +835,77 @@ Vector2 phos_gui_get_proposed_align_pos(const phos_gui_elem *const reference_ele
 		return v;
 	}
 
-	// get elem rect
-	Rectangle rect = phos_gui_get_elem_rect(reference_elem);
+	// get elem content area
+	Rectangle rect = phos_gui_get_elem_content_area(reference_elem);
 
 	// start at rect origin
 	v = phos_gui_get_rect_pos(rect);
 
-	// add/subtract outline thickness to the rect origin to get full content area
-	float padding = reference_elem->outline_thickness;
-
 	switch(alignment)
 	{
+		// v already starts at top-left
+		case PHOS_GUI_ALIGN_INNER_TOP_LEFT:
+			break;
+
 		case PHOS_GUI_ALIGN_INNER_TOP:
 			v.x += (rect.width - target_object_size.x) / 2.0f;
-
-			v.y += padding;
 			break;
 		case PHOS_GUI_ALIGN_INNER_LEFT:
 			v.y += (rect.height - target_object_size.y) / 2.0f;
-
-			v.x += padding;
 			break;
 		case PHOS_GUI_ALIGN_INNER_BOTTOM:
 			v.x += (rect.width - target_object_size.x) / 2.0f;
 			v.y += (rect.height - target_object_size.y);
-
-			v.y -= padding;
 			break;
 		case PHOS_GUI_ALIGN_INNER_RIGHT:
 			v.x += (rect.width - target_object_size.x);
 			v.y += (rect.height - target_object_size.y) / 2.0f;
-
-			v.x -= padding;
 			break;
 		case PHOS_GUI_ALIGN_INNER_CENTER:
 			v.x += (rect.width - target_object_size.x) / 2.0f;
 			v.y += (rect.height - target_object_size.y) / 2.0f;
 			break;
-		case PHOS_GUI_ALIGN_INNER_TOP_LEFT:
-			v.x += padding;
-			v.y += padding;
-			break;
 		case PHOS_GUI_ALIGN_INNER_TOP_RIGHT:
 			v.x += (rect.width - target_object_size.x);
-
-			v.x -= padding;
 			break;
 		case PHOS_GUI_ALIGN_INNER_BOTTOM_LEFT:
 			v.y += (rect.height - target_object_size.y);
-
-			v.x += padding;
 			break;
 		case PHOS_GUI_ALIGN_INNER_BOTTOM_RIGHT:
 			v.x += (rect.width - target_object_size.x);
 			v.y += (rect.height - target_object_size.y);
-
-			v.x -= padding;
-			v.y -= padding;
 			break;
 		case PHOS_GUI_ALIGN_LEFT:
 			v.x -= target_object_size.x;
 			v.y += (rect.height - target_object_size.y) / 2.0f;
-
-			v.x -= padding;
 			break;
 		case PHOS_GUI_ALIGN_TOP:
 			v.x += (rect.width - target_object_size.x) / 2.0f;
 			v.y -= target_object_size.y;
-
-			v.y -= padding;
 			break;
 		case PHOS_GUI_ALIGN_RIGHT:
 			v.x += rect.width;
 			v.y += (rect.height - target_object_size.y) / 2.0f;
-
-			v.x += padding;
 			break;
 		case PHOS_GUI_ALIGN_BOTTOM:
 			v.x += (rect.width - target_object_size.x) / 2.0f;
 			v.y += rect.height;
-
-			v.y += padding;
 			break;
 		case PHOS_GUI_ALIGN_TOP_LEFT:
 			v.x -= target_object_size.x;
 			v.y -= target_object_size.y;
-
-			v.x -= padding;
-			v.y -= padding;
 			break;
 		case PHOS_GUI_ALIGN_TOP_RIGHT:
 			v.x += rect.width;
 			v.y -= target_object_size.y;
-
-			v.x += padding;
-			v.y -= padding;
 			break;
 		case PHOS_GUI_ALIGN_BOTTOM_LEFT:
 			v.x -= target_object_size.x;
 			v.y += rect.height + target_object_size.y;
-
-			v.x -= padding;
-			v.y += padding;
 			break;
 		case PHOS_GUI_ALIGN_BOTTOM_RIGHT:
 			v.x += rect.width;
 			v.y += rect.height + target_object_size.y;
-
-			v.x += padding;
-			v.y += padding;
 			break;
 		default:
 			vl_log(VL_ERROR, "Invalid alignment: %d!\n", alignment);
@@ -893,9 +929,17 @@ Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_g
 		return v;
 	}
 
+	// ensure alignment is a valid one
+	if(alignment < PHOS_GUI_ALIGN_INNER_LEFT || alignment > PHOS_GUI_ALIGN_INNER_BOTTOM_RIGHT)
+	{
+		vl_log(VL_ERROR, "Cannot align an element's text component with an alignment of %d! The alignment must be a PHOS_GUI_ALIGN_INNER... alignment! Defaulting to PHOS_GUI_ALIGN_INNER_CENTER!\n", alignment);
+		alignment = PHOS_GUI_ALIGN_INNER_CENTER;
+	}
+
 	Rectangle elem_text_size = phos_gui_get_text_bounds(text_component, target_str);
 	v = phos_gui_get_proposed_align_pos(text_component->owner, alignment, (Vector2) { elem_text_size.width, elem_text_size.height });
 	text_component->pos = v;
+	text_component->alignment = alignment;
 	return v;
 }
 Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment alignment, const phos_gui_elem *const reference_elem)
@@ -919,41 +963,37 @@ Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment align
 	return v;
 }
 
-void phos_gui_use_largest_possible_font_size(phos_gui_elem *elem, phos_gui_text_component *text_component, const char *text_component_target_str)
+static float phos_gui_find_largest_possible_font_size(const phos_gui_elem *const elem, const phos_gui_text_component *const text_component, const char *text_component_target_str)
 {
-	if(!elem || !text_component || !text_component_target_str || strlen(text_component_target_str) <= 0)
-	{
-		vl_log(VL_ERROR, "To get the largest possible font size, 'elem,' 'text_component,' and 'text_component_target_str' can't be NULL/invalid!\n");
-		return;
-	}
-
-	// get elem size
-	Vector2 size = elem->size;
+	// get content area
+	Vector2 size = phos_gui_get_rect_size(phos_gui_get_elem_content_area(elem));
 
 	// first off, start off with a very large font size
 	float font_size = PHOS_GUI_FONT_SIZE_XHUGE;
+
+	size.x -= PHOS_GUI_TEXT_PADDING * 2.0f;
+	size.y -= PHOS_GUI_TEXT_PADDING * 2.0f;
 
 	// measure initial text bounds
 	Vector2 text_bounds = MeasureTextEx(*text_component->font, text_component_target_str, font_size, 0.0f);
 
 	// while the text takes up more space than the inner bounds, font size automatically has to shrink
-	while(font_size > 1.0f && (text_bounds.x > size.x || text_bounds.y > size.y))
+	while(font_size >= 1.0f && (text_bounds.x >= size.x || text_bounds.y >= size.y))
 	{
 		// go to next font size
-		font_size -= 1.0f;
+		font_size -= 2.0f;
 
 		// re-measure text using current font size
 		text_bounds = MeasureTextEx(*text_component->font, text_component_target_str, font_size, 0.0f);
 	}
 
-	// when the text fits, keep those attributes
-	text_component->font_size = font_size;
+	vl_log(VL_INFO, "Largest possible font size for '%s' is %.2f.\n", elem->ID, font_size);
 
-	vl_log(VL_INFO, "Largest possible font size for '%s' is %f.\n", elem->ID, font_size);
+	return font_size;
 }
-void phos_gui_clamp_elem_to_text(phos_gui_elem *elem, phos_gui_text_component *text_component, const char *text_component_target_str)
+void phos_gui_clamp_elem_to_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, const char *text_component_target_str)
 {
-	if(!elem || !text_component || !text_component_target_str || strlen(text_component_target_str) <= 0)
+	if(!elem || !text_component || !text_component->font || !text_component_target_str || strlen(text_component_target_str) <= 0)
 	{
 		vl_log(VL_ERROR, "To clamp the given element to the text component, 'elem,' 'text_component,' and 'text_component_target_str' can't be NULL/invalid!\n");
 		return;
@@ -966,7 +1006,18 @@ void phos_gui_clamp_elem_to_text(phos_gui_elem *elem, phos_gui_text_component *t
 	phos_gui_set_elem_size(elem, text_bounds.x, text_bounds.y);
 }
 
-PHOS_GUI_API void phos_gui_make_elem_fit_text(phos_gui_elem *elem, phos_gui_text_component *text_component, const char *text_component_target_str)
+void phos_gui_make_text_fit_elem(const phos_gui_elem *const elem, phos_gui_text_component *text_component, const char *text_component_target_str)
+{
+	if(!elem || !text_component || !text_component->font || !text_component_target_str || strlen(text_component_target_str) <= 0)
+	{
+		vl_log(VL_ERROR, "To make the given text component fit the element, 'elem,' 'text_component,' and 'text_component_target_str' can't be NULL/invalid!\n");
+		return;
+	}
+
+	// use largest possible font size
+	text_component->font_size = phos_gui_find_largest_possible_font_size(elem, text_component, text_component_target_str);
+}
+void phos_gui_make_elem_fit_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, const char *text_component_target_str)
 {
 	if(!elem || !text_component || !text_component_target_str || strlen(text_component_target_str) <= 0)
 	{
@@ -974,25 +1025,8 @@ PHOS_GUI_API void phos_gui_make_elem_fit_text(phos_gui_elem *elem, phos_gui_text
 		return;
 	}
 
-	// first, make sure every single parent for this element can fit the text
-	phos_gui_elem *parent = elem->parent;
-	// while there is a valid parent elem
-	while(parent)
-	{
-		// re-call phos_gui_make_elem_fit_text(...) but on the parent
-		phos_gui_make_elem_fit_text(parent, text_component, text_component_target_str);
-
-		// get the parent's parent and continue looping until a NULL parent is reached
-		parent = parent->parent;
-	}
-
-	// get bounds of elem
-	Rectangle bounds = phos_gui_get_elem_rect(elem);
-
-	// if the elem has a parent, obtain its rect as well
-	Rectangle parent_bounds = {0};
-	if(elem->parent)
-		parent_bounds = phos_gui_get_elem_rect(elem->parent);
+	// get content area of elem
+	Rectangle bounds = phos_gui_get_elem_content_area(elem);
 
 	// measure text bounds
 	Vector2 text_bounds = MeasureTextEx(*text_component->font, text_component_target_str, text_component->font_size, 0.0f);
@@ -1004,7 +1038,7 @@ PHOS_GUI_API void phos_gui_make_elem_fit_text(phos_gui_elem *elem, phos_gui_text
 		float diff_w = text_bounds.x - bounds.height;
 
 		// expand by that much
-		elem->size.x += diff_w;
+		phos_gui_resize_elem_wh(elem, diff_w, 0.0f, PHOS_GUI_OPTS_NONE);
 	}
 	if(text_bounds.y > bounds.height)
 	{
@@ -1012,8 +1046,12 @@ PHOS_GUI_API void phos_gui_make_elem_fit_text(phos_gui_elem *elem, phos_gui_text
 		float diff_h = text_bounds.y - bounds.height;
 
 		// expand by that much
-		elem->size.y += diff_h;
+		phos_gui_resize_elem_wh(elem, 0.0f, diff_h, PHOS_GUI_OPTS_NONE);
 	}
+
+	// if element has a parent, make sure it can contain the text too
+	if(elem->parent)
+		phos_gui_make_elem_fit_text(elem->parent, text_component, text_component_target_str);
 }
 
 void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h)

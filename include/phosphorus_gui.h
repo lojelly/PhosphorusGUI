@@ -313,6 +313,36 @@ typedef enum phos_gui_layout_type
 } phos_gui_layout_type;
 
 /**
+  Additional and optional settings for phos_gui functions.
+*/
+typedef enum phos_gui_opts
+{
+	/**
+	  Indicates there are no extra options to apply.
+	*/
+	PHOS_GUI_OPTS_NONE = 0,
+	/**
+	  Indicates that the action the function performs on an element
+	  should be passed down to all of the elements children.
+	*/
+	PHOS_GUI_OPTS_PASS_DOWN = 1 << 0,
+	/**
+	  Indicates that the action the function performs on an element
+	  should be passed down to only its first child element.
+	*/
+	PHOS_GUI_OPTS_PASS_DOWN_FIRST = 1 << 1,
+	/**
+	  Indicates that when resizing an element, its text component
+	  (if it has one) should be modified to fit the new size of the
+	  element.
+
+	  @note This only takes effect when the element becomes too small
+	  to contain its text.
+	*/
+	PHOS_GUI_OPTS_FIX_TEXT = 1 << 2,
+} phos_gui_opts;
+
+/**
   The available component types.
 */
 typedef enum phos_gui_component_type
@@ -387,10 +417,15 @@ typedef struct phos_gui_text_component
 	Vector2 pos;
 
 	/**
+	  The alignment of the text.
+	*/
+	phos_gui_alignment alignment;
+
+	/**
 	  This text component's font size.
 	*/
 	float font_size;
-
+	
 	/**
 	  How much the text has been scrolled horizontally.
 
@@ -761,8 +796,22 @@ PHOS_GUI_API void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vect
 PHOS_GUI_API void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y);
 /**
   Resizes an element by w pixels horizontally and h pixels vertically.
+
+  For example, if 'w' is 200 and 'h' is -100, the element's
+  width grows by 200 pixels and its height shrinks by 100 pixels.
+
+  @param elem The element to resize.
+  @param w The amount of pixels the element's width should change.
+  @param h The amount of pixels the element's height should change.
+  @param opts Any additional optional arguments you want to pass.
+  To add additional arguments, use OPT1 | OPT2 | OPT3... and so on.
+  For this function, you can use PHOS_GUI_OPTS_PASS_DOWN to have the
+  element's children inherit the resizing. Use PHOS_GUI_OPTS_PASS_DOWN_FIRST
+  to only pass the resizing down to the very first child of the element. Using
+  both PHOS_GUI_OPTS_PASS_DOWN and PHOS_GUI_OPTS_PASS_DOWN_FIRST behaves the
+  same as just using PHOS_GUI_OPTS_PASS_DOWN_FIRST.
 */
-PHOS_GUI_API void phos_gui_resize_elem(phos_gui_elem *elem, float w, float h);
+PHOS_GUI_API void phos_gui_resize_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opts opts);
 
 /**
   Returns the center of an element.
@@ -783,6 +832,14 @@ PHOS_GUI_API Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem);
   vector fields in the element.
 */
 PHOS_GUI_API Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem);
+/**
+  Returns the content area of an element.
+
+  The content area of an element is the same as its bounds,
+  but its outline thickness is taken into account. The content
+  area is the element's inner area.
+*/
+PHOS_GUI_API Rectangle phos_gui_get_elem_content_area(const phos_gui_elem *const elem);
 
 /**
   Returns the bounds of a text component.
@@ -907,30 +964,34 @@ PHOS_GUI_API Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_comp
 PHOS_GUI_API Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment alignment, const phos_gui_elem *const reference_elem);
 
 /**
-  Calculates the largest possible font size for a text component to fit within
-  the inner bounds of an element.
-
-  @param elem The element to work with.
-  @param text_component The element's text component.
-  @param text_component_target_str The target string buffer on the text component to work with.
-*/
-PHOS_GUI_API void phos_gui_use_largest_possible_font_size(phos_gui_elem *elem, phos_gui_text_component *text_component, const char *text_component_target_str);
-/**
   Makes the given element fit the given text component's bounds.
 
   @note This makes the element's visible bounds exactly equal to the text's bounds.
   In most cases, this will shrink the element down drastically. To make the element
   fit a text component but retain its original size, use phos_gui_make_elem_fit_text(...).
 */
-PHOS_GUI_API void phos_gui_clamp_elem_to_text(phos_gui_elem *elem, phos_gui_text_component *text_component, const char *text_component_target_str);
+PHOS_GUI_API void phos_gui_clamp_elem_to_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, const char *text_component_target_str);
+/**
+  Makes the given text component fit the given element's bounds.
+
+  @note This function will resize the text component's font size to
+  make it fit the given element's size. Unlike phos_gui_make_elem_fit_text(...),
+  this function does not walk up the parent tree or modify any parent elements.
+  It only affects the given element.
+
+  @see phos_gui_make_elem_fit_text(phos_gui_elem*, phos_gui_text_component*, const char*)
+*/
+PHOS_GUI_API void phos_gui_make_text_fit_elem(const phos_gui_elem *const elem, phos_gui_text_component *text_component, const char *text_component_target_str);
 /**
   Makes the given element fit the given text component's bounds.
 
-  @note This function only expands the element's size to fit the text.
-  Due to elements having children/parents, this function will call
-  itself for each parent linked to the given element.
+  @note This function walks up the parent tree of the given element
+  and makes each parent also fit the text component. This is because
+  if only the child was affected, it may cause size-collisions.
+
+  @see phos_gui_make_text_fit_elem(phos_gui_elem*, phos_gui_text_component*, const char*)
 */
-PHOS_GUI_API void phos_gui_make_elem_fit_text(phos_gui_elem *elem, phos_gui_text_component *text_component, const char *text_component_target_str);
+PHOS_GUI_API void phos_gui_make_elem_fit_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, const char *text_component_target_str);
 
 /**
   Sets some basic element attributes.
