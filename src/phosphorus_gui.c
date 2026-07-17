@@ -68,6 +68,7 @@ typedef struct phos_gui_arr
 } phos_gui_arr;
 
 static bool init = false;
+static dynas_string_arr all_ids;
 static phos_gui_elem_arr elem_registry;
 static phos_gui_blueprint_arr blueprint_registry;
 static phos_gui_arr gui_registry;
@@ -171,6 +172,7 @@ int phos_gui_init()
 	}
 
 	// simple registry arrays:
+	phos_gui_init_arr(&all_ids, 0);
 	phos_gui_init_arr(&elem_registry, 0);
 	phos_gui_init_arr(&blueprint_registry, 0);
 	phos_gui_init_arr(&gui_registry, 0);
@@ -199,6 +201,7 @@ void phos_gui_shutdown()
 	}
 
 	// simple registry arrays:
+	dynas_free(&all_ids);
 	dynas_free(&elem_registry);
 	dynas_free(&blueprint_registry);
 	dynas_free(&gui_registry);
@@ -232,6 +235,20 @@ static void phos_gui_auto_gen_id(const char *ID, char *target, const char *prefi
 	else if(strcmp(ID, "auto") == 0)
 		sprintf(target, "%s_#%zu", prefix, (*generator)++);
 }
+static int phos_gui_search_for_duplicate_id(const char *ID)
+{
+	int found = -1;
+	for(size_t i = 0; i < all_ids.size; ++i)
+	{
+		if(strcmp(all_ids.data[i], ID) == 0)
+		{
+			found = i;
+			return found;
+		}
+	}
+	vl_log(VL_ERROR, "Another object already uses this ID: '%s'!\n", ID);
+	return found;
+}
 
 void phos_gui_set_gui(phos_gui *new_gui)
 {
@@ -254,7 +271,12 @@ void phos_gui_set_gui(phos_gui *new_gui)
 		// auto-gen ID if necessary
 		phos_gui_auto_gen_id(new_gui->ID, new_gui->ID, "gui", &gui_auto_id);
 
+		// see if a duplicate ID is found anywhere
+		if(phos_gui_search_for_duplicate_id(new_gui->ID) != -1)
+			return;
+
 		// register the phos_gui
+		dynas_add(&all_ids, new_gui->ID);
 		dynas_add(&gui_registry, new_gui);
 
 		vl_log(VL_SUCCESS, "Registered GUI with ID: '%s'!\n", new_gui->ID);
@@ -1007,6 +1029,10 @@ static int phos_gui_register_elem(phos_gui_elem *elem)
 	// auto-generate if necessary
 	phos_gui_auto_gen_id(elem->ID, elem->ID, "elem", &elem_auto_id);
 
+	// assert no duplicate IDs
+	if(phos_gui_search_for_duplicate_id(elem->ID) != -1)
+		return 0;
+
 	// find duplicate pointers and IDs:
 	for(size_t i = 0; i < elem_registry.size; ++i)
 	{
@@ -1025,6 +1051,7 @@ static int phos_gui_register_elem(phos_gui_elem *elem)
 	}
 
 	// no duplicate, the elem can be registered
+	dynas_add(&all_ids, elem->ID);
 	dynas_add(&elem_registry, elem);
 
 	vl_log(VL_SUCCESS, "Registered element with ID: '%s'!\n", elem->ID);
@@ -1293,6 +1320,13 @@ void phos_gui_clone_elem(phos_gui_elem *elem, const char *ID)
 	// auto-generate ID if necessary
 	phos_gui_auto_gen_id(ID, blueprint.ID, "blueprint", &blueprint_auto_id);
 
+	// assert no duplicate IDs
+	if(phos_gui_search_for_duplicate_id(ID) != -1)
+	{
+		vl_log(VL_ERROR, "Failed to create blueprint for element: '%s'!\n", elem->ID);
+		return;
+	}
+
 	// see if a duplicate blueprint exists
 	for(size_t i = 0; i < blueprint_registry.size; ++i)
 	{
@@ -1315,6 +1349,7 @@ void phos_gui_clone_elem(phos_gui_elem *elem, const char *ID)
 
 	// no duplicate, blueprint can be created and saved
 	dynas_add(&blueprint_registry, blueprint);
+	dynas_add(&all_ids, blueprint_registry.data[blueprint_registry.size - 1].ID);
 
 	vl_log(VL_SUCCESS, "Registered blueprint with ID: '%s'!\n", ID);
 }
@@ -1350,6 +1385,13 @@ void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID)
 	// start creating new instance (with an auto-generated ID)
 	*target_elem = *bp->elem;
 	phos_gui_auto_gen_id("auto", target_elem->ID, "elem", &elem_auto_id);
+
+	// assert no duplicate IDs
+	if(phos_gui_search_for_duplicate_id(target_elem->ID) != -1)
+	{
+		vl_log(VL_ERROR, "Failed to initialize a cloned element! A duplicate ID was found: '%s'!\n", target_elem->ID);
+		return;
+	}
 
 	// clone elements from bp->elem onto target_elem
 	if(pluto_cs_clone_components(bp->elem, target_elem) == 0)
