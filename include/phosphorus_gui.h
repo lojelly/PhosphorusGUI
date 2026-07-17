@@ -129,6 +129,13 @@ typedef enum phos_gui_elem_type
 	  which are called its children. The container becomes the
 	  parent element of all the child elements. Container
 	  elements behave like any other type of element.
+
+	  Additionally, container elements have some expectations of
+	  their child elements. The children added to a container must be
+	  inside of the container's bounds. This also means that the positions
+	  of each child become relative to the container. Just like the phos_gui
+	  instance, the position (0, 0) is the top-left corner of the container.
+	  When a container is full, an error message is logged.
 	*/
 	PHOS_GUI_TYPE_CONTAINER,
 	/**
@@ -585,10 +592,6 @@ typedef struct phos_gui_elem
 	phos_gui_layout_type layout_type;
 
 	/**
-	  The element's rotation in degrees.
-	*/
-	float rotation;
-	/**
 	  The thickness of the element's outline.
 
 	  @note If set to 0, it will not be visible.
@@ -970,13 +973,13 @@ PHOS_GUI_API int phos_gui_add_all_elems(phos_gui *gui, phos_gui_elem *elem);
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_remove_elem(phos_gui *gui, phos_gui_elem *elem);
+PHOS_GUI_API int phos_gui_remove_elem_from_gui(phos_gui *gui, phos_gui_elem *elem);
 /**
   Removes a UI element from a phos_gui using an ID.
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_remove_elem_id(phos_gui *gui, const char *ID);
+PHOS_GUI_API int phos_gui_remove_elem_from_gui_id(phos_gui *gui, const char *ID);
 /**
   Adds a UI element to a container element.
 
@@ -989,6 +992,19 @@ PHOS_GUI_API int phos_gui_remove_elem_id(phos_gui *gui, const char *ID);
   @return 1 on success, 0 on failure.
 */
 PHOS_GUI_API int phos_gui_add_elem_to_container(phos_gui_elem *elem, phos_gui_elem *container);
+/**
+  Removes a UI element from a container element.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_remove_elem_from_container(phos_gui_elem *container, phos_gui_elem *elem);
+/**
+  Removes a UI element from a container element
+  using an element's ID.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_remove_elem_from_container_id(phos_gui_elem *container, const char *ID);
 /**
   Obtains a UI element with a specific ID.
 */

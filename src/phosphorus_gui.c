@@ -1091,7 +1091,7 @@ int phos_gui_add_all_elems(phos_gui *gui, phos_gui_elem *elem)
 
 	return 1;
 }
-int phos_gui_remove_elem(phos_gui *gui, phos_gui_elem *elem)
+int phos_gui_remove_elem_from_gui(phos_gui *gui, phos_gui_elem *elem)
 {
 	if(!gui)
 	{
@@ -1120,6 +1120,8 @@ int phos_gui_remove_elem(phos_gui *gui, phos_gui_elem *elem)
 			{
 				// just decrement num_elems
 				gui->num_elems--;
+
+				vl_log(VL_SUCCESS, "Removed element '%s' from GUI '%s'!\n", e->ID, gui->ID);
 				return 1;
 			}
 
@@ -1136,9 +1138,9 @@ int phos_gui_remove_elem(phos_gui *gui, phos_gui_elem *elem)
 	vl_log(VL_ERROR, "Failed to remove this element ('%s') from the given phos_gui ('%s')!\n", elem->ID, gui->ID);
 	return 0;
 }
-int phos_gui_remove_elem_id(phos_gui *gui, const char *ID)
+int phos_gui_remove_elem_from_gui_id(phos_gui *gui, const char *ID)
 {
-	return phos_gui_remove_elem(gui, phos_gui_get_elem(ID));
+	return phos_gui_remove_elem_from_gui(gui, phos_gui_get_elem(ID));
 }
 int phos_gui_add_elem_to_container(phos_gui_elem *elem, phos_gui_elem *container)
 {
@@ -1146,6 +1148,33 @@ int phos_gui_add_elem_to_container(phos_gui_elem *elem, phos_gui_elem *container
 	{
 		vl_log(VL_ERROR, "Failed to add element to container! Make sure 'container' and 'elem' are not NULL!\n");
 		return 0;
+	}
+
+	// make elem's post relative to container
+	phos_gui_set_elem_pos(elem, container->pos.x + elem->pos.x + elem->outline_thickness, container->pos.y + elem->pos.y + elem->outline_thickness);
+
+	// see if element is even in the container
+	Rectangle elem_rect = phos_gui_get_elem_rect(elem);
+	Rectangle container_rect = phos_gui_get_elem_rect(container);
+	if(elem_rect.x < container_rect.x || elem_rect.x + elem_rect.x > container_rect.x + container_rect.width
+			|| elem_rect.y < container_rect.y || elem_rect.y + elem_rect.height > container_rect.y + container_rect.height)
+	{
+		vl_log(VL_ERROR, "Failed to add element '%s' to container '%s'! The element is out of bounds!\n", elem->ID, container->ID);
+		return 0;
+	}
+
+	// see if element would cover another element
+	for(size_t i = 0; i < container->num_children; ++i)
+	{
+		// get elem at i
+		phos_gui_elem *child = container->children[i];
+
+		// see if a collision occurs
+		if(CheckCollisionRecs(elem_rect, phos_gui_get_elem_rect(child)))
+		{
+			vl_log(VL_ERROR, "Failed to add element '%s' to container '%s'! The element collides with another child element!\n", elem->ID, container->ID);
+			return 0;
+		}
 	}
 
 	// add elem to container
@@ -1162,6 +1191,57 @@ int phos_gui_add_elem_to_container(phos_gui_elem *elem, phos_gui_elem *container
 	vl_log(VL_SUCCESS, "Element '%s' added to container element '%s'!\n", elem->ID, container->ID);
 
 	return 1;
+}
+int phos_gui_remove_elem_from_container(phos_gui_elem *container, phos_gui_elem *elem)
+{
+	if(!container)
+	{
+		vl_log(VL_ERROR, "Cannot remove a UI element from a null container!\n");
+		return 0;
+	}
+	if(!elem)
+	{
+		vl_log(VL_ERROR,"Cannot remove a null UI element from a container!\n");
+		return 0;
+	}
+
+	// find elem in container's children array
+	for(size_t i = 0; i < container->num_children; ++i)
+	{
+		// get elem at i
+		phos_gui_elem *child = container->children[i];
+
+		// compare pointers and IDs
+		if(child == elem && strcmp(child->ID, elem->ID) == 0)
+		{
+			// matching elem was found:
+
+			// check for last element in the array
+			if(i >= PHOS_GUI_MAX_CHILDREN)
+			{
+				// just decrement num_children
+				container->num_children--;
+
+				vl_log(VL_SUCCESS, "Removed element '%s' from container '%s'!\n", elem->ID, container->ID);
+				return 1;
+			}
+
+			// otherwise, shift all elements to the left and decrement num_children:
+			memmove(container->children[i], container->children[i + 1], (container->num_children - i) - 1);
+			container->num_children--;
+
+			vl_log(VL_SUCCESS, "Removed element '%s' from container '%s'!\n", elem->ID, container->ID);
+			return 1;
+		}
+	}
+
+	// no match found
+	vl_log(VL_ERROR, "Failed to remove this element ('%s') from the given container ('%s')!\n", elem->ID, container->ID);
+	return 0;
+}
+int phos_gui_remove_elem_from_container_id(phos_gui_elem *container, const char *ID)
+{
+	return phos_gui_remove_elem_from_container(container, phos_gui_get_elem(ID));
 }
 phos_gui_elem *phos_gui_get_elem(const char *ID)
 {
@@ -1627,7 +1707,7 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 	if(e->texture && IsTextureValid(*e->texture))
 	{
 		Rectangle src = { 0, 0, e->texture->width, e->texture->height };
-		DrawTexturePro(*e->texture, src, vis_bounds, PHOS_GUI_WIN_ORIGIN, e->rotation, primary_color);
+		DrawTexturePro(*e->texture, src, vis_bounds, PHOS_GUI_WIN_ORIGIN, 0.0f, primary_color);
 	}
 	// else just draw base shape (if set)
 	else if(e->render_mode == PHOS_GUI_RENDER_FILL_OUTLINE || e->render_mode == PHOS_GUI_RENDER_FILL)
@@ -1635,7 +1715,7 @@ static void phos_gui_render_elem(const phos_gui_elem *const e)
 		switch(e->shape)
 		{
 			case PHOS_GUI_SHAPE_RECT:
-				DrawRectanglePro(vis_bounds, PHOS_GUI_WIN_ORIGIN, e->rotation, primary_color);
+				DrawRectanglePro(vis_bounds, PHOS_GUI_WIN_ORIGIN, 0.0f, primary_color);
 				break;
 			case PHOS_GUI_SHAPE_ELLIPSE:
 				DrawEllipse(vis_bounds.x + e_rx, vis_bounds.y + e_ry, e_rx, e_ry, primary_color);
