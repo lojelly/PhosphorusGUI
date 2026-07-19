@@ -55,6 +55,7 @@ typedef struct phos_gui_blueprint
 {
 	char ID[PHOS_GUI_MAX_ID_LEN + 1];
 	phos_gui_elem *elem;
+	bool clone_children;
 } phos_gui_blueprint;
 typedef struct phos_gui_blueprint_arr
 {
@@ -1325,78 +1326,82 @@ int phos_gui_remove_elem_from_gui_id(phos_gui *gui, const char *ID)
 {
 	return phos_gui_remove_elem_from_gui(gui, phos_gui_get_elem(ID));
 }
-int phos_gui_add_elem_to_container(phos_gui_elem *elem, phos_gui_elem *container)
+int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child)
 {
-	if(!container || !elem)
+	if(!parent || !child)
 	{
-		vl_log(VL_ERROR, "Failed to add element to container! Make sure 'container' and 'elem' are not NULL!\n");
+		vl_log(VL_ERROR, "Failed to add element to parent! Make sure 'parent' and 'elem' are not NULL!\n");
 		return 0;
 	}
 
-	// see if elem is in container bounds
-	if(!phos_gui_elem_in_bounds(elem, container->pos, container->size))
+	// see if elem is in parent bounds
+	if(!phos_gui_elem_in_bounds(child, parent->pos, parent->size))
 	{
-		vl_log(VL_ERROR, "Element '%s' is not in the given container's ('%s') bounds!\n", elem->ID, container->ID);
+		vl_log(VL_ERROR, "Element '%s' is not in the given parent's ('%s') bounds!\n", child->ID, parent->ID);
 		return 0;
 	}
 
 	// see if element would cover another element
-	for(size_t i = 0; i < container->num_children; ++i)
+	for(size_t i = 0; i < parent->num_children; ++i)
 	{
 		// get elem at i
-		phos_gui_elem *child = container->children[i];
+		phos_gui_elem *ch = parent->children[i];
 
 		// keep in bounds
-		if(!phos_gui_elem_in_bounds(child, container->pos, container->size))
+		if(!phos_gui_elem_in_bounds(child, parent->pos, parent->size))
 		{
-			vl_log(VL_ERROR, "Child element '%s' is not in the given container's ('%s') bounds!\n", child->ID, container->ID);
+			vl_log(VL_ERROR, "Child element '%s' is not in the given parent's ('%s') bounds!\n", child->ID, parent->ID);
 			return 0;
 		}
 
-		// size-bounds are the content area of the container
-		if(phos_gui_check_elem_collision(elem, child, container->pos, phos_gui_get_rect_size(phos_gui_get_elem_content_area(container))))
+		// size-bounds are the content area of the parent
+		if(phos_gui_check_elem_collision(child, ch, parent->pos, phos_gui_get_rect_size(phos_gui_get_elem_content_area(parent))))
 		{
-			vl_log(VL_ERROR, "Element '%s' and child element '%s' are colliding!\n", elem->ID, child->ID);
+			vl_log(VL_ERROR, "Element '%s' and child element '%s' are colliding!\n", child->ID, ch->ID);
 			return 0;
 		}
 	}
 
-	// add elem to container
-	if(container->num_children >= PHOS_GUI_MAX_CHILDREN)
+	// add elem to parent
+	if(parent->num_children >= PHOS_GUI_MAX_CHILDREN)
 	{
-		vl_log(VL_ERROR, "This container cannot contain any more child elements: '%s'!\n", container->ID);
+		vl_log(VL_ERROR, "This parent cannot contain any more child elements: '%s'!\n", parent->ID);
 		return 0;
 	}
-	container->children[container->num_children++] = elem;
+	parent->children[parent->num_children++] = child;
 
-	// the element's parent becomes the container
-	elem->parent = container;
+	// the element's parent becomes the parent
+	child->parent = parent;
 
-	vl_log(VL_SUCCESS, "Element '%s' added to container element '%s'!\n", elem->ID, container->ID);
+	vl_log(VL_SUCCESS, "Element '%s' added to parent element '%s'!\n", child->ID, parent->ID);
 
 	return 1;
 }
-int phos_gui_remove_elem_from_container(phos_gui_elem *container, phos_gui_elem *elem)
+int phos_gui_add_child_id(phos_gui_elem *parent, const char *ID)
 {
-	if(!container)
+	return phos_gui_add_child(parent, phos_gui_get_elem(ID));
+}
+int phos_gui_remove_child(phos_gui_elem *parent, phos_gui_elem *child)
+{
+	if(!parent)
 	{
 		vl_log(VL_ERROR, "Cannot remove a UI element from a null container!\n");
 		return 0;
 	}
-	if(!elem)
+	if(!child)
 	{
 		vl_log(VL_ERROR,"Cannot remove a null UI element from a container!\n");
 		return 0;
 	}
 
 	// find elem in container's children array
-	for(size_t i = 0; i < container->num_children; ++i)
+	for(size_t i = 0; i < parent->num_children; ++i)
 	{
 		// get elem at i
-		phos_gui_elem *child = container->children[i];
+		phos_gui_elem *ch = parent->children[i];
 
 		// compare pointers and IDs
-		if(child == elem && strcmp(child->ID, elem->ID) == 0)
+		if(child == ch && strcmp(child->ID, child->ID) == 0)
 		{
 			// matching elem was found:
 
@@ -1404,28 +1409,28 @@ int phos_gui_remove_elem_from_container(phos_gui_elem *container, phos_gui_elem 
 			if(i >= PHOS_GUI_MAX_CHILDREN)
 			{
 				// just decrement num_children
-				container->num_children--;
+				parent->num_children--;
 
-				vl_log(VL_SUCCESS, "Removed element '%s' from container '%s'!\n", elem->ID, container->ID);
+				vl_log(VL_SUCCESS, "Removed element '%s' from container '%s'!\n", child->ID, parent->ID);
 				return 1;
 			}
 
 			// otherwise, shift all elements to the left and decrement num_children:
-			memmove(container->children[i], container->children[i + 1], (container->num_children - i) - 1);
-			container->num_children--;
+			memmove(parent->children[i], parent->children[i + 1], (parent->num_children - i) - 1);
+			parent->num_children--;
 
-			vl_log(VL_SUCCESS, "Removed element '%s' from container '%s'!\n", elem->ID, container->ID);
+			vl_log(VL_SUCCESS, "Removed element '%s' from parent '%s'!\n", child->ID, parent->ID);
 			return 1;
 		}
 	}
 
 	// no match found
-	vl_log(VL_ERROR, "Failed to remove this element ('%s') from the given container ('%s')!\n", elem->ID, container->ID);
+	vl_log(VL_ERROR, "Failed to remove this child ('%s') from the given parent ('%s')!\n", child->ID, parent->ID);
 	return 0;
 }
-int phos_gui_remove_elem_from_container_id(phos_gui_elem *container, const char *ID)
+int phos_gui_remove_child_id(phos_gui_elem *parent, const char *ID)
 {
-	return phos_gui_remove_elem_from_container(container, phos_gui_get_elem(ID));
+	return phos_gui_remove_child(parent, phos_gui_get_elem(ID));
 }
 phos_gui_elem *phos_gui_get_elem(const char *ID)
 {
@@ -1452,17 +1457,17 @@ phos_gui_elem *phos_gui_get_elem(const char *ID)
 	vl_log(VL_ERROR, "No UI element found with the ID: '%s'\n", ID);
 	return NULL;
 }
-void phos_gui_clone_elem(phos_gui_elem *elem, const char *ID)
+static int phos_gui_create_blueprint(phos_gui_elem *elem, const char *ID, phos_gui_blueprint *bp)
 {
 	if(!elem)
 	{
 		vl_log(VL_ERROR, "Cannot clone null UI element!\n");
-		return;
+		return 0;
 	}
 	if(!ID || strlen(ID) == 0)
 	{
 		vl_log(VL_ERROR, "Invalid blueprint ID!\n");
-		return;
+		return 0;
 	}
 
 	phos_gui_blueprint blueprint = {0};
@@ -1474,7 +1479,7 @@ void phos_gui_clone_elem(phos_gui_elem *elem, const char *ID)
 	if(phos_gui_search_for_duplicate_id(ID) != -1)
 	{
 		vl_log(VL_ERROR, "Failed to create blueprint for element: '%s'!\n", elem->ID);
-		return;
+		return 0;
 	}
 
 	// see if a duplicate blueprint exists
@@ -1485,12 +1490,12 @@ void phos_gui_clone_elem(phos_gui_elem *elem, const char *ID)
 		if(bp->elem == elem)
 		{
 			vl_log(VL_ERROR, "Duplicate UI element pointer found while creating blueprint: %p!\n", elem);
-			return;
+			return 0;
 		}
 		if(strcmp(bp->ID, ID) == 0)
 		{
 			vl_log(VL_ERROR, "Duplicate blueprint ID found: '%s'!\n", bp->ID);
-			return;
+			return 0;
 		}
 	}
 
@@ -1502,6 +1507,25 @@ void phos_gui_clone_elem(phos_gui_elem *elem, const char *ID)
 	dynas_add(&all_ids, blueprint_registry.data[blueprint_registry.size - 1].ID);
 
 	vl_log(VL_SUCCESS, "Registered blueprint with ID: '%s'!\n", ID);
+
+	if(bp)
+		*bp = blueprint;
+
+	return 1;
+}
+void phos_gui_clone_single_elem(phos_gui_elem *elem, const char *ID)
+{
+	phos_gui_blueprint blueprint = {0};
+
+	if(phos_gui_create_blueprint(elem, ID, &blueprint) == 1)
+		blueprint.clone_children = false;
+}
+void phos_gui_clone_full_elem(phos_gui_elem *elem, const char *ID)
+{
+	phos_gui_blueprint blueprint = {0};
+
+	if(phos_gui_create_blueprint(elem, ID, &blueprint) == 1)
+		blueprint.clone_children = true;
 }
 void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID)
 {
@@ -1541,6 +1565,28 @@ void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID)
 	{
 		vl_log(VL_ERROR, "Failed to initialize a cloned element! A duplicate ID was found: '%s'!\n", target_elem->ID);
 		return;
+	}
+
+	// clone children from bp->elem onto target_elem
+	if(bp->clone_children)
+	{
+		for(size_t i = 0; i < bp->elem->num_children; ++i)
+		{
+			// child at i
+			phos_gui_elem *child = bp->elem->children[i];
+
+			// clone the child
+			phos_gui_elem child_clone = *child;
+			strcpy(child_clone.ID, "auto");
+			phos_gui_auto_gen_id("auto", child_clone.ID, "elem", &elem_auto_id);
+
+			// clone elements from child onto child_clone
+			if(pluto_cs_clone_components(child, &child_clone) == 0)
+				vl_log(VL_ERROR, "Failed to clone child components!\n");
+
+			// add child to target_elem
+			phos_gui_add_child(target_elem, &child_clone);
+		}
 	}
 
 	// clone elements from bp->elem onto target_elem
@@ -2042,7 +2088,7 @@ void phos_gui_render()
 
 		// warn about empty containers
 		if(elem->type == PHOS_GUI_TYPE_CONTAINER && elem->num_children == 0)
-			vl_delay_log(VL_WARNING, 10.0f, "Element is a container but has no children: '%s'!\n", elem->ID);
+			vl_delay_log(VL_WARNING, 10.0f, "Element is a parent but has no children: '%s'!\n", elem->ID);
 	}
 }
 

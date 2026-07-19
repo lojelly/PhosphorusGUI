@@ -300,53 +300,6 @@ typedef enum phos_gui_alignment
 } phos_gui_alignment;
 
 /**
-  The different layout types.
-*/
-typedef enum phos_gui_layout_type
-{
-	/**
-	  Indicates that all items are organized vertically.
-
-	  @note This is the default layout type.
-	*/
-	PHOS_GUI_LAYOUT_VERTICAL,
-	/**
-	  Indicates that all items are organized horizontally.
-	*/
-	PHOS_GUI_LAYOUT_HORIZONTAL,
-} phos_gui_layout_type;
-
-/**
-  Additional and optional settings for phos_gui functions.
-*/
-typedef enum phos_gui_opts
-{
-	/**
-	  Indicates there are no extra options to apply.
-	*/
-	PHOS_GUI_OPTS_NONE = 0,
-	/**
-	  Indicates that the action the function performs on an element
-	  should be passed down to all of the elements children.
-	*/
-	PHOS_GUI_OPTS_PASS_DOWN = 1 << 0,
-	/**
-	  Indicates that the action the function performs on an element
-	  should be passed down to only its first child element.
-	*/
-	PHOS_GUI_OPTS_PASS_DOWN_FIRST = 1 << 1,
-	/**
-	  Indicates that when resizing an element, its text component
-	  (if it has one) should be modified to fit the new size of the
-	  element.
-
-	  @note This only takes effect when the element becomes too small
-	  to contain its text.
-	*/
-	PHOS_GUI_OPTS_FIX_TEXT = 1 << 2,
-} phos_gui_opts;
-
-/**
   The available component types.
 */
 typedef enum phos_gui_component_type
@@ -356,7 +309,6 @@ typedef enum phos_gui_component_type
 	*/
 	PHOS_GUI_COMPONENT_TEXT = 1,
 } phos_gui_component_type;
-
 
 /**
   A phos_gui_text_component represents a piece of
@@ -381,7 +333,7 @@ typedef struct phos_gui_text_component
 	char placeholder_str[PHOS_GUI_MAX_TEXT_LEN + 1];
 
 	/**
-	  This text component's owner.
+	  The owner of this text component.
 	*/
 	struct phos_gui_elem *owner;
 
@@ -623,21 +575,12 @@ typedef struct phos_gui_elem
 	/**
 	  This element's alignment.
 
-	  When the element is added to a container or
+	  When the element is added to a parent element or
 	  aligned with another element, this alignment
 	  tells PhosphorusGUI how to align this element
 	  with the reference element.
 	*/
 	phos_gui_alignment alignment;
-	/**
-	  If this element is a container, this determines
-	  how the container is formatted.
-
-	  If the element is not a container, this value
-	  is not used at all. Instead the 'layout_type' of
-	  the element's phos_gui is used.
-	*/
-	phos_gui_layout_type layout_type;
 
 	/**
 	  The thickness of the element's outline.
@@ -720,12 +663,37 @@ typedef struct phos_gui
 	  The current amount of elements inside this GUI.
 	*/
 	size_t num_elems;
-
-	/**
-	  The layout of this GUI.
-	*/
-	phos_gui_layout_type layout_type;
 } phos_gui;
+
+/**
+  Additional and optional settings for phos_gui functions.
+*/
+typedef enum phos_gui_opts
+{
+	/**
+	  Indicates there are no extra options to apply.
+	*/
+	PHOS_GUI_OPTS_NONE = 0,
+	/**
+	  Indicates that the action the function performs on an element
+	  should be passed down to all of the elements children.
+	*/
+	PHOS_GUI_OPTS_PASS_DOWN = 1 << 0,
+	/**
+	  Indicates that the action the function performs on an element
+	  should be passed down to only its first child element.
+	*/
+	PHOS_GUI_OPTS_PASS_DOWN_FIRST = 1 << 1,
+	/**
+	  Indicates that when resizing an element, its text component
+	  (if it has one) should be modified to fit the new size of the
+	  element.
+
+	  @note This only takes effect when the element becomes too small
+	  to contain its text.
+	*/
+	PHOS_GUI_OPTS_FIX_TEXT = 1 << 2,
+} phos_gui_opts;
 
 
 /**
@@ -1062,30 +1030,37 @@ PHOS_GUI_API int phos_gui_remove_elem_from_gui(phos_gui *gui, phos_gui_elem *ele
 */
 PHOS_GUI_API int phos_gui_remove_elem_from_gui_id(phos_gui *gui, const char *ID);
 /**
-  Adds a UI element to a container element.
+  Adds a UI element as a child to another UI element.
 
-  @note The child element's position becomes
-  relative to the container's position.
-
-  @important This function does not add the element
-  or container to a phos_gui instance.
+  @important This function does not add the parent
+  or child to a phos_gui instance.
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_add_elem_to_container(phos_gui_elem *elem, phos_gui_elem *container);
+PHOS_GUI_API int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child);
 /**
-  Removes a UI element from a container element.
+  Adds a UI element as a child to another UI element
+  using the child's ID.
+
+  @important This function does not add the parent
+  or child to a phos_gui instance.
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_remove_elem_from_container(phos_gui_elem *container, phos_gui_elem *elem);
+PHOS_GUI_API int phos_gui_add_child_id(phos_gui_elem *parent, const char *ID);
 /**
-  Removes a UI element from a container element
-  using an element's ID.
+  Removes a child element from a parent element.
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_remove_elem_from_container_id(phos_gui_elem *container, const char *ID);
+PHOS_GUI_API int phos_gui_remove_child(phos_gui_elem *parent, phos_gui_elem *child);
+/**
+  Removes a child element from a parent element
+  using the child's ID.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_remove_child_id(phos_gui_elem *parent, const char *ID);
 /**
   Obtains a UI element with a specific ID.
 */
@@ -1095,16 +1070,42 @@ PHOS_GUI_API phos_gui_elem *phos_gui_get_elem(const char *ID);
 
   When creating a clone of a UI element, you are creating
   a blueprint that can be instantiated at any point, instantly
-  cloning the element. Because of this blueprints must have unique
+  duplicating the element. Because of this blueprints must have unique
   IDs, just like elements. Additionally, to reduce any copies, every
   blueprint also must have a unique element pointer.
 
+  @important This function only clones the element given, and no more.
+  To clone an element and its children, use phos_gui_clone_full_elem(...).
+
   @param elem The element to clone. Note that no two blueprints can be created
   using this element pointer.
-  @param ID The ID to give to the blueprint. Later, to instantiate the blueprint,
-  you use phos_gui_new_instance(ID).
+  @param ID The ID to give to the blueprint. Later, to initialize an instance of
+  the blueprint, you use phos_gui_init_clone(target_elem, ID).
+
+  @see phos_gui_clone_full_elem(phos_gui_elem*, const char*)
 */
-PHOS_GUI_API void phos_gui_clone_elem(phos_gui_elem *elem, const char *ID);
+PHOS_GUI_API void phos_gui_clone_single_elem(phos_gui_elem *elem, const char *ID);
+/**
+  Creates a clone of a UI element for reuse.
+
+  When creating a clone of a UI element, you are creating
+  a blueprint that can be instantiated at any point, instantly
+  duplicating the element. Because of this blueprints must have unique
+  IDs, just like elements. Additionally, to reduce any copies, every
+  blueprint also must have a unique element pointer.
+
+  @important This function clones the element given, and all of
+  the element's children. To clone a single element, use
+  phos_gui_clone_single_elem(...).
+
+  @param elem The element to clone. Note that no two blueprints can be created
+  using this element pointer.
+  @param ID The ID to give to the blueprint. Later, to initialize an instance of
+  the blueprint, you use phos_gui_init_clone(target_elem, ID).
+
+  @see phos_gui_clone_single_elem(phos_gui_elem*, const char*)
+*/
+PHOS_GUI_API void phos_gui_clone_full_elem(phos_gui_elem *elem, const char *ID);
 /**
   Creates a new instance of a cloned element,
   and inserts the data into 'target_elem.'
@@ -1113,7 +1114,6 @@ PHOS_GUI_API void phos_gui_clone_elem(phos_gui_elem *elem, const char *ID);
   instance. However, it does give the clone element an auto-generated ID.
 
   @see phos_gui_clone_elem(phos_gui_elem*, const char*)
-  @see phos_gui_remove_elem(phos_gui*, phos_gui_elem*)
 */
 PHOS_GUI_API void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID);
 
@@ -1132,7 +1132,7 @@ PHOS_GUI_API void phos_gui_set_win_scale(float x, float y);
 
 /**
   Obtains the current mouse position. This function
-  takes the current window scale into affect.
+  takes the current window scale into account.
 
   To set window scale, use phos_gui_set_win_scale(float, float).
 */
