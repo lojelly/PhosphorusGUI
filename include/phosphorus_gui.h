@@ -308,7 +308,39 @@ typedef enum phos_gui_component_type
 	  The text component.
 	*/
 	PHOS_GUI_COMPONENT_TEXT = 1,
+	/**
+	  An extension of the text component.
+
+	  This indicates the element should also
+	  have placeholder text.
+	*/
+	PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT,
 } phos_gui_component_type;
+
+/**
+  In some PhosphorusGUI functions, a string
+  is required for alignments, rendering, etc.
+  For those functions, it needs to know the target
+  string on an object. The two primary target strings
+  are the main text (a phos_gui_text_component) or
+  placeholder text (a phos_gui_placeholder_text_extension).
+*/
+typedef enum phos_gui_target_text_string
+{
+	/**
+	  Indicates the main string on an object should
+	  be used (the phos_gui_text_component).
+	*/
+	PHOS_GUI_TARGET_MAIN_TEXT,
+	/**
+	  Indicates the placeholder text on an object
+	  should be used (the phos_gui_placeholder_text_extension).
+
+	  @note The object must have a phos_gui_placeholder_text_extension
+	  to use PHOS_GUI_TARGET_PLACEHOLDER_TEXT.
+	*/
+	PHOS_GUI_TARGET_PLACEHOLDER_TEXT
+} phos_gui_target_text_string;
 
 /**
   A phos_gui_text_component represents a piece of
@@ -322,15 +354,6 @@ typedef struct phos_gui_text_component
 	  This buffer allocates (PHOS_GUI_MAX_TEXT_LEN + 1) bytes.
 	*/
 	char str[PHOS_GUI_MAX_TEXT_LEN + 1];
-	/**
-	  For some elements, they may require placeholder
-	  text.
-
-	  Use this buffer for placeholder text specifically.
-
-	  Just like the 'str' field, it also allocates (PHOS_GUI_MAX_TEXT_LEN + 1) bytes.
-	*/
-	char placeholder_str[PHOS_GUI_MAX_TEXT_LEN + 1];
 
 	/**
 	  The owner of this text component.
@@ -402,10 +425,6 @@ typedef struct phos_gui_text_component
 	  The color of the text component's main contents ('str').
 	*/
 	Color color;
-	/**
-	  The color of the placeholder text ('placeholder_str').
-	*/
-	Color placeholder_color;
 
 	/**
 	  The last key the user typed into this text component.
@@ -445,6 +464,27 @@ typedef struct phos_gui_text_component
 	*/
 	bool accept_specials;
 } phos_gui_text_component;
+
+/**
+  An extension of the text component.
+*/
+typedef struct phos_gui_placeholder_text_extension
+{
+	/**
+	  The string contents of the placeholder text.
+	*/
+	char str[PHOS_GUI_MAX_TEXT_LEN + 1];
+
+	/**
+	  The text component being extended.
+	*/
+	phos_gui_text_component *host;
+
+	/**
+	  The color of the placeholder text.
+	*/
+	Color color;
+} phos_gui_placeholder_text_extension;
 
 /**
   A phos_gui_color_set represents a collection
@@ -583,6 +623,13 @@ typedef struct phos_gui_elem
 	phos_gui_alignment alignment;
 
 	/**
+	  The color of the element when it is disabled.
+
+	  @see disabled
+	*/
+	Color disabled_color;
+
+	/**
 	  The thickness of the element's outline.
 
 	  @note If set to 0, it will not be visible.
@@ -598,6 +645,31 @@ typedef struct phos_gui_elem
 	  0.0f (no roundness) and 1.0f (full roundness).
 	*/
 	float corner_radius;
+
+	/**
+	  Left padding.
+
+	  This value represents the amount of space inside of the element on the left.
+	*/
+	float left_padding;
+	/**
+	  Top padding.
+
+	  This value represents the amount of space inside of the element on the top.
+	*/
+	float top_padding;
+	/**
+	  Right padding.
+
+	  This value represents the amount of space inside of the element on the right.
+	*/
+	float right_padding;
+	/**
+	  Bottom padding.
+
+	  This value represents the amount of space inside of the element on the bottom.
+	*/
+	float bottom_padding;
 
 	/**
 	  Determines if this element currently has focus.
@@ -629,6 +701,47 @@ typedef struct phos_gui_elem
 	  hovered over this element.
 	*/
 	bool pressed;
+
+	/**
+	  Indicates whether or not this element should
+	  have focus when its phos_gui is switched to.
+
+	  @note Only one element in a phos_gui should
+	  have this set to true. PhosphorusGUI only
+	  gives focus to the first element added to a phos_gui
+	  with 'focus_on_start' set to true.
+	*/
+	bool focus_on_start;
+
+	/**
+	  Indicates whether or not the user can travel
+	  to this element when pressing TAB or SHIFT+TAB.
+
+	  When the user presses TAB or SHIFT+TAB, every
+	  element in a phos_gui is included in the travel
+	  sequence. But sometimes, it may not make sense to
+	  include an element. For example, if you have a
+	  parent element containing some elements, by default,
+	  that parent element is included in the travel sequence.
+	  If you want to skip the parent container, mark it as
+	  unreachable and the user cannot travel to it. Unreachable
+	  elements are skipped.
+	*/
+	bool unreachable;
+
+	/**
+	  Indicates whether or not this element is currently
+	  disabled.
+
+	  A disabled element cannot be interacted with, but it
+	  is still rendered. However, when it is rendered,
+	  it uses the 'disabled_color' to tint the element
+	  a specific color letting the user know they cannot
+	  interact with it. Additionally, if the element's
+	  outline is rendered, the normal color on its outline
+	  color set is used.
+	*/
+	bool disabled;
 } phos_gui_elem;
 
 /**
@@ -825,18 +938,23 @@ PHOS_GUI_API Rectangle phos_gui_get_elem_content_area(const phos_gui_elem *const
 /**
   Returns the bounds of a text component.
 
-  @note Because a text component contains primary text ('str') and
-  placeholder text ('placeholder_str'), you must also pass
-  the target string to use.
+  This function will insert the bounds of the
+  'str' field on the text component into
+  'out_main_bounds,' and if the text component
+  is paired with a phos_gui_placeholder_text_extension
+  component, 'out_placeholder_bounds' will contain
+  the bounds of the placeholder text. If at
+  any point an error occurs, the rectangles
+  will be zero-initialized.
 */
-PHOS_GUI_API Rectangle phos_gui_get_text_bounds(const phos_gui_text_component *const text_component, const char *str);
+PHOS_GUI_API void phos_gui_get_text_bounds(const phos_gui_text_component *const text_component, Rectangle *out_main_bounds, Rectangle *out_placeholder_bounds);
 /**
   Returns the bounds of a text component in the form of a Vector2.
   The vector returned only contains the width and height of the text.
 
-  @see phos_gui_get_text_bounds(const phos_gui_text_component *const, const char*)
+  @see phos_gui_get_text_bounds(const phos_gui_text_component *const, Rectangle*, Rectangle*)
 */
-PHOS_GUI_API Vector2 phos_gui_get_text_bounds_v(const phos_gui_text_component *const text_component, const char *str);
+PHOS_GUI_API void phos_gui_get_text_bounds_v(const phos_gui_text_component *const text_component, Vector2 *out_main_bounds, Vector2 *out_placeholder_bounds);
 
 /**
   Initializes an element's text component.
@@ -847,12 +965,9 @@ PHOS_GUI_API Vector2 phos_gui_get_text_bounds_v(const phos_gui_text_component *c
 */
 PHOS_GUI_API void phos_gui_init_text(phos_gui_text_component *text, const char *str, float font_size, Color color);
 /**
-  Initializes an element's text component.
-
-  @note This function initializes the placeholder
-  text of the text component.
+  Initializes an element's placeholder text extension component.
 */
-PHOS_GUI_API void phos_gui_init_placeholder_text(phos_gui_text_component *text, const char *str, Color color);
+PHOS_GUI_API void phos_gui_init_placeholder_text(phos_gui_placeholder_text_extension *placeholder_text, const char *str, Color color);
 
 /**
   Converts a Rectangle's position into a Vector2.
@@ -862,6 +977,13 @@ PHOS_GUI_API Vector2 phos_gui_get_rect_pos(Rectangle r);
   Converts a Rectangle's size into a Vector2.
 */
 PHOS_GUI_API Vector2 phos_gui_get_rect_size(Rectangle r);
+
+/**
+  Determines if a rectangle is valid for PhosphorusGUI.
+
+  A valid rectangle has all non-zero values.
+*/
+PHOS_GUI_API bool phos_gui_is_rect_valid(Rectangle r);
 
 /**
   Quickly sets the position of an element.
@@ -902,10 +1024,13 @@ PHOS_GUI_API void phos_gui_gen_color_set(phos_gui_color_set *set, Color normal_c
   Sets the contents of the given element's text component.
 
   @param text_component The text component to modify.
-  @param target_str The specific string buffer to set on the text component ('str' or 'placeholder_str').
+  @param target_str The specific string buffer to set on the text component.
+  See phos_gui_target_text_string.
   @param str The string that should occupy the target string given.
+
+  @see phos_gui_target_text_string
 */
-PHOS_GUI_API void phos_gui_set_text_contents(phos_gui_text_component *text_component, char *target_str, const char *str);
+PHOS_GUI_API void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, const char *new_contents);
 
 /**
   Calculates the position of the text component of an element based on an alignment.
@@ -916,13 +1041,14 @@ PHOS_GUI_API void phos_gui_set_text_contents(phos_gui_text_component *text_compo
   @important The given alignment must be one of the PHOS_GUI_ALIGN_INNER... alignments.
 
   @param text_component The text component to align.
+  @param target_str The string buffer on the text component to use when aligning.
+  See phos_gui_target_text_string.
   @param alignment The alignment to use.
-  @param target_str The string buffer on the text component to use when aligning. For example, to use placeholder text,
-  pass in 'text_component -> placeholder_str'.
 
   @see phos_gui_align_elem(phos_gui_elem*, phos_gui_alignment, const phos_gui_elem *const)
+  @see phos_gui_target_text_string
 */
-PHOS_GUI_API Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_gui_alignment alignment, const char *target_str);
+PHOS_GUI_API Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, phos_gui_alignment alignment);
 /**
   Calculates the position of 'target_elem' if it were aligned with 'reference_elem'
   using the given alignment, and then uses the calculated position to properly
