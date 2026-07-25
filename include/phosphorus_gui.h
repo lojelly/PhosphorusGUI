@@ -112,12 +112,22 @@ typedef enum phos_gui_elem_type
 	/**
 	  The default element type.
 	  
-	  Indicates invalid state.
+	  Indicates the element is in an invalid state.
 	*/
 	PHOS_GUI_TYPE_INVALID,
 	/**
 	  The most basic element type.
 
+	  This type indicates the element has no
+	  functionality, and it will not render.
+	  In some instances you may want an element
+	  to have this type for specific formatting
+	  reasons. For example, in a grid layout,
+	  you could create gaps in between elements
+	  by using blank elements.
+	*/
+	PHOS_GUI_TYPE_BLANK,
+	/**
 	  This type indicates the element has no extra
 	  functionality, and it should simply be rendered
 	  using its set attributes. However, basic elements
@@ -306,6 +316,8 @@ typedef enum phos_gui_component_type
 {
 	/**
 	  The text component.
+
+	  @see phos_gui_text_component
 	*/
 	PHOS_GUI_COMPONENT_TEXT = 1,
 	/**
@@ -313,8 +325,18 @@ typedef enum phos_gui_component_type
 
 	  This indicates the element should also
 	  have placeholder text.
+
+	  @see phos_gui_text_component
+	  @see phos_gui_placeholder_text_extension
 	*/
 	PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT,
+
+	/**
+	  Provides an element with a layout.
+
+	  @see phos_gui_layout_component
+	*/
+	PHOS_GUI_COMPONENT_LAYOUT,
 } phos_gui_component_type;
 
 /**
@@ -339,7 +361,14 @@ typedef enum phos_gui_target_text_string
 	  @note The object must have a phos_gui_placeholder_text_extension
 	  to use PHOS_GUI_TARGET_PLACEHOLDER_TEXT.
 	*/
-	PHOS_GUI_TARGET_PLACEHOLDER_TEXT
+	PHOS_GUI_TARGET_PLACEHOLDER_TEXT,
+	/**
+	  Indicates that PhosphorusGUI should read from both
+	  the main and placeholder text of an object and automatically
+	  determine which one to use. The string with a longer length
+	  is automatically chosen when using PHOS_GUI_TARGET_AUTO_TEXT.
+	*/
+	PHOS_GUI_TARGET_AUTO_TEXT
 } phos_gui_target_text_string;
 
 /**
@@ -485,6 +514,63 @@ typedef struct phos_gui_placeholder_text_extension
 	*/
 	Color color;
 } phos_gui_placeholder_text_extension;
+
+/**
+  The types of layouts.
+*/
+typedef enum phos_gui_layout_type
+{
+	/**
+	  A grid layout utilizes rows and columns
+	  to format objects.
+
+	  @note This is the default layout type.
+	*/
+	PHOS_GUI_LAYOUT_GRID,
+	/**
+	  A vertical list layout results in the child
+	  elements being formatted on top of each other.
+	*/
+	PHOS_GUI_LAYOUT_VERTICAL_LIST,
+	/**
+	  A horizontal list layout behaves exactly the same
+	  as the vertical list layout but the elements
+	  are formatted horizontally.
+
+	  @see PHOS_GUI_LAYOUT_VERTICAL_LIST
+	*/
+	PHOS_GUI_LAYOUT_HORIZONTAL_LIST
+} phos_gui_layout_type;
+
+/**
+  A phos_gui_layout_component provides an element
+  with a specific layout and formatting technique.
+*/
+typedef struct phos_gui_layout_component
+{
+	/**
+	  The owner of this layout component.
+	*/
+	struct phos_gui_elem *owner;
+	
+	/**
+	  The number of rows in the layout.
+
+	  @note Some layouts may not require this value to be set.
+	*/
+	size_t rows;
+	/**
+	  The number of columns in the layout.
+
+	  @note Some layouts may not require this value to be set.
+	*/
+	size_t cols;
+
+	/**
+	  The type of layout to use.
+	*/
+	phos_gui_layout_type type;
+} phos_gui_layout_component;
 
 /**
   A phos_gui_color_set represents a collection
@@ -805,7 +891,12 @@ typedef enum phos_gui_opts
 	  @note This only takes effect when the element becomes too small
 	  to contain its text.
 	*/
-	PHOS_GUI_OPTS_FIX_TEXT = 1 << 2,
+	PHOS_GUI_OPTS_FIT_TEXT = 1 << 2,
+	/**
+	  Indicates that when resizing an element, its text
+	  component (if it has one) should be realigned.
+	*/
+	PHOS_GUI_OPTS_REALIGN_TEXT = 1 << 3,
 } phos_gui_opts;
 
 
@@ -887,7 +978,7 @@ PHOS_GUI_API void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vect
 /**
   Moves an element x pixels horizontally and y pixels vertically.
 */
-PHOS_GUI_API void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y);
+PHOS_GUI_API void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts opts);
 /**
   Resizes an element by w pixels horizontally and h pixels vertically.
 
@@ -988,15 +1079,15 @@ PHOS_GUI_API bool phos_gui_is_rect_valid(Rectangle r);
 /**
   Quickly sets the position of an element.
 */
-PHOS_GUI_API void phos_gui_set_elem_pos(phos_gui_elem *elem, float x, float y);
+PHOS_GUI_API void phos_gui_set_elem_pos(phos_gui_elem *elem, float x, float y, phos_gui_opts opts);
 /**
   Quickly sets the size of an element.
 */
-PHOS_GUI_API void phos_gui_set_elem_size(phos_gui_elem *elem, float w, float h);
+PHOS_GUI_API void phos_gui_set_elem_size(phos_gui_elem *elem, float w, float h, phos_gui_opts opts);
 /**
   Quickly sets the bounds of an element (its position and size).
 */
-PHOS_GUI_API void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, float h);
+PHOS_GUI_API void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, float h, phos_gui_opts opts);
 
 /**
   Quickly sets up the specified color set.
@@ -1058,20 +1149,20 @@ PHOS_GUI_API Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_comp
   @param alignment The alignment to use. The element's 'alignment' field is automatically assigned to the value given.
   @param reference_elem The element 'target_elem' is being aligned with.
 */
-PHOS_GUI_API Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment alignment, const phos_gui_elem *const reference_elem);
+PHOS_GUI_API Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment alignment, const phos_gui_elem *const reference_elem, phos_gui_opts opts);
 /**
   Calculates the position of 'target_elem' if it were aligned with the window.
 
   @important The given alignment must be one of the PHOS_GUI_ALIGN_INNER... alignments.
 */
-PHOS_GUI_API Vector2 phos_gui_align_elem_with_window(phos_gui_elem *target_elem, phos_gui_alignment alignment);
+PHOS_GUI_API Vector2 phos_gui_align_elem_with_window(phos_gui_elem *target_elem, phos_gui_alignment alignment, phos_gui_opts opts);
 /**
   Fills the window's content area with an element.
 
   @note This automatically sets the alignment on the given element
   to PHOS_GUI_ALIGN_INNER_TOP_LEFT.
 */
-PHOS_GUI_API void phos_gui_fill_window_with_elem(phos_gui_elem *elem);
+PHOS_GUI_API void phos_gui_fill_window_with_elem(phos_gui_elem *elem, phos_gui_opts opts);
 
 /**
   Makes the given element fit the given text component's bounds.
@@ -1080,7 +1171,7 @@ PHOS_GUI_API void phos_gui_fill_window_with_elem(phos_gui_elem *elem);
   In most cases, this will shrink the element down drastically. To make the element
   fit a text component but retain its original size, use phos_gui_make_elem_fit_text(...).
 */
-PHOS_GUI_API void phos_gui_clamp_elem_to_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, const char *text_component_target_str);
+PHOS_GUI_API void phos_gui_clamp_elem_to_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str, phos_gui_opts opts);
 /**
   Makes the given text component fit the given element's bounds.
 
@@ -1091,7 +1182,7 @@ PHOS_GUI_API void phos_gui_clamp_elem_to_text(phos_gui_elem *elem, const phos_gu
 
   @see phos_gui_make_elem_fit_text(phos_gui_elem*, phos_gui_text_component*, const char*)
 */
-PHOS_GUI_API void phos_gui_make_text_fit_elem(const phos_gui_elem *const elem, phos_gui_text_component *text_component, const char *text_component_target_str);
+PHOS_GUI_API void phos_gui_make_text_fit_elem(const phos_gui_elem *const elem, phos_gui_text_component *text_component, phos_gui_target_text_string target_str);
 /**
   Makes the given element fit the given text component's bounds.
 
@@ -1101,7 +1192,7 @@ PHOS_GUI_API void phos_gui_make_text_fit_elem(const phos_gui_elem *const elem, p
 
   @see phos_gui_make_text_fit_elem(phos_gui_elem*, phos_gui_text_component*, const char*)
 */
-PHOS_GUI_API void phos_gui_make_elem_fit_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, const char *text_component_target_str);
+PHOS_GUI_API void phos_gui_make_elem_fit_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str);
 
 /**
   Sets some basic element attributes.
@@ -1188,6 +1279,16 @@ PHOS_GUI_API int phos_gui_remove_child(phos_gui_elem *parent, phos_gui_elem *chi
 */
 PHOS_GUI_API int phos_gui_remove_child_id(phos_gui_elem *parent, const char *ID);
 /**
+  Formats the child elements inside of a parent element.
+
+  @note The parent element must have a layout component.
+
+  @return 1 on success, 0 on failure.
+
+  @see phos_gui_layout_component
+*/
+PHOS_GUI_API int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts);
+/**
   Obtains a UI element with a specific ID.
 */
 PHOS_GUI_API phos_gui_elem *phos_gui_get_elem(const char *ID);
@@ -1238,6 +1339,10 @@ PHOS_GUI_API void phos_gui_clone_full_elem(phos_gui_elem *elem, const char *ID);
 
   @note This function does not automatically add the clone element to a phos_gui
   instance. However, it does give the clone element an auto-generated ID.
+
+  @important PhosphorusGUI comes with some pre-generated clones. The list
+  of them are: "phos_gui_btn" for a button element, and "phos_gui_textfield" for
+  a text field.
 
   @see phos_gui_clone_elem(phos_gui_elem*, const char*)
 */

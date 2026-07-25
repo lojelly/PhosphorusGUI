@@ -15,8 +15,6 @@
 
 #define TEXT_PADDING PHOS_GUI_FONT_SIZE_MED
 
-#define INVALID_RECT (Rectangle) { 0, 0, 0, 0 }
-
 // array of element pointers
 typedef struct elem_arr
 {
@@ -153,6 +151,7 @@ static void init_text_component(void *text_component, void *owner)
 	text->editable = true;
 	text->max_len = PHOS_GUI_MAX_TEXT_LEN;
 	text->len = 0;
+	text->cursor_pos = 0;
 	text->color = BLACK;
 	text->pos = Vector2Zero();
 	strcpy(text->str, "");
@@ -191,6 +190,22 @@ static void init_placeholder_text_extension(void *placeholder_text_component, vo
 	vl_log(VL_SUCCESS, "Added placeholder text extension to '%s'!\n", elem->ID);
 }
 
+static void init_layout_component(void *layout_component, void *owner)
+{
+	if(!layout_component || !owner)
+		return;
+
+	phos_gui_layout_component *layout = layout_component;
+	phos_gui_elem *elem = owner;
+
+	layout->owner = owner;
+	layout->rows = 0;
+	layout->cols = 0;
+	layout->type = PHOS_GUI_LAYOUT_GRID;
+
+	vl_log(VL_SUCCESS, "Added a layout component to '%s'!\n", elem->ID);
+}
+
 int phos_gui_init()
 {
 	if(init)
@@ -217,6 +232,7 @@ int phos_gui_init()
 	// register PhosphorusGUI component types
 	pluto_cs_register(PHOS_GUI_COMPONENT_TEXT, sizeof(phos_gui_text_component), init_text_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT, sizeof(phos_gui_placeholder_text_extension), init_placeholder_text_extension, NULL);
+	pluto_cs_register(PHOS_GUI_COMPONENT_LAYOUT, sizeof(phos_gui_layout_component), init_layout_component, NULL);
 
 	init = true;
 	vl_log(VL_SUCCESS, "Initialized PhosphorusGUI!\n");
@@ -363,7 +379,7 @@ void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vector2 size)
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot center a null UI element!\n");
+		vl_log(VL_ERROR, "Cannot center a null element!\n");
 		return;
 	}
 
@@ -373,14 +389,14 @@ void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vector2 size)
 	
 	Vector2 elem_centered = { container_center.x - elem_size.x / 2.0f, container_center.y - elem_size.y / 2.0f };
 
-	phos_gui_set_elem_bounds(elem, elem_centered.x, elem_centered.y, elem->size.x, elem->size.y);
+	phos_gui_set_elem_bounds(elem, elem_centered.x, elem_centered.y, elem->size.x, elem->size.y, PHOS_GUI_OPTS_NONE);
 }
 
-void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y)
+void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts opts)
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot move a null UI element!\n");
+		vl_log(VL_ERROR, "Cannot move a null element!\n");
 		return;
 	}
 
@@ -398,7 +414,7 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y)
 
 	// then move elem's child elements the same amount of pixels
 	for(size_t i = 0; i < elem->num_children; ++i)
-		phos_gui_move_elem_xy(elem->children[i], x, y);
+		phos_gui_move_elem_xy(elem->children[i], x, y, opts);
 }
 
 static Vector2 get_proposed_align_pos(const phos_gui_elem *const reference_elem, phos_gui_alignment alignment, Vector2 target_object_size)
@@ -511,14 +527,14 @@ static void resize_single_elem_wh(phos_gui_elem *elem, float w, float h, phos_gu
 	// see if size is now negative
 	if(new_w <= 0.0f || new_h <= 0.0f)
 	{
-		vl_log(VL_ERROR, "Cannot resize this elem ('%s') anymore, its size cannot be <= 0.0f!\n", elem->ID);
+		vl_log(VL_ERROR, "Cannot shrink this element ('%s') anymore, its size cannot be <= 0.0f!\n", elem->ID);
 		return;
 	}
 
 	phos_gui_text_component *elem_tx = NULL;
 	Vector2 old_rel_center_pos = {0};
 
-	if(opts & PHOS_GUI_OPTS_FIX_TEXT)
+	if(opts & PHOS_GUI_OPTS_FIT_TEXT || opts & PHOS_GUI_OPTS_REALIGN_TEXT)
 	{
 		if(pluto_cs_check_component(elem, PHOS_GUI_COMPONENT_TEXT))
 		{
@@ -528,7 +544,7 @@ static void resize_single_elem_wh(phos_gui_elem *elem, float w, float h, phos_gu
 
 			if(old_content.width <= 0.0f || old_content.height <= 0.0f)
 			{
-				vl_log(VL_ERROR, "Invalid content size: %.2f, %.2f\n", old_content.width, old_content.height);
+				vl_log(VL_ERROR, "Invalid content size: %.2f, %.2f! Make sure size is positive and all padding values do not exceed the size!\n", old_content.width, old_content.height);
 				return;
 			}
 
@@ -551,10 +567,13 @@ static void resize_single_elem_wh(phos_gui_elem *elem, float w, float h, phos_gu
 
 	if(elem_tx)
 	{
-		// resize font
-		phos_gui_make_text_fit_elem(elem, elem_tx, elem_tx->str);
+		// based on given options, modify text component:
+		if(opts & PHOS_GUI_OPTS_FIT_TEXT)
+			phos_gui_make_text_fit_elem(elem, elem_tx, PHOS_GUI_TARGET_AUTO_TEXT);
+		if(opts & PHOS_GUI_OPTS_REALIGN_TEXT)
+			phos_gui_align_elem_text(elem_tx, PHOS_GUI_TARGET_AUTO_TEXT, elem_tx->alignment);
 		
-		// restore text's pos TODO same thing as TODO directly above
+		// restore text's pos  >>!! TODO same thing as TODO directly above
 		Vector2 text_bounds;
 		phos_gui_get_text_bounds_v(elem_tx, &text_bounds, NULL);
 		elem_tx->pos = get_proposed_align_pos(elem, elem_tx->alignment, text_bounds);
@@ -564,7 +583,7 @@ void phos_gui_resize_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opt
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot resize a null UI element!\n");
+		vl_log(VL_ERROR, "Cannot resize a null element!\n");
 		return;
 	}
 
@@ -597,7 +616,7 @@ Vector2 phos_gui_get_elem_center(phos_gui_elem *elem)
 
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot obtain center of a null UI element!\n");
+		vl_log(VL_ERROR, "Cannot obtain center of a null element!\n");
 		return v;
 	}
 
@@ -613,12 +632,12 @@ Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem)
 
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot obtain center of a null UI element!\n");
+		vl_log(VL_ERROR, "Cannot obtain center of a null element!\n");
 		return v;
 	}
 	if(!pluto_cs_check_component(elem, PHOS_GUI_COMPONENT_TEXT))
 	{
-		vl_log(VL_ERROR, "Cannot obtain text center of a UI element ('%s') with no text component!\n", elem->ID);
+		vl_log(VL_ERROR, "Cannot obtain text center of an element ('%s') with no text component!\n", elem->ID);
 		return v;
 	}
 
@@ -650,7 +669,7 @@ Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem)
 
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot obtain visible bounds for a null UI element!\n");
+		vl_log(VL_ERROR, "Cannot obtain visible bounds for a null element!\n");
 		return r;
 	}
 
@@ -691,7 +710,7 @@ void phos_gui_get_text_bounds(const phos_gui_text_component *const text_componen
 
 	if(!text_component || !text_component->owner)
 	{
-		vl_delay_log(VL_ERROR, 1.0f, "Cannot obtain text bounds for null text component/UI element!\n");
+		vl_delay_log(VL_ERROR, 1.0f, "Cannot obtain text bounds for null text component/element!\n");
 		return;
 	}
 
@@ -766,7 +785,11 @@ void phos_gui_get_text_bounds(const phos_gui_text_component *const text_componen
 void phos_gui_get_text_bounds_v(const phos_gui_text_component *const text_component, Vector2 *out_main_bounds, Vector2 *out_placeholder_bounds)
 {
 	Rectangle main_r, placeholder_r;
-	phos_gui_get_text_bounds(text_component, &main_r, &placeholder_r);
+
+	if(out_main_bounds)
+		phos_gui_get_text_bounds(text_component, &main_r, NULL);
+	if(out_placeholder_bounds)
+		phos_gui_get_text_bounds(text_component, NULL, &placeholder_r);
 
 	if(out_main_bounds)
 		*out_main_bounds = phos_gui_get_rect_size(main_r);
@@ -900,11 +923,11 @@ bool phos_gui_is_rect_valid(Rectangle r)
 	return r.x != 0.0f && r.y != 0.0f && r.width != 0.0f && r.height != 0.0f;
 }
 
-void phos_gui_set_elem_pos(phos_gui_elem *elem, float x, float y)
+void phos_gui_set_elem_pos(phos_gui_elem *elem, float x, float y, phos_gui_opts opts)
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot set the position of a null UI element!\n");
+		vl_log(VL_ERROR, "Cannot set the position of a null element!\n");
 		return;
 	}
 
@@ -913,23 +936,28 @@ void phos_gui_set_elem_pos(phos_gui_elem *elem, float x, float y)
 	float y_diff = y - elem->pos.y;
 
 	// move based on difference
-	phos_gui_move_elem_xy(elem, x_diff, y_diff);
+	phos_gui_move_elem_xy(elem, x_diff, y_diff, opts);
 }
-void phos_gui_set_elem_size(phos_gui_elem *elem, float w, float h)
+void phos_gui_set_elem_size(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot set the size of a null UI element!\n");
+		vl_log(VL_ERROR, "Cannot set the size of a null element!\n");
 		return;
 	}
 
-	elem->size = (Vector2) { w, h };
+	// find difference between current size and new size
+	float x_diff = w - elem->size.x;
+	float y_diff = h - elem->size.y;
+
+	// resize elem and fix text
+	phos_gui_resize_elem_wh(elem, x_diff, y_diff, opts);
 }
-void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, float h)
+void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, float h, phos_gui_opts opts)
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot set bounds of null UI element!\n");
+		vl_log(VL_ERROR, "Cannot set bounds of a null element!\n");
 		return;
 	}
 
@@ -952,7 +980,7 @@ void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, fl
 
 	// then move elem's child elements the same amount of pixels
 	for(size_t i = 0; i < elem->num_children; ++i)
-		phos_gui_move_elem_xy(elem->children[i], diff.x, diff.y);
+		phos_gui_move_elem_xy(elem->children[i], diff.x, diff.y, opts);
 }
 
 void phos_gui_init_color_set(phos_gui_color_set *set, Color normal_color, Color hover_color, Color press_color, Color focus_color)
@@ -988,35 +1016,6 @@ void phos_gui_gen_color_set(phos_gui_color_set *set, Color normal_color, float h
 		.focus_color = ColorBrightness(normal_color, focus_color_factor) };
 }
 
-static char *get_targeted_str(phos_gui_text_component *text, phos_gui_target_text_string target_str)
-{
-	switch(target_str)
-	{
-		case PHOS_GUI_TARGET_MAIN_TEXT:
-			return text->str;
-			break;
-		case PHOS_GUI_TARGET_PLACEHOLDER_TEXT:
-			// see if text component can be linked to a placeholder text extension:
-			if(!text->owner)
-			{
-				vl_log(VL_ERROR, "Cannot use PHOS_GUI_TARGET_PLACEHOLDER_TEXT, the text component's owner is NULL!\n");
-				return NULL;
-			}
-
-			phos_gui_placeholder_text_extension *placeholder_text = NULL;
-			if(!(placeholder_text = pluto_cs_get_component(text->owner, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT)))
-			{
-				vl_log(VL_ERROR, "Cannot use PHOS_GUI_TARGET_PLACEHOLDER_TEXT, the element '%s' does not own a phos_gui_placeholder_text_extension!\n", text->owner->ID);
-				return NULL;
-			}
-
-			return placeholder_text->str;
-			break;
-		default:
-			vl_log(VL_ERROR, "Invalid target string: %d!\n", target_str);
-			return NULL;
-	}
-}
 void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, const char *new_contents)
 {
 	if(!text_component)
@@ -1026,15 +1025,77 @@ void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gu
 	}
 	if(!new_contents)
 	{
-		vl_log(VL_ERROR, "String is null, cannot set UI element's text contents!\n");
+		vl_log(VL_ERROR, "String is null, cannot set an element's text contents!\n");
 		return;
 	}
 
-	char *dest = get_targeted_str(text_component, target_str);
-	if(!dest)
-		return;
+	// find out which string pointer is being targeted
+	char *dest = NULL;
+	switch(target_str)
+	{
+		case PHOS_GUI_TARGET_MAIN_TEXT:
+			dest = text_component->str;
+			break;
+		case PHOS_GUI_TARGET_PLACEHOLDER_TEXT:
+			// see if text component can be linked to a placeholder text extension:
+			if(!text_component->owner)
+			{
+				vl_log(VL_ERROR, "Cannot use PHOS_GUI_TARGET_PLACEHOLDER_TEXT, the text component's owner is NULL!\n");
+				return;
+			}
+
+			phos_gui_placeholder_text_extension *placeholder_text = NULL;
+			if(!(placeholder_text = pluto_cs_get_component(text_component->owner, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT)))
+			{
+				vl_log(VL_ERROR, "Cannot use PHOS_GUI_TARGET_PLACEHOLDER_TEXT, the element '%s' does not own a phos_gui_placeholder_text_extension component!\n", text_component->owner->ID);
+				return;
+			}
+
+			dest = placeholder_text->str;
+			break;
+		default:
+			vl_log(VL_ERROR, "Invalid target string: %d!\n", target_str);
+			return;
+	}
+
 	strcpy(dest, new_contents);
 	text_component->cursor_pos = text_component->len = strlen(dest);
+}
+
+static Vector2 resolve_elem_text_bounds(const phos_gui_elem *const elem, const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str)
+{
+	// get placeholder text data
+	phos_gui_placeholder_text_extension *placeholder_text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
+	
+	// measure text bounds
+	Vector2 text_bounds = {0};
+	switch(target_str)
+	{
+		case PHOS_GUI_TARGET_MAIN_TEXT:
+			text_bounds = MeasureTextEx(*text_component->font, text_component->str, text_component->font_size, 0.0f);
+			break;
+		case PHOS_GUI_TARGET_PLACEHOLDER_TEXT:
+			if(placeholder_text)
+				text_bounds = MeasureTextEx(*text_component->font, placeholder_text->str, text_component->font_size, 0.0f);
+			else
+				vl_log(VL_ERROR, "Cannot obtain placeholder text because the element '%s' does not own a phos_gui_placeholder_text_extension component!\n", elem->ID);
+			break;
+		case PHOS_GUI_TARGET_AUTO_TEXT:
+			size_t main_len = strlen(text_component->str);
+			size_t placeholder_len = placeholder_text ? strlen(placeholder_text->str) : 0;
+			if(main_len > placeholder_len)
+				text_bounds = MeasureTextEx(*text_component->font, text_component->str, text_component->font_size, 0.0f);
+			else if(placeholder_text)
+				text_bounds = MeasureTextEx(*text_component->font, placeholder_text->str, text_component->font_size, 0.0f);
+			else
+				vl_log(VL_ERROR, "PHOS_GUI_TARGET_AUTO_TEXT failed!\n");
+			break;
+		default:
+			vl_log(VL_ERROR, "Invalid target string: %d!\n", target_str);
+			break;
+	}
+
+	return text_bounds;
 }
 
 Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, phos_gui_alignment alignment)
@@ -1043,7 +1104,7 @@ Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_g
 
 	if(!text_component || !text_component->owner)
 	{
-		vl_log(VL_ERROR, "Cannot align text on null text component/UI element!\n");
+		vl_log(VL_ERROR, "Cannot align text on null text component/element!\n");
 		return v;
 	}
 
@@ -1059,26 +1120,14 @@ Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_g
 	if(pluto_cs_check_component(text_component->owner, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT))
 		placeholder_text = pluto_cs_get_component(text_component->owner, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
 
-	Rectangle elem_text_size;
-	switch(target_str)
-	{
-		case PHOS_GUI_TARGET_MAIN_TEXT:
-			phos_gui_get_text_bounds(text_component, &elem_text_size, NULL);
-			break;
-		case PHOS_GUI_TARGET_PLACEHOLDER_TEXT:
-			phos_gui_get_text_bounds(text_component, NULL, &elem_text_size);
-			break;
-		default:
-			vl_log(VL_ERROR, "Invalid target string: %d!\n", target_str);
-			return v;
-	}
+	Vector2 text_bounds = resolve_elem_text_bounds(text_component->owner, text_component, target_str);
 
-	v = get_proposed_align_pos(text_component->owner, alignment, (Vector2) { elem_text_size.width, elem_text_size.height });
+	v = get_proposed_align_pos(text_component->owner, alignment, (Vector2) { text_bounds.x, text_bounds.y });
 	text_component->pos = v;
 	text_component->alignment = alignment;
 	return v;
 }
-Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment alignment, const phos_gui_elem *const reference_elem)
+Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment alignment, const phos_gui_elem *const reference_elem, phos_gui_opts opts)
 {
 	Vector2 v = {0};
 
@@ -1095,12 +1144,12 @@ Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment align
 
 	target_elem->alignment = alignment;
 	v = get_proposed_align_pos(reference_elem, target_elem->alignment, phos_gui_get_rect_size(phos_gui_get_elem_rect(target_elem)));
-	phos_gui_set_elem_pos(target_elem, v.x, v.y);
+	phos_gui_set_elem_pos(target_elem, v.x, v.y, opts);
 
 	return v;
 }
 
-static bool phos_gui_elem_in_bounds(phos_gui_elem *elem, Vector2 origin, Vector2 size)
+static bool phos_gui_elem_in_bounds(const phos_gui_elem *const elem, Vector2 origin, Vector2 size)
 {
 	// get elem rect
 	Rectangle r = phos_gui_get_elem_rect(elem);
@@ -1130,7 +1179,7 @@ static bool phos_gui_check_elem_collision(phos_gui_elem *elem1, phos_gui_elem *e
 
 	return false;
 }
-Vector2 phos_gui_align_elem_with_window(phos_gui_elem *target_elem, phos_gui_alignment alignment)
+Vector2 phos_gui_align_elem_with_window(phos_gui_elem *target_elem, phos_gui_alignment alignment, phos_gui_opts opts)
 {
 	Vector2 v = {0};
 
@@ -1180,81 +1229,84 @@ Vector2 phos_gui_align_elem_with_window(phos_gui_elem *target_elem, phos_gui_ali
 	
 	// create temp elem representing the window
 	phos_gui_elem temp = {0};
-	phos_gui_set_elem_bounds(&temp, 0, 0, GetScreenWidth(), GetScreenHeight());
+	phos_gui_set_elem_bounds(&temp, 0, 0, GetScreenWidth(), GetScreenHeight(), opts);
 	v = get_proposed_align_pos(&temp, target_elem->alignment, temp.size);
-	phos_gui_set_elem_pos(target_elem, v.x, v.y);
+	phos_gui_set_elem_pos(target_elem, v.x, v.y, opts);
 
 	return v;
 }
-void phos_gui_fill_window_with_elem(phos_gui_elem *elem)
+void phos_gui_fill_window_with_elem(phos_gui_elem *elem, phos_gui_opts opts)
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot fill window with a null UI element!\n");
+		vl_log(VL_ERROR, "Cannot fill window with a null element!\n");
 		return;
 	}
 
 	elem->alignment = PHOS_GUI_ALIGN_INNER_TOP_LEFT;
-	phos_gui_set_elem_bounds(elem, 0.0f, 0.0f, GetScreenWidth(), GetScreenHeight());
+	phos_gui_set_elem_bounds(elem, 0.0f, 0.0f, GetScreenWidth(), GetScreenHeight(), opts);
 }
 
-static float get_largest_possible_font_size(const phos_gui_elem *const elem, const phos_gui_text_component *const text_component, const char *text_component_target_str)
+static float get_largest_possible_font_size(const phos_gui_elem *const elem, const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str)
 {
 	// get content area
 	Vector2 size = phos_gui_get_rect_size(phos_gui_get_elem_content_area(elem));
-
-	// first off, start off with a very large font size
-	float font_size = PHOS_GUI_FONT_SIZE_XHUGE;
 
 	size.x -= TEXT_PADDING * 2.0f;
 	size.y -= TEXT_PADDING * 2.0f;
 
 	// measure initial text bounds
-	Vector2 text_bounds = MeasureTextEx(*text_component->font, text_component_target_str, font_size, 0.0f);
+	Vector2 text_bounds = resolve_elem_text_bounds(elem, text_component, target_str);
+
+	// create copy of text component
+	phos_gui_text_component text_copy = *text_component;
 
 	// while the text takes up more space than the inner bounds, font size automatically has to shrink
-	while(font_size >= 1.0f && (text_bounds.x >= size.x || text_bounds.y >= size.y))
+	while(text_copy.font_size > 1.0f && (text_bounds.x >= size.x || text_bounds.y >= size.y))
 	{
 		// go to next font size
-		font_size -= 2.0f;
+		text_copy.font_size -= 1.0f;
 
-		// re-measure text using current font size
-		text_bounds = MeasureTextEx(*text_component->font, text_component_target_str, font_size, 0.0f);
+		// re-measure text using current font size on the text component copy
+		text_bounds = resolve_elem_text_bounds(elem, &text_copy, target_str);
 	}
 
-	vl_log(VL_INFO, "Largest possible font size for '%s' is %.2f.\n", elem->ID, font_size);
+	vl_log(VL_INFO, "Largest possible font size for '%s' is %.2f.\n", elem->ID, text_copy.font_size);
 
-	return font_size;
+	return text_copy.font_size;
 }
-void phos_gui_clamp_elem_to_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, const char *text_component_target_str)
+void phos_gui_clamp_elem_to_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str, phos_gui_opts opts)
 {
-	if(!elem || !text_component || !text_component->font || !text_component_target_str || strlen(text_component_target_str) <= 0)
+	if(!elem || !text_component || !text_component->font)
 	{
 		vl_log(VL_ERROR, "To clamp the given element to the text component, 'elem,' 'text_component,' and 'text_component_target_str' can't be NULL/invalid!\n");
 		return;
 	}
 
-	// measure text bounds
-	Vector2 text_bounds = MeasureTextEx(*text_component->font, text_component_target_str, text_component->font_size, 0.0f);
+	// get resolved text bounds
+	Vector2 text_bounds = resolve_elem_text_bounds(elem, text_component, target_str);
 
 	// match elem bounds to text bounds
-	phos_gui_set_elem_size(elem, text_bounds.x, text_bounds.y);
+	phos_gui_set_elem_size(elem, text_bounds.x, text_bounds.y, opts);
 }
 
-void phos_gui_make_text_fit_elem(const phos_gui_elem *const elem, phos_gui_text_component *text_component, const char *text_component_target_str)
+void phos_gui_make_text_fit_elem(const phos_gui_elem *const elem, phos_gui_text_component *text_component, phos_gui_target_text_string target_str)
 {
-	if(!elem || !text_component || !text_component->font || !text_component_target_str || strlen(text_component_target_str) <= 0)
+	if(!elem || !text_component || !text_component->font)
 	{
 		vl_log(VL_ERROR, "To make the given text component fit the element, 'elem,' 'text_component,' and 'text_component_target_str' can't be NULL/invalid!\n");
 		return;
 	}
 
+	// if text already fits element, do not resize text
+	Vector2 text_bounds = resolve_elem_text_bounds(elem, text_component, target_str);
+
 	// use largest possible font size
-	text_component->font_size = get_largest_possible_font_size(elem, text_component, text_component_target_str);
+	text_component->font_size = get_largest_possible_font_size(elem, text_component, target_str);
 }
-void phos_gui_make_elem_fit_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, const char *text_component_target_str)
+void phos_gui_make_elem_fit_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str)
 {
-	if(!elem || !text_component || !text_component_target_str || strlen(text_component_target_str) <= 0)
+	if(!elem || !text_component)
 	{
 		vl_log(VL_ERROR, "To make the given element fit the text component, 'elem,' 'text_component,' and 'text_component_target_str' can't be NULL/invalid!\n");
 		return;
@@ -1264,7 +1316,7 @@ void phos_gui_make_elem_fit_text(phos_gui_elem *elem, const phos_gui_text_compon
 	Rectangle bounds = phos_gui_get_elem_content_area(elem);
 
 	// measure text bounds
-	Vector2 text_bounds = MeasureTextEx(*text_component->font, text_component_target_str, text_component->font_size, 0.0f);
+	Vector2 text_bounds = resolve_elem_text_bounds(elem, text_component, target_str);
 
 	// expand element if necessary
 	if(text_bounds.x > bounds.width)
@@ -1286,14 +1338,14 @@ void phos_gui_make_elem_fit_text(phos_gui_elem *elem, const phos_gui_text_compon
 
 	// if element has a parent, make sure it can contain the text too
 	if(elem->parent)
-		phos_gui_make_elem_fit_text(elem->parent, text_component, text_component_target_str);
+		phos_gui_make_elem_fit_text(elem->parent, text_component, target_str);
 }
 
 void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h)
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot setup null UI element!\n");
+		vl_log(VL_ERROR, "Cannot setup a null element!\n");
 		return;
 	}
 
@@ -1308,7 +1360,7 @@ static int register_elem(phos_gui_elem *elem)
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot register null UI element!\n");
+		vl_log(VL_ERROR, "Cannot register a null element!\n");
 		return 0;
 	}
 	if(!init)
@@ -1336,7 +1388,7 @@ static int register_elem(phos_gui_elem *elem)
 
 		if(e == elem)
 		{
-			vl_log(VL_ERROR, "Duplicate UI element pointer found while registering element: %p!\n", e);
+			vl_log(VL_ERROR, "Duplicate element pointer found while registering element: %p!\n", e);
 			return 0;
 		}
 		if(strcmp(e->ID, elem->ID) == 0)
@@ -1359,14 +1411,14 @@ int phos_gui_add_elem(phos_gui *gui, phos_gui_elem *elem)
 {
 	if(!gui || !elem)
 	{
-		vl_log(VL_ERROR, "Failed to add UI element. Make sure 'gui' and 'elem' are not NULL!\n");
+		vl_log(VL_ERROR, "Failed to add the element to the given phos_gui. Make sure 'gui' and 'elem' are not NULL!\n");
 		return 0;
 	}
 
 	// try to register 'elem'
 	if(register_elem(elem) == 0)
 	{
-		vl_log(VL_ERROR, "Failed to register the given UI element!\n");
+		vl_log(VL_ERROR, "Failed to register the given element!\n");
 		return 0;
 	}
 
@@ -1389,7 +1441,7 @@ int phos_gui_add_elem_id(phos_gui *gui, phos_gui_elem *elem, const char *ID)
 {
 	if(!gui || !elem || !ID)
 	{
-		vl_log(VL_ERROR, "Failed to add UI element. Make sure 'gui', 'elem' and 'ID' are not NULL!\n");
+		vl_log(VL_ERROR, "Failed to add the element to the given phos_gui. Make sure 'gui', 'elem' and 'ID' are not NULL!\n");
 		return 0;
 	}
 	if(strlen(ID) == 0)
@@ -1408,7 +1460,7 @@ int phos_gui_add_all_elems(phos_gui *gui, phos_gui_elem *elem)
 {
 	if(!gui || !elem)
 	{
-		vl_log(VL_ERROR, "Failed to add all UI elements. Make sure 'gui' and 'elem' are not NULL!\n");
+		vl_log(VL_ERROR, "Failed to add all elements to the given phos_gui. Make sure 'gui' and 'elem' are not NULL!\n");
 		return 0;
 	}
 
@@ -1425,12 +1477,12 @@ int phos_gui_remove_elem_from_gui(phos_gui *gui, phos_gui_elem *elem)
 {
 	if(!gui)
 	{
-		vl_log(VL_ERROR, "Cannot remove a UI element from a null GUI!\n");
+		vl_log(VL_ERROR, "Cannot remove an element from a null GUI!\n");
 		return 0;
 	}
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot remove a null UI element from a GUI!\n");
+		vl_log(VL_ERROR, "Cannot remove a null element from a GUI!\n");
 		return 0;
 	}
 
@@ -1487,25 +1539,11 @@ int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child)
 		return 0;
 	}
 
-	// see if elem is in parent bounds
-	if(!phos_gui_elem_in_bounds(child, parent->pos, parent->size))
-	{
-		vl_log(VL_ERROR, "Element '%s' is not in the given parent's ('%s') bounds!\n", child->ID, parent->ID);
-		return 0;
-	}
-
 	// see if element would cover another element
 	for(size_t i = 0; i < parent->num_children; ++i)
 	{
 		// get elem at i
 		phos_gui_elem *ch = parent->children[i];
-
-		// keep in bounds
-		if(!phos_gui_elem_in_bounds(ch, parent->pos, parent->size))
-		{
-			vl_log(VL_ERROR, "Child element '%s' is not in the given parent's ('%s') bounds!\n", ch->ID, parent->ID);
-			return 0;
-		}
 
 		/* size-bounds are the content area of the parent
 		   make sure elem's do not self-collide */
@@ -1534,12 +1572,12 @@ int phos_gui_remove_child(phos_gui_elem *parent, phos_gui_elem *child)
 {
 	if(!parent)
 	{
-		vl_log(VL_ERROR, "Cannot remove a UI element from a null container!\n");
+		vl_log(VL_ERROR, "Cannot remove an element from a null container!\n");
 		return 0;
 	}
 	if(!child)
 	{
-		vl_log(VL_ERROR,"Cannot remove a null UI element from a container!\n");
+		vl_log(VL_ERROR,"Cannot remove a null element from a container!\n");
 		return 0;
 	}
 
@@ -1581,16 +1619,92 @@ int phos_gui_remove_child_id(phos_gui_elem *parent, const char *ID)
 {
 	return phos_gui_remove_child(parent, phos_gui_get_elem(ID));
 }
+int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
+{
+	if(!parent)
+	{
+		vl_log(VL_ERROR, "Cannot format a null parent element!\n");
+		return 0;
+	}
+
+	// parent must have layout component
+	phos_gui_layout_component *layout = pluto_cs_get_component(parent, PHOS_GUI_COMPONENT_LAYOUT);
+	if(!layout)
+	{
+		vl_log(VL_ERROR, "The given element ('%s') does not have a layout component, cannot format!\n", parent->ID);
+		return 0;
+	}
+
+	// obtain parent rects
+	Rectangle parent_content_area = phos_gui_get_elem_content_area(parent);
+	float parent_x = parent_content_area.x;
+	float parent_y = parent_content_area.y;
+
+	// parent has a layout component, so format the children based on the type of layout
+	switch(layout->type)
+	{
+		case PHOS_GUI_LAYOUT_GRID:
+			/* figure out the size of each element:
+
+			   size of each grid cell is the size of the parent
+			   divided by number of rows and cols
+			*/
+			float elem_w = parent_content_area.width / layout->cols;
+			float elem_h = parent_content_area.height / layout->rows;
+
+			// resize each child, then move to corresponding row/col:
+			size_t row = 0, col = 0;
+			for(size_t i = 0; i < parent->num_children; ++i)
+			{
+				// child at i
+				phos_gui_elem *child = parent->children[i];
+
+				// ensure the element can fit in the grid
+				if(row >= layout->rows || col >= layout->cols)
+				{
+					vl_log(VL_ERROR, "The grid layout on the parent element given ('%s') cannot fit any more elements. Add more rows or columns to fit more elements!\n", parent->ID);
+					vl_print(VL_ERROR, "			V   Removing child '%s' from parent '%s'!\n", child->ID, parent->ID);
+
+					// if it cannot fit, remove from parent so it does not update or render
+					phos_gui_remove_child(parent, child);
+				}
+
+				// resize child
+				phos_gui_set_elem_size(child, elem_w, elem_h, opts);
+
+				// move elem to the grid slot
+				phos_gui_set_elem_pos(child, parent_x + (elem_w * col), parent_y + (elem_h * row), opts);
+
+				// go to next grid slot:
+				col++; // next horizontal slot
+				if(col >= layout->cols) // go to next row if necessary
+				{
+					col = 0; // first slot horizontally
+					row++; // next row, no need to check the row value because when it loops back, it checks the size again
+				}
+			}
+			break;
+		case PHOS_GUI_LAYOUT_VERTICAL_LIST:
+			break;
+		case PHOS_GUI_LAYOUT_HORIZONTAL_LIST:
+			break;
+		default:
+			vl_log(VL_ERROR, "Invalid layout type: %d!\n", layout->type);
+			break;
+	}
+
+	return 1;
+}
 phos_gui_elem *phos_gui_get_elem(const char *ID)
 {
 	if(!ID || strlen(ID) == 0)
 	{
-		vl_log(VL_ERROR, "Cannot obtain UI element with null ID!\n");
+		vl_log(VL_ERROR, "Cannot obtain an element with null ID!\n");
 		return NULL;
 	}
 	if(!init)
 	{
-		vl_log(VL_ERROR, "Cannot obtain UI element, phos_gui_init() was never called!\n");
+		vl_log(VL_ERROR, "Cannot obtain an element, phos_gui_init() was never called!\n");
 		return NULL;
 	}
 
@@ -1603,14 +1717,14 @@ phos_gui_elem *phos_gui_get_elem(const char *ID)
 				return e;
 	}
 
-	vl_log(VL_ERROR, "No UI element found with the ID: '%s'\n", ID);
+	vl_log(VL_ERROR, "No element found with the ID: '%s'\n", ID);
 	return NULL;
 }
 static int create_blueprint(phos_gui_elem *elem, const char *ID, blueprint *bp)
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot clone null UI element!\n");
+		vl_log(VL_ERROR, "Cannot clone a null element!\n");
 		return 0;
 	}
 	if(!ID || strlen(ID) == 0)
@@ -1638,7 +1752,7 @@ static int create_blueprint(phos_gui_elem *elem, const char *ID, blueprint *bp)
 
 		if(bp->elem == elem)
 		{
-			vl_log(VL_ERROR, "Duplicate UI element pointer found while creating blueprint: %p!\n", elem);
+			vl_log(VL_ERROR, "Duplicate element pointer found while creating blueprint: %p!\n", elem);
 			return 0;
 		}
 		if(strcmp(bp->ID, ID) == 0)
@@ -1901,11 +2015,21 @@ static bool travel_elems()
 
 static void update_elem(phos_gui_elem *e, float dt)
 {
-	/* no checks to see what kind of element is given,
-	   as it is expected for the calling function to check
-	   for the type. (ex phos_gui_update(...) calls this
-	   function, but it only calls it on valid elements.
-	*/
+	// skip disabled elems
+	if(e->disabled)
+		return;
+	// cannot update invalid elements
+	else if(e->type == PHOS_GUI_TYPE_INVALID)
+	{
+		vl_delay_log(VL_ERROR, 5.0f, "Cannot update element with invalid type: '%s'!\n", e->ID);
+		return;
+	}
+	// cannot update blank elements either
+	else if(e->type == PHOS_GUI_TYPE_BLANK)
+		return;
+	// and skip basic elems
+	else if(e->type == PHOS_GUI_TYPE_BASIC)
+		return;
 
 	// get mouse information
 	Vector2 mouse_pos = phos_gui_get_mouse_pos();
@@ -1917,6 +2041,9 @@ static void update_elem(phos_gui_elem *e, float dt)
 
 	bool no_focus = !e->has_focus;
 
+	// reset hover state
+	e->hovered = false;
+
 	// see if mouse over element:
 	float elem_x = e->pos.x;
 	float elem_y = e->pos.y;
@@ -1924,6 +2051,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 	float elem_h = e->size.y;
 	if(mouse_pos.x > elem_x && mouse_pos.x < elem_x + elem_w && mouse_pos.y > elem_y && mouse_pos.y < elem_y + elem_h)
 	{
+		// elem only becomes hovered when the mouse is over the element
 		e->hovered = true;
 
 		if(mouse_clicked)
@@ -1947,7 +2075,6 @@ static void update_elem(phos_gui_elem *e, float dt)
 	else if(mouse_clicked || mouse_down)
 	{
 		e->has_focus = false;
-		e->hovered = false;
 		e->clicked = false;
 		e->pressed = false;
 	}
@@ -2068,6 +2195,17 @@ static void update_elem(phos_gui_elem *e, float dt)
 				update_text_scrolling(text);
 		}
 	}
+
+	// if elem has focus and ESC pressed, lose focus
+	if(e->has_focus && IsKeyPressed(KEY_ESCAPE))
+	{
+		e->has_focus = false;
+		e->gained_focus = false;
+	}
+
+	// see if elem is in parent bounds
+	if(e->parent && !phos_gui_elem_in_bounds(e, e->parent->pos, e->parent->size))
+		vl_delay_log(VL_ERROR, 5.0f, "Element '%s' is not in its parent's ('%s') bounds!\n", e->ID, e->parent->ID);
 }
 
 void phos_gui_update(float dt)
@@ -2115,19 +2253,6 @@ void phos_gui_update(float dt)
 		// get elem at i
 		phos_gui_elem *elem = curr_gui->elems[i];
 
-		// skip disabled elemsn
-		if(elem->disabled)
-			continue;
-		// cannot update invalid elements
-		else if(elem->type == PHOS_GUI_TYPE_INVALID)
-		{
-			vl_delay_log(VL_ERROR, 1.0f, "Element has invalid type: '%s'!\n", elem->ID);
-			continue;
-		}
-		// and skip basic elems
-		else if(elem->type == PHOS_GUI_TYPE_BASIC)
-			continue;
-
 		// update the element
 		update_elem(elem, dt);
 
@@ -2174,6 +2299,21 @@ static Color resolve_elem_color(const phos_gui_elem *const e, const phos_gui_col
 
 static void render_elem(const phos_gui_elem *const e)
 {
+	/* before any rendering logic, make sure elem is in parent's bounds (do not render out-of-bounds elems for visual correctness)
+	   in update_elem(...) an error is logged so just return here */
+	if(e->parent && !phos_gui_elem_in_bounds(e, e->parent->pos, e->parent->size))
+		return;
+
+	// cannot render invalid elements
+	if(e->type == PHOS_GUI_TYPE_INVALID)
+	{
+		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element with invalid type: '%s'!\n", e->ID);
+		return;
+	}
+	// cannot render blank elements either
+	else if(e->type == PHOS_GUI_TYPE_BLANK)
+		return;
+
 	// get color of elem
 	Color primary_color = resolve_elem_color(e, &e->primary_colors);
 
@@ -2315,12 +2455,6 @@ void phos_gui_render()
 	{
 		// get elem
 		phos_gui_elem *elem = curr_gui->elems[i];
-
-		if(elem->type == PHOS_GUI_TYPE_INVALID)
-		{
-			vl_delay_log(VL_ERROR, 1.0f, "Element has invalid type: '%s'!\n", elem->ID);
-			continue;
-		}
 
 		render_elem(elem);
 
