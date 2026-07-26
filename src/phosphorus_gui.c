@@ -110,7 +110,6 @@ static int curr_gui_elem_num = -1;
 static float win_scale_x = 1.0f;
 static float win_scale_y = 1.0f;
 
-
 #define assert_obj_ptr(obj, ptr, ...) \
 	do { \
 		if(!(obj)->ptr) \
@@ -201,7 +200,6 @@ static void init_layout_component(void *layout_component, void *owner)
 	layout->owner = owner;
 	layout->rows = 0;
 	layout->cols = 0;
-	layout->type = PHOS_GUI_LAYOUT_GRID;
 
 	vl_log(VL_SUCCESS, "Added a layout component to '%s'!\n", elem->ID);
 }
@@ -1173,7 +1171,7 @@ static bool phos_gui_check_elem_collision(phos_gui_elem *elem1, phos_gui_elem *e
 	// check collision between each elem
 	if(CheckCollisionRecs(r1, r2))
 	{
-		vl_log(VL_ERROR, "Elements '%s' and '%s' are colliding!\n", elem1->ID, elem2->ID);
+		vl_delay_log(VL_ERROR, 5.0f, "Elements '%s' and '%s' are colliding!\n", elem1->ID, elem2->ID);
 		return true;
 	}
 
@@ -1354,6 +1352,7 @@ void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_e
 	elem->pos = (Vector2) { x, y };
 	elem->size = (Vector2) { w, h };
 	elem->left_padding = elem->top_padding = elem->right_padding = elem->bottom_padding = 0.0f;
+	elem->alignment = PHOS_GUI_ALIGN_INNER_TOP_LEFT;
 }
 
 static int register_elem(phos_gui_elem *elem)
@@ -1539,21 +1538,6 @@ int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child)
 		return 0;
 	}
 
-	// see if element would cover another element
-	for(size_t i = 0; i < parent->num_children; ++i)
-	{
-		// get elem at i
-		phos_gui_elem *ch = parent->children[i];
-
-		/* size-bounds are the content area of the parent
-		   make sure elem's do not self-collide */
-		if(child == ch)
-			continue;
-
-		if(phos_gui_check_elem_collision(child, ch))
-			return 0;
-	}
-
 	// add elem to parent
 	parent->children[parent->num_children++] = child;
 
@@ -1640,57 +1624,45 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 	float parent_x = parent_content_area.x;
 	float parent_y = parent_content_area.y;
 
-	// parent has a layout component, so format the children based on the type of layout
-	switch(layout->type)
+	/*
+	   figure out the size of each element:
+
+	   size of each grid cell is the size of the parent
+	   divided by number of rows and cols
+	*/
+	float elem_w = parent_content_area.width / layout->cols;
+	float elem_h = parent_content_area.height / layout->rows;
+
+	// resize each child, then move to corresponding row/col:
+	size_t row = 0, col = 0;
+	for(size_t i = 0; i < parent->num_children; ++i)
 	{
-		case PHOS_GUI_LAYOUT_GRID:
-			/* figure out the size of each element:
+		// child at i
+		phos_gui_elem *child = parent->children[i];
 
-			   size of each grid cell is the size of the parent
-			   divided by number of rows and cols
-			*/
-			float elem_w = parent_content_area.width / layout->cols;
-			float elem_h = parent_content_area.height / layout->rows;
+		// ensure the element can fit in the grid
+		if(row >= layout->rows || col >= layout->cols)
+		{
+			vl_log(VL_ERROR, "The grid layout on the parent element given ('%s') cannot fit any more elements. Add more rows or columns to fit more elements!\n", parent->ID);
+			vl_print(VL_ERROR, "			V   Removing child '%s' from parent '%s'!\n", child->ID, parent->ID);
 
-			// resize each child, then move to corresponding row/col:
-			size_t row = 0, col = 0;
-			for(size_t i = 0; i < parent->num_children; ++i)
-			{
-				// child at i
-				phos_gui_elem *child = parent->children[i];
+			// if it cannot fit, remove from parent so it does not update or render
+			phos_gui_remove_child(parent, child);
+		}
 
-				// ensure the element can fit in the grid
-				if(row >= layout->rows || col >= layout->cols)
-				{
-					vl_log(VL_ERROR, "The grid layout on the parent element given ('%s') cannot fit any more elements. Add more rows or columns to fit more elements!\n", parent->ID);
-					vl_print(VL_ERROR, "			V   Removing child '%s' from parent '%s'!\n", child->ID, parent->ID);
+		// resize child
+		phos_gui_set_elem_size(child, elem_w, elem_h, opts);
 
-					// if it cannot fit, remove from parent so it does not update or render
-					phos_gui_remove_child(parent, child);
-				}
+		// move elem to the grid slot
+		phos_gui_set_elem_pos(child, parent_x + (elem_w * col), parent_y + (elem_h * row), opts);
 
-				// resize child
-				phos_gui_set_elem_size(child, elem_w, elem_h, opts);
-
-				// move elem to the grid slot
-				phos_gui_set_elem_pos(child, parent_x + (elem_w * col), parent_y + (elem_h * row), opts);
-
-				// go to next grid slot:
-				col++; // next horizontal slot
-				if(col >= layout->cols) // go to next row if necessary
-				{
-					col = 0; // first slot horizontally
-					row++; // next row, no need to check the row value because when it loops back, it checks the size again
-				}
-			}
-			break;
-		case PHOS_GUI_LAYOUT_VERTICAL_LIST:
-			break;
-		case PHOS_GUI_LAYOUT_HORIZONTAL_LIST:
-			break;
-		default:
-			vl_log(VL_ERROR, "Invalid layout type: %d!\n", layout->type);
-			break;
+		// go to next grid slot:
+		col++; // next horizontal slot
+		if(col >= layout->cols) // go to next row if necessary
+		{
+			col = 0; // first slot horizontally
+			row++; // next row, no need to check the row value because when it loops back, it checks the size again
+		}
 	}
 
 	return 1;
@@ -1839,16 +1811,16 @@ void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID)
 			phos_gui_elem *child = bp->elem->children[i];
 
 			// clone the child
-			phos_gui_elem child_clone = *child;
-			strcpy(child_clone.ID, "auto");
-			auto_gen_id("auto", child_clone.ID, "elem", &elem_auto_id);
+			phos_gui_elem *child_clone = target_elem->children[i];
+			strcpy(child_clone->ID, "auto");
+			auto_gen_id("auto", child_clone->ID, "elem", &elem_auto_id);
 
 			// clone elements from child onto child_clone
 			if(pluto_cs_clone_all_components(child, &child_clone) == 0)
 				vl_log(VL_ERROR, "Failed to clone child components!\n");
 
 			// add child to target_elem
-			phos_gui_add_child(target_elem, &child_clone);
+			phos_gui_add_child(target_elem, child_clone);
 		}
 	}
 	else
@@ -2030,6 +2002,21 @@ static void update_elem(phos_gui_elem *e, float dt)
 	// and skip basic elems
 	else if(e->type == PHOS_GUI_TYPE_BASIC)
 		return;
+
+	// see if element is covering another element
+	for(size_t i = 0; i < e->num_children; ++i)
+	{
+		// get elem at i
+		phos_gui_elem *ch = e->children[i];
+
+		/* size-bounds are the content area of the parent
+		   make sure elem's do not self-collide */
+		if(e == ch)
+			continue;
+
+		if(phos_gui_check_elem_collision(e, ch))
+			return;
+	}
 
 	// get mouse information
 	Vector2 mouse_pos = phos_gui_get_mouse_pos();
@@ -2411,7 +2398,7 @@ static void render_elem(const phos_gui_elem *const e)
 			}
 		}
 		else
-			vl_delay_log(VL_WARNING, 5.0f, "Cannot render text component because it has no font set! Element: '%s'\n", e->ID);
+			vl_delay_log(VL_WARNING, 5.0f, "Cannot render text component on element '%s' because it does not have a valid font!\n", e->ID);
 	}
 
 	// render outline (if set)

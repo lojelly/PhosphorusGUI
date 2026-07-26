@@ -516,33 +516,6 @@ typedef struct phos_gui_placeholder_text_extension
 } phos_gui_placeholder_text_extension;
 
 /**
-  The types of layouts.
-*/
-typedef enum phos_gui_layout_type
-{
-	/**
-	  A grid layout utilizes rows and columns
-	  to format objects.
-
-	  @note This is the default layout type.
-	*/
-	PHOS_GUI_LAYOUT_GRID,
-	/**
-	  A vertical list layout results in the child
-	  elements being formatted on top of each other.
-	*/
-	PHOS_GUI_LAYOUT_VERTICAL_LIST,
-	/**
-	  A horizontal list layout behaves exactly the same
-	  as the vertical list layout but the elements
-	  are formatted horizontally.
-
-	  @see PHOS_GUI_LAYOUT_VERTICAL_LIST
-	*/
-	PHOS_GUI_LAYOUT_HORIZONTAL_LIST
-} phos_gui_layout_type;
-
-/**
   A phos_gui_layout_component provides an element
   with a specific layout and formatting technique.
 */
@@ -555,21 +528,12 @@ typedef struct phos_gui_layout_component
 	
 	/**
 	  The number of rows in the layout.
-
-	  @note Some layouts may not require this value to be set.
 	*/
 	size_t rows;
 	/**
 	  The number of columns in the layout.
-
-	  @note Some layouts may not require this value to be set.
 	*/
 	size_t cols;
-
-	/**
-	  The type of layout to use.
-	*/
-	phos_gui_layout_type type;
 } phos_gui_layout_component;
 
 /**
@@ -1339,10 +1303,6 @@ PHOS_GUI_API void phos_gui_clone_full_elem(phos_gui_elem *elem, const char *ID);
 
   @note This function does not automatically add the clone element to a phos_gui
   instance. However, it does give the clone element an auto-generated ID.
-
-  @important PhosphorusGUI comes with some pre-generated clones. The list
-  of them are: "phos_gui_btn" for a button element, and "phos_gui_textfield" for
-  a text field.
 
   @see phos_gui_clone_elem(phos_gui_elem*, const char*)
 */
