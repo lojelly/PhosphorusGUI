@@ -707,29 +707,38 @@ typedef struct phos_gui_elem
 	float corner_radius;
 
 	/**
-	  Left padding.
-
 	  This value represents the amount of space inside of the element on the left.
 	*/
 	float left_padding;
 	/**
-	  Top padding.
-
 	  This value represents the amount of space inside of the element on the top.
 	*/
 	float top_padding;
 	/**
-	  Right padding.
-
 	  This value represents the amount of space inside of the element on the right.
 	*/
 	float right_padding;
 	/**
-	  Bottom padding.
-
 	  This value represents the amount of space inside of the element on the bottom.
 	*/
 	float bottom_padding;
+
+	/**
+	  This value represents the amount of space on the left side of the element.
+	*/
+	float left_margin;
+	/**
+	  This value represents the amount of space above the element.
+	*/
+	float top_margin;
+	/**
+	  This value represents the amount of space on the right side of the element.
+	*/
+	float right_margin;
+	/**
+	  This value represents the amount of space below the element.
+	*/
+	float bottom_margin;
 
 	/**
 	  Determines if this element currently has focus.
@@ -985,7 +994,7 @@ PHOS_GUI_API Vector2 phos_gui_get_elem_center(phos_gui_elem *elem);
 PHOS_GUI_API Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem);
 
 /**
-  Returns the bounds of an element.
+  Returns the actual bounds of an element.
 
   These bounds are the same as the 'pos' and 'size'
   vector fields in the element.
@@ -995,10 +1004,17 @@ PHOS_GUI_API Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem);
   Returns the content area of an element.
 
   The content area of an element is the same as its bounds,
-  but its outline thickness is taken into account. The content
-  area is the element's inner area.
+  but the element's outline thickness and padding is taken into
+  account. The content rectangle is the element's inner area.
 */
-PHOS_GUI_API Rectangle phos_gui_get_elem_content_area(const phos_gui_elem *const elem);
+PHOS_GUI_API Rectangle phos_gui_get_elem_content_rect(const phos_gui_elem *const elem);
+/**
+  Returns the whole area of an element.
+
+  The whole area of an element is the same as its bounds, but it includes
+  the element's margin values.
+*/
+PHOS_GUI_API Rectangle phos_gui_get_elem_space_rect(const phos_gui_elem *const elem);
 
 /**
   Returns the bounds of a text component.

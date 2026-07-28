@@ -423,7 +423,7 @@ static Vector2 get_proposed_align_pos(const phos_gui_elem *const reference_elem,
 
 	// start at reference_rect origin
 	Rectangle whole_rect = phos_gui_get_elem_rect(reference_elem);
-	Rectangle content_rect = phos_gui_get_elem_content_area(reference_elem);
+	Rectangle content_rect = phos_gui_get_elem_content_rect(reference_elem);
 	v = phos_gui_get_rect_pos(whole_rect);
 
 	// define bounds
@@ -540,7 +540,7 @@ static void resize_single_elem_wh(phos_gui_elem *elem, float w, float h, phos_gu
 		{
 			elem_tx = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
 
-			Rectangle old_content = phos_gui_get_elem_content_area(elem);
+			Rectangle old_content = phos_gui_get_elem_content_rect(elem);
 
 			if(old_content.width <= 0.0f || old_content.height <= 0.0f)
 			{
@@ -680,7 +680,7 @@ Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem)
 
 	return r;
 }
-Rectangle phos_gui_get_elem_content_area(const phos_gui_elem *const elem)
+Rectangle phos_gui_get_elem_content_rect(const phos_gui_elem *const elem)
 {
 	Rectangle r = phos_gui_get_elem_rect(elem);
 	if(!elem)
@@ -690,6 +690,19 @@ Rectangle phos_gui_get_elem_content_area(const phos_gui_elem *const elem)
 	r.y += elem->outline_thickness + elem->top_padding;
 	r.width -= ((elem->outline_thickness * 2.0f) + elem->right_padding + elem->left_padding);
 	r.height -= ((elem->outline_thickness * 2.0f) + elem->bottom_padding + elem->top_padding);
+
+	return r;
+}
+Rectangle phos_gui_get_elem_space_rect(const phos_gui_elem *const elem)
+{
+	Rectangle r = phos_gui_get_elem_rect(elem);
+	if(!elem)
+		return r;
+
+	r.x -= elem->left_margin;
+	r.y -= elem->top_margin;
+	r.width = elem->size.x + elem->left_margin + elem->right_margin;
+	r.height = elem->size.y + elem->top_margin + elem->bottom_margin;
 
 	return r;
 }
@@ -812,7 +825,7 @@ static void update_text_scrolling(phos_gui_text_component *text)
 
 	// first get visual bounds of text component on screen
 	//Rectangle vis_bounds = phos_gui_get_elem_rect(e);
-	Rectangle vis_bounds = phos_gui_get_elem_content_area(e);
+	Rectangle vis_bounds = phos_gui_get_elem_content_rect(e);
 
 	// get bounds of text
 	Rectangle text_bounds;
@@ -1139,7 +1152,8 @@ Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment align
 	}
 
 	target_elem->alignment = alignment;
-	v = get_proposed_align_pos(reference_elem, target_elem->alignment, phos_gui_get_rect_size(phos_gui_get_elem_rect(target_elem)));
+	// use the entire target_elem rect when aligning
+	v = get_proposed_align_pos(reference_elem, target_elem->alignment, phos_gui_get_rect_size(phos_gui_get_elem_space_rect(target_elem)));
 	phos_gui_set_elem_pos(target_elem, v.x, v.y, opts);
 
 	return v;
@@ -1163,13 +1177,13 @@ static bool elem_in_bounds(const phos_gui_elem *const elem, Vector2 origin, Vect
 static bool check_elem_collision(phos_gui_elem *elem1, phos_gui_elem *elem2)
 {
 	// get elem rects
-	Rectangle r1 = phos_gui_get_elem_rect(elem1);
-	Rectangle r2 = phos_gui_get_elem_rect(elem2);
+	Rectangle r1 = phos_gui_get_elem_space_rect(elem1);
+	Rectangle r2 = phos_gui_get_elem_space_rect(elem2);
 
 	// check collision between each elem
 	if(CheckCollisionRecs(r1, r2))
 	{
-		vl_delay_log(VL_ERROR, 5.0f, "Elements '%s' and '%s' are colliding!\n", elem1->ID, elem2->ID);
+		vl_delay_log(VL_WARNING, 5.0f, "Elements '%s' and '%s' are colliding!\n", elem1->ID, elem2->ID);
 		return true;
 	}
 
@@ -1246,7 +1260,7 @@ void phos_gui_fill_window_with_elem(phos_gui_elem *elem, phos_gui_opts opts)
 static float get_largest_possible_font_size(const phos_gui_elem *const elem, const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str)
 {
 	// get content area
-	Vector2 size = phos_gui_get_rect_size(phos_gui_get_elem_content_area(elem));
+	Vector2 size = phos_gui_get_rect_size(phos_gui_get_elem_content_rect(elem));
 
 	size.x -= TEXT_PADDING * 2.0f;
 	size.y -= TEXT_PADDING * 2.0f;
@@ -1309,7 +1323,7 @@ void phos_gui_make_elem_fit_text(phos_gui_elem *elem, const phos_gui_text_compon
 	}
 
 	// get content area of elem
-	Rectangle bounds = phos_gui_get_elem_content_area(elem);
+	Rectangle bounds = phos_gui_get_elem_content_rect(elem);
 
 	// measure text bounds
 	Vector2 text_bounds = resolve_elem_text_bounds(elem, text_component, target_str);
@@ -1638,7 +1652,7 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 	}
 
 	// obtain parent rects
-	Rectangle parent_content_area = phos_gui_get_elem_content_area(parent);
+	Rectangle parent_content_area = phos_gui_get_elem_content_rect(parent);
 	float parent_x = parent_content_area.x;
 	float parent_y = parent_content_area.y;
 
@@ -1651,8 +1665,9 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 	*/
 	float total_spacing_x = layout->spacing * (layout->cols - 1);
 	float total_spacing_y = layout->spacing * (layout->rows - 1);
-	float elem_w = (parent_content_area.width - total_spacing_x) / layout->cols;
-	float elem_h = (parent_content_area.height - total_spacing_y) / layout->rows;
+	// size of each cell in the layout:
+	float cell_w = (parent_content_area.width - total_spacing_x) / layout->cols;
+	float cell_h = (parent_content_area.height - total_spacing_y) / layout->rows;
 
 	// resize each child, then move to corresponding row/col:
 	size_t row = 0, col = 0;
@@ -1671,11 +1686,15 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 			phos_gui_remove_child(parent, child);
 		}
 
-		// resize child
-		phos_gui_set_elem_size(child, elem_w, elem_h, opts);
+		// resize child (take child's margin into account)
+		float child_w = cell_w - child->left_margin - child->right_margin;
+		float child_h = cell_h - child->top_margin - child->bottom_margin;
+		phos_gui_set_elem_size(child, child_w, child_h, opts);
 
-		// move elem to the grid slot
-		phos_gui_set_elem_pos(child, parent_x + ((elem_w + layout->spacing) * col), parent_y + ((elem_h + layout->spacing) * row), opts);
+		// move elem to the grid slot (take child's margin into account)
+		float cell_x = parent_x + ((cell_w + layout->spacing) * col);
+		float cell_y = parent_y + ((cell_h + layout->spacing) * row);
+		phos_gui_set_elem_pos(child, cell_x + child->left_margin, cell_y + child->top_margin, opts);
 
 		// go to next grid slot:
 		col++; // next horizontal slot
@@ -2061,8 +2080,8 @@ static void update_elem(phos_gui_elem *e, float dt)
 		if(e == ch)
 			continue;
 
-		if(check_elem_collision(e, ch))
-			return;
+		// check collision
+		check_elem_collision(e, ch);
 	}
 
 	// get mouse information
@@ -2362,7 +2381,7 @@ static void render_elem(const phos_gui_elem *const e)
 
 	// create elem rects:
 	Rectangle vis_bounds = phos_gui_get_elem_rect(e);
-	Rectangle content_bounds = phos_gui_get_elem_content_area(e);
+	Rectangle content_bounds = phos_gui_get_elem_content_rect(e);
 
 	// create elem ellipse info:
 	float e_rx = e->size.x / 2.0f;
