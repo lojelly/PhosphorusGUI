@@ -20,10 +20,20 @@
 
 
 /**
+  Writes into a string buffer on an object with a valid
+  char buffer (ex: char ID[...]).
+*/
+#define phos_gui_write_str(dest, src) \
+	do { \
+		snprintf((dest), sizeof((dest)), (src)); \
+	} while(0)
+
+
+/**
   The max number of elements within a single
   phos_gui instance.
 */
-#define PHOS_GUI_MAX_ELEMS 64
+#define PHOS_GUI_MAX_ELEMS 128
 
 /**
   The max number of child elements a parent element
@@ -92,20 +102,15 @@
 #define PHOS_GUI_WIN_RECT (Rectangle) { 0.0f, 0.0f, GetScreenWidth(), GetScreenHeight() }
 
 /**
-  Sets the ID field of the given object.
-
-  @note This macro expects a pointer to the object.
-  The object must have a valid char array field called
-  'ID.'
-*/
-#define phos_gui_set_id(object, id) \
-	do { \
-		strcpy((object) -> ID, id); \
-	} while(0)
-
-
-/**
   The different types of elements.
+
+  An element type indicates how it should be updated
+  in the main program loop.
+
+  To change how an element is rendered,
+  see phos_gui_elem_render_mode.
+
+  @see phos_gui_elem_render_mode
 */
 typedef enum phos_gui_elem_type
 {
@@ -116,42 +121,10 @@ typedef enum phos_gui_elem_type
 	*/
 	PHOS_GUI_TYPE_INVALID,
 	/**
-	  The most basic element type.
-
-	  This type indicates the element has no
-	  functionality, and it will not render.
-	  In some instances you may want an element
-	  to have this type for specific formatting
-	  reasons. For example, in a grid layout,
-	  you could create gaps in between elements
-	  by using blank elements.
-	*/
-	PHOS_GUI_TYPE_BLANK,
-	/**
-	  This type indicates the element has no extra
-	  functionality, and it should simply be rendered
-	  using its set attributes. However, basic elements
-	  are not updated like other elements; they do not
-	  process mouse or keyboard input.
+	  The most basic element type. This type
+	  indicates the element has no functionality.
 	*/
 	PHOS_GUI_TYPE_BASIC,
-	/**
-	  The container element type.
-
-	  A container element is a special type of element.
-	  A container is used to hold and organize other elements,
-	  which are called its children. The container becomes the
-	  parent element of all the child elements. Container
-	  elements behave like any other type of element.
-
-	  Additionally, container elements have some expectations of
-	  their child elements. The children added to a container must be
-	  inside of the container's bounds. This also means that the positions
-	  of each child become relative to the container. Just like the phos_gui
-	  instance, the position (0, 0) is the top-left corner of the container.
-	  When a container is full, an error message is logged.
-	*/
-	PHOS_GUI_TYPE_CONTAINER,
 	/**
 	  The button element type.
 	*/
@@ -177,6 +150,9 @@ typedef enum phos_gui_elem_shape
 	PHOS_GUI_SHAPE_ELLIPSE,
 	/**
 	  The rounded-rectangle shape.
+
+	  Change the element's 'corner_radius' attribute
+	  to modify the roundness of the rectangle.
 	*/
 	PHOS_GUI_SHAPE_ROUND_RECT
 } phos_gui_elem_shape;
@@ -201,6 +177,13 @@ typedef enum phos_gui_elem_render_mode
 	  Results in just the element's outline being rendered.
 	*/
 	PHOS_GUI_RENDER_OUTLINE,
+	/**
+	  Indicates the element should not be rendered.
+
+	  In most cases, this will be combined with PHOS_GUI_TYPE_BLANK
+	  to create invisible elements.
+	*/
+	PHOS_GUI_RENDER_BLANK,
 	/**
 	  Results in the element's shape not being rendered.
 
@@ -337,6 +320,27 @@ typedef enum phos_gui_component_type
 	  @see phos_gui_layout_component
 	*/
 	PHOS_GUI_COMPONENT_LAYOUT,
+
+	/**
+	  Represents the last component ID in PhosphorusGUI.
+	  
+	  @note PhosphorusGUI does not register a component using this ID.
+
+	  If using custom components in your own program, set the first
+	  component ID to this exact value. It will ensure your components
+	  have unique IDs.
+
+	  Example:
+
+	  enum my_components
+	  {
+		  C1 = PHOS_GUI_COMPONENT_LAST,
+		  C2,
+		  C3,
+		  ...
+	  }
+	*/
+	PHOS_GUI_COMPONENT_LAST
 } phos_gui_component_type;
 
 /**
@@ -534,6 +538,12 @@ typedef struct phos_gui_layout_component
 	  The number of columns in the layout.
 	*/
 	size_t cols;
+
+	/**
+	  The amount of pixels between each element
+	  in the layout.
+	*/
+	float spacing;
 } phos_gui_layout_component;
 
 /**
@@ -896,7 +906,7 @@ PHOS_GUI_API void phos_gui_shutdown(void);
 
   @note Every time PhosphorusGUI reads a new phos_gui
   pointer here, it will automatically register the phos_gui
-  instance. It means you can later use phos_gui_get_gui(const char *ID)
+  instance. It means you can later use phos_gui_get_gui_by_id(const char *ID)
   to obtain that phos_gui instance from anywhere in the program.
 
   @important You can pass NULL into function
@@ -1148,7 +1158,7 @@ PHOS_GUI_API void phos_gui_clamp_elem_to_text(phos_gui_elem *elem, const phos_gu
 */
 PHOS_GUI_API void phos_gui_make_text_fit_elem(const phos_gui_elem *const elem, phos_gui_text_component *text_component, phos_gui_target_text_string target_str);
 /**
-  Makes the given element fit the given text component's bounds.
+  Makes the given element fit the given text co;mponent's bounds.
 
   @note This function walks up the parent tree of the given element
   and makes each parent also fit the text component. This is because
@@ -1179,7 +1189,7 @@ PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type typ
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_add_elem(phos_gui *gui, phos_gui_elem *elem);
+PHOS_GUI_API int phos_gui_add_elem_to_gui(phos_gui *gui, phos_gui_elem *elem);
 /**
   Adds a UI element to the given phos_gui instance,
   as well as gives the element an ID.
@@ -1188,7 +1198,7 @@ PHOS_GUI_API int phos_gui_add_elem(phos_gui *gui, phos_gui_elem *elem);
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_add_elem_id(phos_gui *gui, phos_gui_elem *elem, const char *ID);
+PHOS_GUI_API int phos_gui_add_elem_to_gui_id(phos_gui *gui, phos_gui_elem *elem, const char *ID);
 /**
   Adds a UI element along with all of its children
   to a phos_gui instance.
@@ -1197,7 +1207,16 @@ PHOS_GUI_API int phos_gui_add_elem_id(phos_gui *gui, phos_gui_elem *elem, const 
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_add_all_elems(phos_gui *gui, phos_gui_elem *elem);
+PHOS_GUI_API int phos_gui_add_all_elems_to_gui(phos_gui *gui, phos_gui_elem *elem);
+/**
+  Adds all of the given element's children to a
+  phos_gui instance.
+
+  @see phos_gui_add_elem_to_gui(phos_gui*, phos_gui_elem*)
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_add_children_to_gui(phos_gui *gui, phos_gui_elem *elem);
 /**
   Removes a UI element from a phos_gui.
 
@@ -1245,7 +1264,7 @@ PHOS_GUI_API int phos_gui_remove_child_id(phos_gui_elem *parent, const char *ID)
 /**
   Formats the child elements inside of a parent element.
 
-  @note The parent element must have a layout component.
+  @important The parent element must have a layout component.
 
   @return 1 on success, 0 on failure.
 
@@ -1304,9 +1323,24 @@ PHOS_GUI_API void phos_gui_clone_full_elem(phos_gui_elem *elem, const char *ID);
   @note This function does not automatically add the clone element to a phos_gui
   instance. However, it does give the clone element an auto-generated ID.
 
-  @see phos_gui_clone_elem(phos_gui_elem*, const char*)
+  @see phos_gui_clone_single_elem(phos_gui_elem*, const char*)
+  @see phos_gui_clone_full_elem(phos_gui_elem*, const char*)
 */
 PHOS_GUI_API void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID);
+
+/**
+  Turns the given phos_gui_elem into a simple button element.
+
+  @note This function does not fully customize the button. It only
+  sets it up to be a button element. Additionally, this function
+  automatically adds a phos_gui_text_component to the element.
+  To remove it, use pluto_cs_remove_component(...).
+
+  @see pluto_cs_remove_component(void*, int)
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_create_button(phos_gui_elem *elem);
 
 /**
   Sets the global window scale in PhosphorusGUI.
@@ -1371,3 +1405,17 @@ PHOS_GUI_API Texture2D *phos_gui_load_texture(const char *file_path);
   the existing font is returned.
 */
 PHOS_GUI_API Font *phos_gui_load_font(const char *file_path);
+/**
+  Sets the default font in PhosphorusGUI. The default
+  font is used by the library whenever a null or invalid
+  font is encountered.
+
+  @important If you are going to use this function, is is very important
+  that you call it as soon as you can after setting up the window, and before
+  using any PhosphorusGUI functions.
+*/
+PHOS_GUI_API void phos_gui_set_default_font(const char *file_path);
+/**
+  Returns the defualt font or NULL if one was never set.
+*/
+PHOS_GUI_API Font *phos_gui_get_default_font(void);
