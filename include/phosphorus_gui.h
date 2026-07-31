@@ -1225,15 +1225,6 @@ PHOS_GUI_API int phos_gui_add_elem_to_gui_id(phos_gui *gui, phos_gui_elem *elem,
 */
 PHOS_GUI_API int phos_gui_add_all_elems_to_gui(phos_gui *gui, phos_gui_elem *elem);
 /**
-  Adds all of the given element's children to a
-  phos_gui instance.
-
-  @see phos_gui_add_elem_to_gui(phos_gui*, phos_gui_elem*)
-
-  @return 1 on success, 0 on failure.
-*/
-PHOS_GUI_API int phos_gui_add_children_to_gui(phos_gui *gui, phos_gui_elem *elem);
-/**
   Removes a UI element from a phos_gui.
 
   @return 1 on success, 0 on failure.
@@ -1249,7 +1240,8 @@ PHOS_GUI_API int phos_gui_remove_elem_from_gui_id(phos_gui *gui, const char *ID)
   Adds a UI element as a child to another UI element.
 
   @important This function does not add the parent
-  or child to a phos_gui instance.
+  or child to a phos_gui instance. PhosphorusGUI only
+  maintains root elements in every phos_gui.
 
   @return 1 on success, 0 on failure.
 */
@@ -1259,7 +1251,8 @@ PHOS_GUI_API int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child)
   using the child's ID.
 
   @important This function does not add the parent
-  or child to a phos_gui instance.
+  or child to a phos_gui instance. PhosphorusGUI only
+  maintains root elements in every phos_gui.
 
   @return 1 on success, 0 on failure.
 */
@@ -1395,6 +1388,21 @@ PHOS_GUI_API void phos_gui_update(float dt);
   than that, nothing happens.
 */
 PHOS_GUI_API void phos_gui_render(void);
+
+/**
+  Adds a new clip region to the list of active
+  clip regions.
+
+  @note There can be up to 12 active clip regions.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_new_clip(int x, int y, int width, int height);
+/**
+  Removes the current active clip region. If there are more than
+  1 clip region, the previous one is restored.
+*/
+PHOS_GUI_API void phos_gui_end_clip(void);
 
 /**
   Loads a texture.

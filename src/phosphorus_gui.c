@@ -6,6 +6,7 @@
 #include "plutonium_cs.h"
 #include "phosphorus_gui.h"
 #include "raymath.h"
+#include "rlgl.h"
 
 #define CURSOR_WIDTH 3
 #define KEY_REPEAT_DELAY 0.5f
@@ -14,6 +15,8 @@
 #define ROUND_RECT_SEGMENTS 32
 
 #define TEXT_PADDING PHOS_GUI_FONT_SIZE_MED
+
+#define MAX_CLIPS 12
 
 // array of element pointers
 typedef struct elem_arr
@@ -111,6 +114,10 @@ static float win_scale_x = 1.0f;
 static float win_scale_y = 1.0f;
 
 static Font *default_font = NULL;
+
+// clip regions:
+static size_t num_clips = 0;
+static Rectangle clips[MAX_CLIPS];
 
 #define assert_obj_ptr(obj, ptr, ...) \
 	do { \
@@ -1484,26 +1491,6 @@ int phos_gui_add_all_elems_to_gui(phos_gui *gui, phos_gui_elem *elem)
 
 	return 1;
 }
-int phos_gui_add_children_to_gui(phos_gui *gui, phos_gui_elem *elem)
-{
-	if(!gui || !elem)
-	{
-		vl_log(VL_ERROR, "Failed to add child elements to the given phos_gui. Make sure 'gui' and 'elem' are not NULL!\n");
-		return 0;
-	}
-	// if elem has no children, send warning
-	if(elem->num_children == 0)
-	{
-		vl_log(VL_WARNING, "This element '%s' has no children to add to the given phos_gui!\n", elem->ID);
-		return 0;
-	}
-
-	// add the elem's children
-	for(size_t i = 0; i < elem->num_children; ++i)
-		phos_gui_add_elem_to_gui(gui, elem->children[i]);
-
-	return 1;
-}
 int phos_gui_remove_elem_from_gui(phos_gui *gui, phos_gui_elem *elem)
 {
 	if(!gui)
@@ -2318,6 +2305,10 @@ void phos_gui_update(float dt)
 		// update the element
 		update_elem(elem, dt);
 
+		// update element's children
+		for(size_t j = 0; j < elem->num_children; ++j)
+			update_elem(elem->children[j], dt);
+
 		// if elem gained focus, make this elem the current one
 		if(elem->gained_focus)
 			curr_gui_elem_num = i;
@@ -2439,8 +2430,8 @@ static void render_elem(const phos_gui_elem *const e)
 			{
 				/* begin scissor mode to cut off text that has been scrolled off (USE PADDED REGION, NOT VISUAL)
 				   note: add CURSOR_WIDTH when rendering a text field to scissor rect so the cursor is not cut off at the right side */
-				int width = e->type == PHOS_GUI_TYPE_TEXT_FIELD ? content_bounds.width + CURSOR_WIDTH : content_bounds.width;
-				BeginScissorMode(content_bounds.x, content_bounds.y, width, content_bounds.height);
+				int clip_width = e->type == PHOS_GUI_TYPE_TEXT_FIELD ? content_bounds.width + CURSOR_WIDTH : content_bounds.width;
+				phos_gui_new_clip(content_bounds.x, content_bounds.y, clip_width, content_bounds.height);
 
 				switch(e->type)
 				{
@@ -2477,7 +2468,7 @@ static void render_elem(const phos_gui_elem *const e)
 						break;
 				}
 
-				EndScissorMode();
+				phos_gui_end_clip();
 			}
 		}
 		else
@@ -2535,8 +2526,52 @@ void phos_gui_render()
 		// get elem
 		phos_gui_elem *elem = curr_gui->elems[i];
 
+		// render the element
 		render_elem(elem);
+
+		// render element's children
+		for(size_t j = 0; j < elem->num_children; ++j)
+			render_elem(elem->children[j]);
 	}
+}
+
+int phos_gui_new_clip(int x, int y, int width, int height)
+{
+	if(num_clips >= MAX_CLIPS)
+	{
+		vl_delay_log(VL_WARNING, 2.5f, "Cannot begin a new clip region, max clips reached!\n");
+		return 0;
+	}
+
+	rlDrawRenderBatchActive();
+
+	if(num_clips == 0)
+		rlEnableScissorTest();
+
+	rlScissor(x, GetRenderHeight() - (y + height), width, height);
+	clips[num_clips++] = (Rectangle) { x, y, width, height };
+
+	return 1;
+}
+void phos_gui_end_clip()
+{
+	if(num_clips == 0)
+	{
+		vl_delay_log(VL_WARNING, 2.5f, "No clip to end!\n");
+		return;
+	}
+
+	rlDrawRenderBatchActive();
+
+	num_clips--;
+
+	if(num_clips > 0)
+	{
+		Rectangle *curr	= &clips[num_clips];
+		rlScissor(curr->x, GetRenderHeight() - (curr->y + curr->height), curr->width, curr->height);
+	}
+	else
+		rlDisableScissorTest();
 }
 
 Texture2D *phos_gui_load_texture(const char *file_path)
