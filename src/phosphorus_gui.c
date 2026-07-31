@@ -16,7 +16,7 @@
 
 #define TEXT_PADDING PHOS_GUI_FONT_SIZE_MED
 
-#define MAX_CLIPS 12
+#define MAX_CLIPS 16
 
 // array of element pointers
 typedef struct elem_arr
@@ -114,6 +114,8 @@ static float win_scale_x = 1.0f;
 static float win_scale_y = 1.0f;
 
 static Font *default_font = NULL;
+
+static Vector2 translation = {0};
 
 // clip regions:
 static size_t num_clips = 0;
@@ -1896,10 +1898,16 @@ void phos_gui_set_win_scale(float x, float y)
 
 Vector2 phos_gui_get_mouse_pos()
 {
+	// raw mouse pos
 	Vector2 mouse_pos = GetMousePosition();
 
+	// window scale
 	mouse_pos.x /= win_scale_x;
 	mouse_pos.y /= win_scale_y;
+
+	// translate
+	mouse_pos.x += translation.x;
+	mouse_pos.y += translation.y;
 
 	return mouse_pos;
 }
@@ -2374,6 +2382,10 @@ static void render_elem(const phos_gui_elem *const e)
 	Rectangle vis_bounds = phos_gui_get_elem_rect(e);
 	Rectangle content_bounds = phos_gui_get_elem_content_rect(e);
 
+	// translate each rect
+	phos_gui_get_translated_rect(&vis_bounds);
+	phos_gui_get_translated_rect(&content_bounds);
+
 	// create elem ellipse info:
 	float e_rx = e->size.x / 2.0f;
 	float e_ry = e->size.y / 2.0f;
@@ -2396,7 +2408,6 @@ static void render_elem(const phos_gui_elem *const e)
 				DrawEllipse(vis_bounds.x + e_rx, vis_bounds.y + e_ry, e_rx, e_ry, primary_color);
 				break;
 			case PHOS_GUI_SHAPE_ROUND_RECT:
-				//DrawRectangleRounded(vis_bounds, e->corner_radius, ROUND_RECT_SEGMENTS, primary_color);
 				Rectangle r = vis_bounds;
 				float t = e->outline_thickness;
 
@@ -2422,6 +2433,9 @@ static void render_elem(const phos_gui_elem *const e)
 		// get placeholder data as well (will be NULL if no placeholder text extension found)
 		const phos_gui_placeholder_text_extension *const placeholder_text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
 
+		Vector2 text_pos = text->pos;
+		phos_gui_get_translated_vec2(&text_pos);
+
 		if(text->font && IsFontValid(*text->font))
 		{
 			if(text->font_size <= 0.0f || ColorIsEqual(text->color, BLANK))
@@ -2438,11 +2452,11 @@ static void render_elem(const phos_gui_elem *const e)
 					// for basic elems and buttons, just render text with the set attributes
 					case PHOS_GUI_TYPE_BASIC:
 					case PHOS_GUI_TYPE_BUTTON:
-						DrawTextEx(*text->font, text->str, text->pos, text->font_size, 0.0f, text->color);
+						DrawTextEx(*text->font, text->str, text_pos, text->font_size, 0.0f, text->color);
 						break;
 					case PHOS_GUI_TYPE_TEXT_FIELD:
 						// calculate where to draw the text
-						Vector2 draw_pos = text->pos;
+						Vector2 draw_pos = text_pos;
 						draw_pos.x -= text->scroll;
 
 						// determine if text field's main text, or placeholder text should be rendered
@@ -2464,7 +2478,6 @@ static void render_elem(const phos_gui_elem *const e)
 						}
 						break;
 					default:
-						// for INVALID_ELEM_TYPE or other types, just skip text component
 						break;
 				}
 
@@ -2492,10 +2505,9 @@ static void render_elem(const phos_gui_elem *const e)
 					DrawRectangleLinesEx(vis_bounds, e->outline_thickness, outline_color);
 					break;
 				case PHOS_GUI_SHAPE_ELLIPSE:
-					render_ellipse_outline(e->pos, e_rx, e_ry, e->outline_thickness, outline_color);
+					render_ellipse_outline(phos_gui_get_rect_pos(vis_bounds), e_rx, e_ry, e->outline_thickness, outline_color);
 					break;
 				case PHOS_GUI_SHAPE_ROUND_RECT:
-					//DrawRectangleRoundedLinesEx(vis_bounds, e->corner_radius, ROUND_RECT_SEGMENTS, e->outline_thickness, outline_color);
 					Rectangle r = vis_bounds;
 					float t = e->outline_thickness;
 					
@@ -2533,6 +2545,37 @@ void phos_gui_render()
 		for(size_t j = 0; j < elem->num_children; ++j)
 			render_elem(elem->children[j]);
 	}
+}
+
+void phos_gui_translate(float x, float y)
+{
+	translation.x -= x;
+	translation.y -= y;
+}
+void phos_gui_reset_translation()
+{
+	translation.x = 0.0f;
+	translation.y = 0.0f;
+}
+void phos_gui_get_translated_rect(Rectangle *rect)
+{
+	if(!rect)
+	{
+		vl_log(VL_ERROR, "Cannot obtain translated Rectangle, 'rect' is NULL!\n");
+		return;
+	}
+	rect->x -= translation.x;
+	rect->y -= translation.y;
+}
+void phos_gui_get_translated_vec2(Vector2 *vec)
+{
+	if(!vec)
+	{
+		vl_log(VL_ERROR, "Cannot obtain translated Vector2, 'vec' is NULL!\n");
+		return;
+	}
+	vec->x -= translation.x;
+	vec->y -= translation.y;
 }
 
 int phos_gui_new_clip(int x, int y, int width, int height)

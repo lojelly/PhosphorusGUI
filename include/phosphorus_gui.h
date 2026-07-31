@@ -1390,10 +1390,31 @@ PHOS_GUI_API void phos_gui_update(float dt);
 PHOS_GUI_API void phos_gui_render(void);
 
 /**
+  Translates all render and update positions by x pixels
+  horizontally and y pixels vertically. This translation
+  acts as an offset.
+*/
+PHOS_GUI_API void phos_gui_translate(float x, float y);
+/**
+  Resets the current translation.
+*/
+PHOS_GUI_API void phos_gui_reset_translation(void);
+/**
+  Translates the given Rectangle according to the current
+  translation offset.
+*/
+PHOS_GUI_API void phos_gui_get_translated_rect(Rectangle *rect);
+/**
+  Translates the given Vector2 according to the current
+  translation offset.
+*/
+PHOS_GUI_API void phos_gui_get_translated_vec2(Vector2 *vec);
+
+/**
   Adds a new clip region to the list of active
   clip regions.
 
-  @note There can be up to 12 active clip regions.
+  @note There can be up to 16 active clip regions.
 
   @return 1 on success, 0 on failure.
 */
