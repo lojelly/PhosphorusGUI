@@ -28,6 +28,20 @@
 		snprintf((dest), sizeof((dest)), (src)); \
 	} while(0)
 
+/**
+  Quickly exits the program early if an error has occurred.
+
+  @important Only use this macro in the main function. The macro
+  also expects all systems to be properly initialized.
+*/
+#define phos_gui_exit(exit_code) \
+	do { \
+		phos_gui_shutdown(); \
+		pluto_cs_shutdown(); \
+		CloseWindow(); \
+		return (exit_code); \
+	} while(0)
+
 
 /**
   The max number of elements within a single
@@ -202,6 +216,11 @@ typedef enum phos_gui_elem_render_mode
 typedef enum phos_gui_alignment
 {
 	/**
+	  The default alignment. Indicates an invalid alignment.
+	*/
+	PHOS_GUI_ALIGN_INVALID,
+
+	/**
 	  Indicates the targeted item should be aligned to the inner left
 	  of an element. The inner left represents the visual left
 	  of the element.
@@ -322,6 +341,14 @@ typedef enum phos_gui_component_type
 	PHOS_GUI_COMPONENT_LAYOUT,
 
 	/**
+	  Provides an element with the ability to be
+	  scrolled.
+
+	  @see phos_gui_scroll_pane_component
+	*/
+	PHOS_GUI_COMPONENT_SCROLL_PANE,
+
+	/**
 	  Represents the last component ID in PhosphorusGUI.
 	  
 	  @note PhosphorusGUI does not register a component using this ID.
@@ -424,9 +451,9 @@ typedef struct phos_gui_text_component
 	size_t cursor_pos;
 
 	/**
-	  The position of the text within its parent element.
+	  The relative position of this text within its parent element.
 	*/
-	Vector2 pos;
+	Vector2 offset;
 
 	/**
 	  The alignment of the text.
@@ -540,11 +567,52 @@ typedef struct phos_gui_layout_component
 	size_t cols;
 
 	/**
-	  The amount of pixels between each element
-	  in the layout.
+	  The amount of pixels on the x-axis between each element.
 	*/
-	float spacing;
+	float spacing_x;
+	/**
+	  The amount of pixels on the y-axis between each element.
+	*/
+	float spacing_y;
 } phos_gui_layout_component;
+
+/**
+  A phos_gui_scroll_pane_component provides an element
+  with the ability to be scrolled. Scroll panes result
+  in the element's children being clipped if not in the
+  visible region. The way the pane is scrolled can also
+  be customized.
+*/
+typedef struct phos_gui_scroll_pane_component
+{
+	/**
+	  The owner of this scroll pane component.
+	*/
+	struct phos_gui_elem *owner;
+
+	/**
+	  The amount of pixels that have been scrolled.
+	*/
+	float scroll;
+	/**
+	  The previous amount of pixels that were scrolled.
+	*/
+	float prev_scroll;
+	/**
+	  The max amount of pixels that can be scrolled.
+	*/
+	float max_scroll;
+
+	/**
+	  Determines how many pixels are in one scroll tick.
+
+	  By default, this is equal to 1, for 1 pixel per tick.
+
+	  @note This should remain positive, but making it negative
+	  inverts the scrolling direction.
+	*/
+	float px_per_tick;
+} phos_gui_scroll_pane_component;
 
 /**
   A phos_gui_color_set represents a collection
@@ -862,11 +930,6 @@ typedef enum phos_gui_opts
 	*/
 	PHOS_GUI_OPTS_PASS_DOWN = 1 << 0,
 	/**
-	  Indicates that the action the function performs on an element
-	  should be passed down to only its first child element.
-	*/
-	PHOS_GUI_OPTS_PASS_DOWN_FIRST = 1 << 1,
-	/**
 	  Indicates that when resizing an element, its text component
 	  (if it has one) should be modified to fit the new size of the
 	  element.
@@ -874,12 +937,13 @@ typedef enum phos_gui_opts
 	  @note This only takes effect when the element becomes too small
 	  to contain its text.
 	*/
-	PHOS_GUI_OPTS_FIT_TEXT = 1 << 2,
+	PHOS_GUI_OPTS_FIT_TEXT = 1 << 1,
 	/**
-	  Indicates that when resizing an element, its text
-	  component (if it has one) should be realigned.
+	  Indicates that when resizing an element, its text component
+	  (if it has one) should be realigned. This option expects that
+	  the text's 'alignment' field to be a valid alignment.
 	*/
-	PHOS_GUI_OPTS_REALIGN_TEXT = 1 << 3,
+	PHOS_GUI_OPTS_REALIGN_TEXT = 1 << 2,
 } phos_gui_opts;
 
 
@@ -1369,6 +1433,10 @@ PHOS_GUI_API void phos_gui_set_win_scale(float x, float y);
   takes the current window scale into account.
 
   To set window scale, use phos_gui_set_win_scale(float, float).
+
+  @note This mouse position does not take the current translation
+  offset into account. You can use phos_gui_get_translated_vec2(...)
+  to translate the mouse position if necessary.
 */
 PHOS_GUI_API Vector2 phos_gui_get_mouse_pos(void);
 
@@ -1390,27 +1458,6 @@ PHOS_GUI_API void phos_gui_update(float dt);
 PHOS_GUI_API void phos_gui_render(void);
 
 /**
-  Translates all render and update positions by x pixels
-  horizontally and y pixels vertically. This translation
-  acts as an offset.
-*/
-PHOS_GUI_API void phos_gui_translate(float x, float y);
-/**
-  Resets the current translation.
-*/
-PHOS_GUI_API void phos_gui_reset_translation(void);
-/**
-  Translates the given Rectangle according to the current
-  translation offset.
-*/
-PHOS_GUI_API void phos_gui_get_translated_rect(Rectangle *rect);
-/**
-  Translates the given Vector2 according to the current
-  translation offset.
-*/
-PHOS_GUI_API void phos_gui_get_translated_vec2(Vector2 *vec);
-
-/**
   Adds a new clip region to the list of active
   clip regions.
 
@@ -1419,6 +1466,13 @@ PHOS_GUI_API void phos_gui_get_translated_vec2(Vector2 *vec);
   @return 1 on success, 0 on failure.
 */
 PHOS_GUI_API int phos_gui_new_clip(int x, int y, int width, int height);
+/**
+  Adds a new clip region to the list of active
+  clip regions, using a rectangle.
+
+  @see phos_gui_new_clip(int, int, int, int)
+*/
+PHOS_GUI_API int phos_gui_new_clip_r(Rectangle r);
 /**
   Removes the current active clip region. If there are more than
   1 clip region, the previous one is restored.
