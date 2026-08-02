@@ -661,18 +661,44 @@ typedef struct phos_gui_scroll_pane_component
 	float px_per_tick;
 
 	/**
+	  The width of the scroll bar.
+	  By default, this is equal to 12.0f.
+	*/
+	float scroll_bar_width;
+
+	/**
 	  The color of the scroll bar's background.
+
+	  This is LIGHTGRAY by default.
 	*/
 	Color scroll_bar_bg_color;
 	/**
 	  The color of the scroll thumb.
+
+	  This is DARKGRAY by default.
 	*/
 	Color scroll_thumb_color;
+	/**
+	  The color of the scroll thumb when the mouse
+	  is currently interacting with it in any way.
+
+	  This color is used when 'has_focus' is true.
+
+	  This is GRAY by default.
+	*/
+	Color scroll_thumb_focus_color;
+
 	/**
 	  Indicates whether or not the scroll pane's scroll bar
 	  should be rendered. By default, this is set to true.
 	*/
 	bool render_scroll_bar;
+
+	/**
+	  Whether or not the user was interacting with the scroll
+	  thumb this frame.
+	*/
+	bool thumb_has_focus;
 } phos_gui_scroll_pane_component;
 
 /**
@@ -1508,6 +1534,11 @@ PHOS_GUI_API void phos_gui_set_win_scale(float x, float y);
   to translate the mouse position if necessary.
 */
 PHOS_GUI_API Vector2 phos_gui_get_mouse_pos(void);
+/**
+  Determines if the mouse is currently over a region
+  defined by a rectangle.
+*/
+PHOS_GUI_API bool phos_gui_is_mouse_over_rect(Rectangle r);
 
 /**
   Updates the current phos_gui's elements.

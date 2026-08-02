@@ -19,8 +19,8 @@
 
 #define MAX_CLIPS 16
 
-#define SCROLL_BAR_WIDTH 10.0f
 #define MIN_SCROLL_BAR_HEIGHT 25.0f
+#define SCROLL_THUMB_DRAG_FACTOR 0.25f
 
 // array of element pointers
 typedef struct elem_arr
@@ -223,9 +223,12 @@ static void init_scroll_pane_component(void *scroll_pane_component)
 	scroll_pane->scroll = 0.0f;
 	scroll_pane->max_scroll = 0.0f;
 	scroll_pane->px_per_tick = 1.0f;
+	scroll_pane->scroll_bar_width = 12.0f;
 	scroll_pane->scroll_bar_bg_color = LIGHTGRAY;
 	scroll_pane->scroll_thumb_color = DARKGRAY;
+	scroll_pane->scroll_thumb_focus_color = GRAY;
 	scroll_pane->render_scroll_bar = true;
+	scroll_pane->thumb_has_focus = false;
 }
 
 int phos_gui_init()
@@ -1665,11 +1668,11 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 	float parent_x = parent_content_area.x;
 	float parent_y = parent_content_area.y;
 
-	// calculate layout width (if a scroll bar is rendered, minus SCROLL_BAR_WIDTH as an offset):
+	// calculate layout width (if a scroll bar is rendered, minus scroll bar width as an offset):
 	float parent_width = parent_content_area.width;
 	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(parent, PHOS_GUI_COMPONENT_SCROLL_PANE);
 	if(scroll_pane && scroll_pane->render_scroll_bar)
-		parent_width -= SCROLL_BAR_WIDTH;
+		parent_width -= scroll_pane->scroll_bar_width;
 
 	// ensure layout can fit elements
 	size_t max_children = layout->rows * layout->cols;
@@ -1790,7 +1793,7 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 
 		// if clamping parent but rendering scroll bar, add back the scroll bar width offset
 		if(scroll_pane && scroll_pane->render_scroll_bar)
-			extra_width += SCROLL_BAR_WIDTH;
+			extra_width += scroll_pane->scroll_bar_width;
 
 		phos_gui_set_elem_size(parent, layout->total_content_width + extra_width, layout->total_content_height + extra_height, PHOS_GUI_OPTS_REALIGN_TEXT);
 	}
@@ -2008,6 +2011,14 @@ Vector2 phos_gui_get_mouse_pos()
 
 	return mouse_pos;
 }
+bool phos_gui_is_mouse_over_rect(Rectangle r)
+{
+	// get mouse pos
+	Vector2 mouse_pos = phos_gui_get_mouse_pos();
+
+	// is mouse pos within the rectangle?
+	return CheckCollisionPointRec(mouse_pos, r);
+}
 
 static void move_cursor_left(phos_gui_text_component *t)
 {
@@ -2086,7 +2097,7 @@ static void goto_next_elem()
 	if(elem->unreachable || elem->disabled || elem->type == PHOS_GUI_TYPE_INVALID || elem->type == PHOS_GUI_TYPE_BASIC)
 		goto get_next_elem;
 
-	// mark that elem as focused
+	// mark that elem as focused 
 	elem->has_focus = true;
 }
 static void goto_prev_elem()
@@ -2162,6 +2173,47 @@ static float get_max_scroll(const phos_gui_elem *const e)
 
 	return max_scroll > 0 ? max_scroll : 0.0f;
 }
+static void get_scroll_bar_rects(Rectangle elem_content_bounds, phos_gui_scroll_pane_component *scroll_pane, float total_content_height, Rectangle *out_bar, Rectangle *out_thumb)
+{
+	if(!out_bar && !out_thumb)
+		return;
+
+	// whole scroll bar
+	float scroll_bar_x = elem_content_bounds.x + elem_content_bounds.width - scroll_pane->scroll_bar_width;
+	float scroll_bar_y = elem_content_bounds.y;
+
+	// scroll thumb
+	float scroll_thumb_height = (elem_content_bounds.height / total_content_height) * elem_content_bounds.height;
+	scroll_thumb_height = fmax(scroll_thumb_height, MIN_SCROLL_BAR_HEIGHT);
+	float scroll_thumb_interval = elem_content_bounds.height - scroll_thumb_height;
+
+	float scroll_thumb_y = elem_content_bounds.y;
+	if(total_content_height > elem_content_bounds.height)
+	{
+		float max_scroll = total_content_height - elem_content_bounds.height;
+		float scroll_percent = scroll_pane->scroll / max_scroll;
+		scroll_thumb_y = elem_content_bounds.y + (scroll_pane->scroll / max_scroll) * scroll_thumb_interval;
+	}
+	else
+		scroll_thumb_height = elem_content_bounds.height;
+
+	Rectangle thumb = {0};
+	thumb.x = scroll_bar_x;
+	thumb.y = scroll_thumb_y;
+	thumb.width = scroll_pane->scroll_bar_width;
+	thumb.height = scroll_thumb_height;
+
+	Rectangle bar = {0};
+	bar.x = scroll_bar_x;
+	bar.y = scroll_bar_y;
+	bar.width = scroll_pane->scroll_bar_width;
+	bar.height = elem_content_bounds.height;
+
+	if(out_bar)
+		*out_bar = bar;
+	if(out_thumb)
+		*out_thumb = thumb;
+}
 static void update_elem(phos_gui_elem *e, float dt)
 {
 	// skip disabled elems
@@ -2187,18 +2239,20 @@ static void update_elem(phos_gui_elem *e, float dt)
 			check_elem_collision(e, ch);
 		}
 
-		// get mouse information
+		// mouse info:
 		Vector2 mouse_pos = phos_gui_get_mouse_pos();
-
 		bool mouse_clicked = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
 		bool mouse_down = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
 		bool enter_clicked = IsKeyPressed(KEY_ENTER);
 		bool enter_down = IsKeyDown(KEY_ENTER);
 
+		// keep track of whether or not elem gained focus
 		bool no_focus = !e->has_focus;
 
-		// reset hover state
+		// reset mouse state
 		e->hovered = false;
+		e->pressed = false;
+		e->clicked = false;
 
 		// see if mouse over element:
 		Rectangle vis_bounds = phos_gui_get_elem_rect(e);
@@ -2235,28 +2289,20 @@ static void update_elem(phos_gui_elem *e, float dt)
 
 				if(mouse_clicked)
 				{
-					e->pressed = false;
 					e->clicked = true;
 					e->has_focus = true;
 				}
 				else if(mouse_down)
 				{
 					e->pressed = true;
-					e->clicked = false;
 					e->has_focus = true;
-				}
-				else
-				{
-					e->clicked = false;
-					e->pressed = false;
 				}
 			}
 			// else if user clicks OFF of the element
 			else if(mouse_clicked || mouse_down)
 			{
+				// ensure elem loses focus
 				e->has_focus = false;
-				e->clicked = false;
-				e->pressed = false;
 
 				// if curr_gui_elem_num points to this elem, reset it
 				if(curr_gui->elems[curr_gui_elem_num] == e)
@@ -2273,21 +2319,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 						e->clicked = true;
 					}
 					else if(enter_down)
-					{
 						e->pressed = true;
-						e->clicked = false;
-					}
-					else
-					{
-						// when no mouse input or keyboard input detected, always reset input state
-						e->clicked = false;
-						e->pressed = false;
-					}
-				}
-				else // when no mouse input and the element is not reachable, reset input state
-				{
-					e->clicked = false;
-					e->pressed = false;
 				}
 			}
 		}
@@ -2403,8 +2435,43 @@ static void update_elem(phos_gui_elem *e, float dt)
 		// store current scroll value
 		float prev_scroll = scroll_pane->scroll;
 
-		// get mouse wheel ticks and add to total scroll amount
-		float ticks = GetMouseWheelMove();
+		// get elem content rect
+		Rectangle content_bounds = phos_gui_get_elem_content_rect(e);
+
+		// define rect around scroll thumb:
+		Rectangle thumb;
+		get_scroll_bar_rects(content_bounds, scroll_pane, content_bounds.height, NULL, &thumb);
+
+		// number of ticks (pixels of movement)
+		float ticks = 0.0f;
+
+		// reset mouse state on scroll thumb
+		scroll_pane->thumb_has_focus = false;
+
+		// see if mouse is over the thumb
+		bool mouse_over_thumb = phos_gui_is_mouse_over_rect(thumb);
+
+		// see if user is hovered over the thumb
+		if(mouse_over_thumb)
+			// give scroll thumb focus
+			scroll_pane->thumb_has_focus = true;
+
+		// see if user is holding down the thumb
+		if(IsMouseButtonDown(MOUSE_BUTTON_LEFT) && mouse_over_thumb)
+		{
+			// get difference in mouse positions:
+			Vector2 mouse_delta = GetMouseDelta();
+
+			// if user moving the mouse vertically:
+			if(mouse_delta.y != 0.0f)
+				// ticks becomes the opposite mouse delta y value (and multiply by SCROLL_THUMB_DRAG_FACTOR to slow down move speed)
+				ticks = -mouse_delta.y * SCROLL_THUMB_DRAG_FACTOR;
+		}
+		else // when user not using mouse buttons
+			// ticks becomes mouse wheel movement instead
+			ticks = GetMouseWheelMove();
+
+		// use ticks * px_per_tick to add to total scroll offset
 		scroll_pane->scroll -= ticks * scroll_pane->px_per_tick;
 
 		// clamp scroll amount
@@ -2693,7 +2760,7 @@ static void render_elem(const phos_gui_elem *const e)
 	{
 		Rectangle child_clip = content_bounds;
 		if(scroll_pane->render_scroll_bar)
-			child_clip.width -= SCROLL_BAR_WIDTH;
+			child_clip.width -= scroll_pane->scroll_bar_width;
 
 		// create new clip inside the element
 		if(phos_gui_new_clip_r(child_clip))
@@ -2739,34 +2806,21 @@ static void render_elem(const phos_gui_elem *const e)
 			*/
 			if(scroll_pane->render_scroll_bar)
 			{
-				// whole scroll bar
-				float scroll_bar_x = content_bounds.x + content_bounds.width - SCROLL_BAR_WIDTH;
-				float scroll_bar_y = content_bounds.y;
+				// obtain bar and thumb rects
+				Rectangle bar, thumb;
+				get_scroll_bar_rects(content_bounds, scroll_pane, total_content_height, &bar, &thumb);
 
-				// scroll thumb
-				float scroll_thumb_height = (content_bounds.height / total_content_height) * content_bounds.height;
-				scroll_thumb_height = fmax(scroll_thumb_height, MIN_SCROLL_BAR_HEIGHT);
-				float scroll_thumb_interval = content_bounds.height - scroll_thumb_height;
+				// render bar and thumb
+				DrawRectangleRec(bar, scroll_pane->scroll_bar_bg_color);
 
-				float scroll_thumb_y = content_bounds.y;
-				if(total_content_height > content_bounds.height)
-				{
-					float max_scroll = total_content_height - content_bounds.height;
-					float scroll_percent = scroll_pane->scroll / max_scroll;
-					scroll_thumb_y = content_bounds.y + (scroll_pane->scroll / max_scroll) * scroll_thumb_interval;
-				}
-				else
-					scroll_thumb_height = content_bounds.height;
-
-				// render the whole bar
-				DrawRectangle(scroll_bar_x, scroll_bar_y, SCROLL_BAR_WIDTH, content_bounds.height, scroll_pane->scroll_bar_bg_color);
-				// render thumb
-				DrawRectangle(scroll_bar_x, scroll_thumb_y, SCROLL_BAR_WIDTH, scroll_thumb_height, scroll_pane->scroll_thumb_color);
+				// choose color of thumb based on mouse state
+				Color thumb_color = scroll_pane->thumb_has_focus ? scroll_pane->scroll_thumb_focus_color : scroll_pane->scroll_thumb_color;
+				DrawRectangleRec(thumb, thumb_color);
 			}
 		}
 	}
 	else // no scroll pane
-		// render children
+		// just render children
 		for(size_t i = 0; i < e->num_children; ++i)
 			render_elem(e->children[i]);
 }
