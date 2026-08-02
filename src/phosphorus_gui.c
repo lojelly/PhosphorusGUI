@@ -161,7 +161,7 @@ static void init_text_component(void *text_component)
 	text->max_len = PHOS_GUI_MAX_TEXT_LEN;
 	text->len = 0;
 	text->cursor_pos = 0;
-	text->color = BLACK;
+	text->color = PHOS_GUI_BLACK;
 	text->offset = Vector2Zero();
 	snprintf(text->str, sizeof(text->str), "");
 }
@@ -191,7 +191,7 @@ static void init_placeholder_text_extension(void *placeholder_text_component)
 		return;
 	}
 
-	placeholder_text->color = GRAY;
+	placeholder_text->color = PHOS_GUI_GRAY;
 	snprintf(placeholder_text->str, sizeof(placeholder_text->str), "");
 }
 
@@ -224,11 +224,12 @@ static void init_scroll_pane_component(void *scroll_pane_component)
 	scroll_pane->max_scroll = 0.0f;
 	scroll_pane->px_per_tick = 1.0f;
 	scroll_pane->scroll_bar_width = 12.0f;
-	scroll_pane->scroll_bar_bg_color = LIGHTGRAY;
-	scroll_pane->scroll_thumb_color = DARKGRAY;
-	scroll_pane->scroll_thumb_focus_color = GRAY;
+	scroll_pane->scroll_bar_bg_color = PHOS_GUI_LIGHT_GRAY;
+	scroll_pane->scroll_thumb_color = PHOS_GUI_DARK_GRAY;
+	scroll_pane->scroll_thumb_focus_color = PHOS_GUI_GRAY;
 	scroll_pane->render_scroll_bar = true;
 	scroll_pane->thumb_has_focus = false;
+	scroll_pane->thumb_grabbed = false;
 }
 
 int phos_gui_init()
@@ -1975,7 +1976,7 @@ int phos_gui_create_button(phos_gui_elem *elem)
 
 	phos_gui_init_elem(elem, PHOS_GUI_TYPE_BUTTON, PHOS_GUI_RENDER_FILL_OUTLINE, 0, 0, 200, 100);
 	phos_gui_gen_color_set(&elem->primary_colors, WHITE, -0.1f, -0.2f, 0.0f);
-	phos_gui_fill_color_set(&elem->outline_colors, BLACK);
+	phos_gui_fill_color_set(&elem->outline_colors, PHOS_GUI_BLACK);
 	elem->outline_thickness = 5.0f;
 
 	// add text component to button
@@ -2448,6 +2449,9 @@ static void update_elem(phos_gui_elem *e, float dt)
 		// reset mouse state on scroll thumb
 		scroll_pane->thumb_has_focus = false;
 
+		// check for left mouse button down
+		bool mouse_btn_down = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+
 		// see if mouse is over the thumb
 		bool mouse_over_thumb = phos_gui_is_mouse_over_rect(thumb);
 
@@ -2457,7 +2461,8 @@ static void update_elem(phos_gui_elem *e, float dt)
 			scroll_pane->thumb_has_focus = true;
 
 		// see if user is holding down the thumb
-		if(IsMouseButtonDown(MOUSE_BUTTON_LEFT) && mouse_over_thumb)
+		if((mouse_btn_down && mouse_over_thumb) ||
+				(mouse_btn_down && scroll_pane->thumb_grabbed))
 		{
 			// get difference in mouse positions:
 			Vector2 mouse_delta = GetMouseDelta();
@@ -2466,10 +2471,18 @@ static void update_elem(phos_gui_elem *e, float dt)
 			if(mouse_delta.y != 0.0f)
 				// ticks becomes the opposite mouse delta y value (and multiply by SCROLL_THUMB_DRAG_FACTOR to slow down move speed)
 				ticks = -mouse_delta.y * SCROLL_THUMB_DRAG_FACTOR;
+
+			// thumb is grabbed
+			scroll_pane->thumb_grabbed = true;
 		}
 		else // when user not using mouse buttons
+		{
 			// ticks becomes mouse wheel movement instead
 			ticks = GetMouseWheelMove();
+
+			// thumb no longer grabbed
+			scroll_pane->thumb_grabbed = false;
+		}
 
 		// use ticks * px_per_tick to add to total scroll offset
 		scroll_pane->scroll -= ticks * scroll_pane->px_per_tick;
@@ -2810,11 +2823,11 @@ static void render_elem(const phos_gui_elem *const e)
 				Rectangle bar, thumb;
 				get_scroll_bar_rects(content_bounds, scroll_pane, total_content_height, &bar, &thumb);
 
-				// render bar and thumb
+				// render whole scroll bar
 				DrawRectangleRec(bar, scroll_pane->scroll_bar_bg_color);
 
-				// choose color of thumb based on mouse state
-				Color thumb_color = scroll_pane->thumb_has_focus ? scroll_pane->scroll_thumb_focus_color : scroll_pane->scroll_thumb_color;
+				// choose color of thumb based on mouse state and render thumb
+				Color thumb_color = scroll_pane->thumb_has_focus || scroll_pane->thumb_grabbed ? scroll_pane->scroll_thumb_focus_color : scroll_pane->scroll_thumb_color;
 				DrawRectangleRec(thumb, thumb_color);
 			}
 		}

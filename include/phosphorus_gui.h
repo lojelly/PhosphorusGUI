@@ -119,10 +119,108 @@
 */
 #define PHOS_GUI_WIN_RECT (Rectangle) { 0.0f, 0.0f, GetScreenWidth(), GetScreenHeight() }
 
+// colors:
+
 /**
-  PhoshporusGUI's own dark gray color.
+  PhoshporusGUI's custom dark gray color.
 */
 #define PHOS_GUI_DARK_GRAY (Color) { 35, 35, 35, 255 }
+/**
+  PhosphorusGUI's custom light gray color.
+*/
+#define PHOS_GUI_LIGHT_GRAY (Color) { 200, 200, 200, 255 }
+/**
+  PhosphorusGUI's custom gray color.
+*/
+#define PHOS_GUI_GRAY (Color) { 125, 125, 125, 255 }
+/**
+  PhosphorusGUI's custom black color.
+*/
+#define PHOS_GUI_BLACK (Color) { 15, 15, 15, 255 }
+/**
+  PhosphorusGUI's custom brown color.
+*/
+#define PHOS_GUI_BROWN (Color) { 100, 50, 0, 255 }
+/**
+  PhosphorusGUI's custom red color.
+*/
+#define PHOS_GUI_RED (Color) { 255, 0, 0, 255 }
+/**
+  PhosphorusGUI's custom neon red color.
+*/
+#define PHOS_GUI_NEON_RED (Color) { 255, 0, 50, 255 }
+/**
+  PhosphorusGUI's custom green color.
+*/
+#define PHOS_GUI_GREEN (Color) { 0, 255, 0, 255 }
+/**
+  PhosphorusGUI's custom neon green color.
+*/
+#define PHOS_GUI_NEON_GREEN (Color) { 0, 255, 50, 255 }
+/**
+  PhosphorusGUI's custom blue color.
+*/
+#define PHOS_GUI_BLUE (Color) { 0, 0, 255, 255 }
+/**
+  PhosphorusGUI's custom neon blue color.
+*/
+#define PHOS_GUI_NEON_BLUE (Color) { 0, 50, 255, 255 }
+/**
+  PhosphorusGUI's custom yellow color.
+*/
+#define PHOS_GUI_YELLOW (Color) { 255, 255, 0, 255 }
+/**
+  PhosphorusGUI's custom neon yellow color.
+*/
+#define PHOS_GUI_NEON_YELLOW (Color) { 255, 255, 50, 255 }
+/**
+  PhosphorusGUI's custom violet color.
+*/
+#define PHOS_GUI_VIOLET (Color) { 125, 0, 255, 255 }
+/**
+  PhosphorusGUI's custom neon violet color.
+*/
+#define PHOS_GUI_NEON_VIOLET (Color) { 125, 50, 255, 255 }
+/**
+  PhosphorusGUI's custom orange color.
+*/
+#define PHOS_GUI_ORANGE (Color) { 255, 125, 0, 255 }
+/**
+  PhosphorusGUI's custom neon orange color.
+*/
+#define PHOS_GUI_NEON_ORANGE (Color) { 255, 75, 0, 255 }
+/**
+  PhosphorusGUI's custom mint color.
+*/
+#define PHOS_GUI_MINT (Color) { 0, 255, 125, 255 }
+/**
+  PhosphorusGUI's custom neon mint color.
+*/
+#define PHOS_GUI_NEON_MINT (Color) { 100, 255, 125, 255 }
+/**
+  PhosphorusGUI's custom cyan color.
+*/
+#define PHOS_GUI_CYAN (Color) { 0, 255, 255, 255 }
+/**
+  PhosphorusGUI's custom neon cyan color.
+*/
+#define PHOS_GUI_NEON_CYAN (Color) { 100, 255, 255, 255 }
+/**
+  PhosphorusGUI's custom pink color.
+*/
+#define PHOS_GUI_PINK (Color) { 255, 100, 200, 255 }
+/**
+  PhosphorusGUI's custom neon pink color.
+*/
+#define PHOS_GUI_NEON_PINK (Color) { 255, 25, 200, 255 }
+/**
+  PhosphorusGUI's custom magenta color.
+*/
+#define PHOS_GUI_MAGENTA (Color) { 255, 50, 150, 255 }
+/**
+  PhosphorusGUI's custom neon magenta color.
+*/
+#define PHOS_GUI_NEON_MAGENTA (Color) { 255, 0, 100, 255 }
 
 /**
   The different types of elements.
@@ -699,6 +797,10 @@ typedef struct phos_gui_scroll_pane_component
 	  thumb this frame.
 	*/
 	bool thumb_has_focus;
+	/**
+	  Whether or not the user is currently holding onto the thumb.
+	*/
+	bool thumb_grabbed;
 } phos_gui_scroll_pane_component;
 
 /**
