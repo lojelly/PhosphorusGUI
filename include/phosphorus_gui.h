@@ -101,6 +101,10 @@
   Extremely gigantic font size.
 */
 #define PHOS_GUI_FONT_SIZE_XGIGANTIC 256.0f
+/**
+  Largest pre-defined font size in PhosphorusGUI.
+*/
+#define PHOS_GUI_FONT_SIZE_LARGEST PHOS_GUI_FONT_SIZE_XGIGANTIC
 
 /**
   The window's origin.
@@ -114,6 +118,11 @@
   A Vector2 representing the window's origin and size.
 */
 #define PHOS_GUI_WIN_RECT (Rectangle) { 0.0f, 0.0f, GetScreenWidth(), GetScreenHeight() }
+
+/**
+  PhoshporusGUI's own dark gray color.
+*/
+#define PHOS_GUI_DARK_GRAY (Color) { 35, 35, 35, 255 }
 
 /**
   The different types of elements.
@@ -416,11 +425,6 @@ typedef struct phos_gui_text_component
 	char str[PHOS_GUI_MAX_TEXT_LEN + 1];
 
 	/**
-	  The owner of this text component.
-	*/
-	struct phos_gui_elem *owner;
-
-	/**
 	  This text component's font.
 
 	  @important If you load the font yourself,
@@ -547,16 +551,29 @@ typedef struct phos_gui_placeholder_text_extension
 } phos_gui_placeholder_text_extension;
 
 /**
+  Indicates how layouts should resolve row and column
+  additions.
+*/
+typedef enum phos_gui_layout_flow
+{
+	/**
+	  The default resolution for layouts. This results
+	  in a row being filled before moving
+	  to the next row.
+	*/
+	PHOS_GUI_LAYOUT_ROW_MAJOR,
+	/**
+	  Results in each column being filled before moving
+	  to the next column.
+	*/
+	PHOS_GUI_LAYOUT_COLUMN_MAJOR
+} phos_gui_layout_flow;
+/**
   A phos_gui_layout_component provides an element
   with a specific layout and formatting technique.
 */
 typedef struct phos_gui_layout_component
 {
-	/**
-	  The owner of this layout component.
-	*/
-	struct phos_gui_elem *owner;
-	
 	/**
 	  The number of rows in the layout.
 	*/
@@ -574,6 +591,45 @@ typedef struct phos_gui_layout_component
 	  The amount of pixels on the y-axis between each element.
 	*/
 	float spacing_y;
+
+	/**
+	  The total amount of pixels this layout component takes up
+	  horizontally.
+
+	  @important PhosphorusGUI sets this value automatically during
+	  phos_gui_format_children(...).
+	*/
+	float total_content_width;
+	/**
+	  The total amount of pixels this layout component takes up
+	  vertically.
+
+	  @important PhosphorusGUI sets this value automatically during
+	  phos_gui_format_children(...).
+	*/
+	float total_content_height;
+
+	/**
+	  Indicates how the layout should place the elements inside of it.
+	*/
+	phos_gui_layout_flow flow;
+
+	/**
+	  Indicates whether or not phos_gui_format_children(...) forces
+	  all the layout's children to fit into the layout's total content area.
+	  By default, this is true.
+
+	  @note This shouldn't be true if 'clamp_parent' is also true.
+	*/
+	bool auto_fit_children;
+	/**
+	  Indicates whether or not phos_gui_format_children(...) clamps
+	  the parent element's size to match the total amount of space
+	  its children take up. By default, this is false.
+
+	  @note This shouldn't be true if 'auto_fit_children' is also true.
+	*/
+	bool clamp_parent;
 } phos_gui_layout_component;
 
 /**
@@ -586,18 +642,9 @@ typedef struct phos_gui_layout_component
 typedef struct phos_gui_scroll_pane_component
 {
 	/**
-	  The owner of this scroll pane component.
-	*/
-	struct phos_gui_elem *owner;
-
-	/**
 	  The amount of pixels that have been scrolled.
 	*/
 	float scroll;
-	/**
-	  The previous amount of pixels that were scrolled.
-	*/
-	float prev_scroll;
 	/**
 	  The max amount of pixels that can be scrolled.
 	*/
@@ -612,6 +659,20 @@ typedef struct phos_gui_scroll_pane_component
 	  inverts the scrolling direction.
 	*/
 	float px_per_tick;
+
+	/**
+	  The color of the scroll bar's background.
+	*/
+	Color scroll_bar_bg_color;
+	/**
+	  The color of the scroll thumb.
+	*/
+	Color scroll_thumb_color;
+	/**
+	  Indicates whether or not the scroll pane's scroll bar
+	  should be rendered. By default, this is set to true.
+	*/
+	bool render_scroll_bar;
 } phos_gui_scroll_pane_component;
 
 /**
@@ -1168,14 +1229,18 @@ PHOS_GUI_API void phos_gui_gen_color_set(phos_gui_color_set *set, Color normal_c
 /**
   Sets the contents of the given element's text component.
 
+  @note If the options given include PHOS_GUI_OPTS_REALIGN_TEXT,
+  make sure the text component's alignment has already been set.
+
   @param text_component The text component to modify.
   @param target_str The specific string buffer to set on the text component.
   See phos_gui_target_text_string.
   @param str The string that should occupy the target string given.
+  @param opts Additional options.
 
   @see phos_gui_target_text_string
 */
-PHOS_GUI_API void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, const char *new_contents);
+PHOS_GUI_API void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, const char *new_contents, phos_gui_opts opts);
 
 /**
   Calculates the position of the text component of an element based on an alignment.
@@ -1219,34 +1284,33 @@ PHOS_GUI_API Vector2 phos_gui_align_elem_with_window(phos_gui_elem *target_elem,
 PHOS_GUI_API void phos_gui_fill_window_with_elem(phos_gui_elem *elem, phos_gui_opts opts);
 
 /**
-  Makes the given element fit the given text component's bounds.
+  Makes the owner of the text component fit the text's bounds.
 
   @note This makes the element's visible bounds exactly equal to the text's bounds.
-  In most cases, this will shrink the element down drastically. To make the element
+  In most cases, this will shrink the element significantly. To make the element
   fit a text component but retain its original size, use phos_gui_make_elem_fit_text(...).
 */
-PHOS_GUI_API void phos_gui_clamp_elem_to_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str, phos_gui_opts opts);
+PHOS_GUI_API void phos_gui_clamp_elem_to_text(const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str, phos_gui_opts opts);
 /**
-  Makes the given text component fit the given element's bounds.
+  Makes the given text component fit its owner's bounds.
 
-  @note This function will resize the text component's font size to
-  make it fit the given element's size. Unlike phos_gui_make_elem_fit_text(...),
-  this function does not walk up the parent tree or modify any parent elements.
-  It only affects the given element.
+  This function will modify the text component's font size to
+  make it fit its owner's size.
 
-  @see phos_gui_make_elem_fit_text(phos_gui_elem*, phos_gui_text_component*, const char*)
+  @see phos_gui_make_elem_fit_text(phos_gui_text_component*, phos_gui_target_text_string)
 */
-PHOS_GUI_API void phos_gui_make_text_fit_elem(const phos_gui_elem *const elem, phos_gui_text_component *text_component, phos_gui_target_text_string target_str);
+PHOS_GUI_API void phos_gui_make_text_fit_elem(phos_gui_text_component *text_component, phos_gui_target_text_string target_str);
 /**
-  Makes the given element fit the given text co;mponent's bounds.
+  Makes the owner of the given text component fit the
+  the text component's bounds.
 
   @note This function walks up the parent tree of the given element
   and makes each parent also fit the text component. This is because
   if only the child was affected, it may cause size-collisions.
 
-  @see phos_gui_make_text_fit_elem(phos_gui_elem*, phos_gui_text_component*, const char*)
+  @see phos_gui_make_text_fit_elem(phos_gui_text_component*, phos_gui_target_text_string)
 */
-PHOS_GUI_API void phos_gui_make_elem_fit_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str);
+PHOS_GUI_API void phos_gui_make_elem_fit_text(const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str);
 
 /**
   Sets some basic element attributes.
@@ -1338,6 +1402,11 @@ PHOS_GUI_API int phos_gui_remove_child_id(phos_gui_elem *parent, const char *ID)
   Formats the child elements inside of a parent element.
 
   @important The parent element must have a layout component.
+
+  @note If the parent element also has a scroll pane component, and
+  its 'render_scroll_bar' field is true, this function automatically
+  adds spacing so that the scroll bar is not colliding with any of the
+  child elememnts in the layout.
 
   @return 1 on success, 0 on failure.
 

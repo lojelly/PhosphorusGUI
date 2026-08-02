@@ -9,15 +9,18 @@
 #include "raymath.h"
 #include "rlgl.h"
 
-#define CURSOR_WIDTH 3
+#define CURSOR_WIDTH 3.0f
 #define KEY_REPEAT_DELAY 0.5f
 #define KEY_REPEAT_INTERVAL 0.033f
 
 #define ROUND_RECT_SEGMENTS 32
 
-#define TEXT_PADDING PHOS_GUI_FONT_SIZE_MED
+#define TEXT_PADDING 8.0f
 
 #define MAX_CLIPS 16
+
+#define SCROLL_BAR_WIDTH 10.0f
+#define MIN_SCROLL_BAR_HEIGHT 25.0f
 
 // array of element pointers
 typedef struct elem_arr
@@ -142,15 +145,12 @@ static Rectangle clips[MAX_CLIPS];
 		assert_obj_ptr(map, values, __VA_ARGS__); \
 	} while(0)
 
-static void init_text_component(void *text_component, void *owner)
+static void init_text_component(void *text_component)
 {
-	if(!text_component || !owner)
+	if(!text_component)
 		return;
 
 	phos_gui_text_component *text = text_component;
-	phos_gui_elem *elem = owner;
-
-	text->owner = elem;
 
 	text->font = default_font;
 	text->font_size = PHOS_GUI_FONT_SIZE_DEFAULT;
@@ -164,17 +164,15 @@ static void init_text_component(void *text_component, void *owner)
 	text->color = BLACK;
 	text->offset = Vector2Zero();
 	snprintf(text->str, sizeof(text->str), "");
-
-	vl_log(VL_SUCCESS, "Added text component to '%s'!\n", elem->ID);
 }
 
-static void init_placeholder_text_extension(void *placeholder_text_component, void *owner)
+static void init_placeholder_text_extension(void *placeholder_text_component)
 {
-	if(!placeholder_text_component || !owner)
+	if(!placeholder_text_component)
 		return;
 
 	phos_gui_placeholder_text_extension *placeholder_text = placeholder_text_component;
-	phos_gui_elem *elem = owner;
+	phos_gui_elem *elem = pluto_cs_get_owner(placeholder_text_component);
 
 	// see if owner has a base text component
 	phos_gui_text_component *host_text = NULL;
@@ -187,7 +185,7 @@ static void init_placeholder_text_extension(void *placeholder_text_component, vo
 	placeholder_text->host = host_text;
 
 	// match owners
-	if(placeholder_text->host->owner != owner)
+	if(pluto_cs_get_owner(placeholder_text->host) != elem)
 	{
 		vl_log(VL_ERROR, "Mismatched owner pointer! Cannot initialize placeholder text extension!\n");
 		return;
@@ -195,42 +193,39 @@ static void init_placeholder_text_extension(void *placeholder_text_component, vo
 
 	placeholder_text->color = GRAY;
 	snprintf(placeholder_text->str, sizeof(placeholder_text->str), "");
-
-	vl_log(VL_SUCCESS, "Added placeholder text extension to '%s'!\n", elem->ID);
 }
 
-static void init_layout_component(void *layout_component, void *owner)
+static void init_layout_component(void *layout_component)
 {
-	if(!layout_component || !owner)
+	if(!layout_component)
 		return;
 
 	phos_gui_layout_component *layout = layout_component;
-	phos_gui_elem *elem = owner;
 
-	layout->owner = owner;
 	layout->rows = 0;
 	layout->cols = 0;
 	layout->spacing_x = 0.0f;
 	layout->spacing_y = 0.0f;
-
-	vl_log(VL_SUCCESS, "Added a layout component to '%s'!\n", elem->ID);
+	layout->total_content_width = 0.0f;
+	layout->total_content_height = 0.0f;
+	layout->flow = PHOS_GUI_LAYOUT_ROW_MAJOR;
+	layout->auto_fit_children = true;
+	layout->clamp_parent = false;
 }
 
-static void init_scroll_pane_component(void *scroll_pane_component, void *owner)
+static void init_scroll_pane_component(void *scroll_pane_component)
 {
-	if(!scroll_pane_component || !owner)
+	if(!scroll_pane_component)
 		return;
 
 	phos_gui_scroll_pane_component *scroll_pane = scroll_pane_component;
-	phos_gui_elem *elem = owner;
 
-	scroll_pane->owner = elem;
 	scroll_pane->scroll = 0.0f;
-	scroll_pane->prev_scroll = 0.0f;
 	scroll_pane->max_scroll = 0.0f;
 	scroll_pane->px_per_tick = 1.0f;
-
-	vl_log(VL_SUCCESS, "Added a scroll pane component to '%s'!\n", elem->ID);
+	scroll_pane->scroll_bar_bg_color = LIGHTGRAY;
+	scroll_pane->scroll_thumb_color = DARKGRAY;
+	scroll_pane->render_scroll_bar = true;
 }
 
 int phos_gui_init()
@@ -324,7 +319,7 @@ void phos_gui_set_gui(phos_gui *new_gui)
 	prev_gui = curr_gui;
 	curr_gui = new_gui;
 
-	// only register non-null pointers:
+	// only register non-NULL pointers:
 	if(new_gui)
 	{
 		// see if a duplicate is found
@@ -407,7 +402,7 @@ void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vector2 size)
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot center a null element!\n");
+		vl_log(VL_ERROR, "Cannot center a NULL element!\n");
 		return;
 	}
 
@@ -424,7 +419,7 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot move a null element!\n");
+		vl_log(VL_ERROR, "Cannot move a NULL element!\n");
 		return;
 	}
 
@@ -432,9 +427,10 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 	elem->pos.x += x;
 	elem->pos.y += y;
 
-	// then move elem's child elements the same amount of pixels
-	for(size_t i = 0; i < elem->num_children; ++i)
-		phos_gui_move_elem_xy(elem->children[i], x, y, opts);
+	// then move elem's child elements the same amount of pixels (if options include PHOS_GUI_OPTS_PASS_DOWN)
+	if(opts & PHOS_GUI_OPTS_PASS_DOWN)
+		for(size_t i = 0; i < elem->num_children; ++i)
+			phos_gui_move_elem_xy(elem->children[i], x, y, opts);
 }
 
 static Vector2 get_proposed_align_pos(Vector2 target_object_size, phos_gui_alignment alignment, const phos_gui_elem *const reference_elem)
@@ -559,7 +555,7 @@ static void resize_single_elem_wh(phos_gui_elem *elem, float w, float h, phos_gu
 	{
 		// based on given options, modify text component:
 		if(opts & PHOS_GUI_OPTS_FIT_TEXT)
-			phos_gui_make_text_fit_elem(elem, elem_tx, PHOS_GUI_TARGET_AUTO_TEXT);
+			phos_gui_make_text_fit_elem(elem_tx, PHOS_GUI_TARGET_AUTO_TEXT);
 		if(opts & PHOS_GUI_OPTS_REALIGN_TEXT)
 			phos_gui_align_elem_text(elem_tx, PHOS_GUI_TARGET_AUTO_TEXT, elem_tx->alignment);
 	}
@@ -568,7 +564,7 @@ void phos_gui_resize_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opt
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot resize a null element!\n");
+		vl_log(VL_ERROR, "Cannot resize a NULL element!\n");
 		return;
 	}
 
@@ -593,7 +589,7 @@ Vector2 phos_gui_get_elem_center(phos_gui_elem *elem)
 
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot obtain center of a null element!\n");
+		vl_log(VL_ERROR, "Cannot obtain center of a NULL element!\n");
 		return v;
 	}
 
@@ -609,7 +605,7 @@ Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem)
 
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot obtain center of a null element!\n");
+		vl_log(VL_ERROR, "Cannot obtain center of a NULL element!\n");
 		return v;
 	}
 	if(!pluto_cs_check_component(elem, PHOS_GUI_COMPONENT_TEXT))
@@ -622,7 +618,7 @@ Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem)
 
 	if(!txt->font)
 	{
-		vl_log(VL_ERROR, "This element ('%s') has a null font, cannot obtain center with text!\n", elem->ID);
+		vl_log(VL_ERROR, "This element ('%s') has a NULL font, cannot obtain center with text!\n", elem->ID);
 		return v;
 	}
 
@@ -646,7 +642,7 @@ Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem)
 
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot obtain visible bounds for a null element!\n");
+		vl_log(VL_ERROR, "Cannot obtain visible bounds for a NULL element!\n");
 		return r;
 	}
 
@@ -698,20 +694,25 @@ void phos_gui_get_text_bounds(const phos_gui_text_component *const text_componen
 	if(out_placeholder_bounds)
 		*out_placeholder_bounds = placeholder_bounds;
 
-	if(!text_component || !text_component->owner)
+	if(!text_component)
 	{
-		vl_delay_log(VL_ERROR, 1.0f, "Cannot obtain text bounds for null text component/element!\n");
+		vl_delay_log(VL_ERROR, 1.0f, "Cannot obtain text bounds for NULL text component/element!\n");
 		return;
 	}
 
 	// get text component owner
-	const phos_gui_elem *const elem = text_component->owner;
+	const phos_gui_elem *const elem = pluto_cs_get_owner(text_component);
+	if(!elem)
+	{
+		vl_delay_log(VL_ERROR, 1.0f, "The text component's owner is invalid, cannot obtain text bounds for the text component!\n");
+		return;
+	}
 	const char *main_str = text_component->str;
 
 	// ensure font is valid
 	if(!text_component->font || !IsFontValid(*text_component->font))
 	{
-		vl_delay_log(VL_ERROR, 1.0f, "Cannot obtain text bounds for null/invalid font on element: '%s'!\n", elem->ID);
+		vl_delay_log(VL_ERROR, 1.0f, "Cannot obtain text bounds for NULL/invalid font on element: '%s'!\n", elem->ID);
 		return;
 	}
 
@@ -798,7 +799,14 @@ static void update_text_scrolling(phos_gui_text_component *text)
 	}
 
 	// get owner of text component
-	phos_gui_elem *e = text->owner;
+	phos_gui_elem *e = pluto_cs_get_owner(text);
+	if(!e)
+	{
+		text->scroll = 0.0f;
+		text->max_scroll = 0.0f;
+		vl_delay_log(VL_WARNING, 5.0f, "Failed to update text scrolling. Text component's owner is invalid!\n");
+		return;
+	}
 
 	// first get visual bounds of text component on screen
 	//Rectangle vis_bounds = phos_gui_get_elem_rect(e);
@@ -811,7 +819,7 @@ static void update_text_scrolling(phos_gui_text_component *text)
 	// calculate the overflow
 	float vis_left = vis_bounds.x;
 	float vis_right = vis_bounds.x + vis_bounds.width;
-	float vis_width = vis_right - (text->owner->pos.x + text->offset.x);
+	float vis_width = vis_right - (e->pos.x + text->offset.x);
 	float overflow = text_bounds.width - vis_width;
 
 	if(overflow > 0.0f)
@@ -830,7 +838,7 @@ static void update_text_scrolling(phos_gui_text_component *text)
 		buf[text->cursor_pos] = '\0';
 
 		float caret_x = MeasureTextEx(*text->font, buf, text->font_size, 0.0f).x;
-		float caret_screen = text->owner->pos.x + text->offset.x + caret_x - text->scroll;
+		float caret_screen = e->pos.x + text->offset.x + caret_x - text->scroll;
 
 		// right-side check (include cursor width because the cursor takes up that many more pixels)
 		if(caret_screen + CURSOR_WIDTH > vis_right)
@@ -848,12 +856,12 @@ void phos_gui_init_text(phos_gui_text_component *text, const char *str, float fo
 {
 	if(!text)
 	{
-		vl_log(VL_ERROR, "Cannot initialize null text component!\n");
+		vl_log(VL_ERROR, "Cannot initialize NULL text component!\n");
 		return;
 	}
 	if(!str)
 	{
-		vl_log(VL_ERROR, "Cannot initialize text component with null string!\n");
+		vl_log(VL_ERROR, "Cannot initialize text component with NULL string!\n");
 		return;
 	}
 	if(strlen(str) >= PHOS_GUI_MAX_TEXT_LEN)
@@ -881,12 +889,12 @@ void phos_gui_init_placeholder_text(phos_gui_placeholder_text_extension *placeho
 {
 	if(!placeholder_text)
 	{
-		vl_log(VL_ERROR, "Cannot initialize null placeholder text!\n");
+		vl_log(VL_ERROR, "Cannot initialize NULL placeholder text!\n");
 		return;
 	}
 	if(!str)
 	{
-		vl_log(VL_ERROR, "Cannot initialize placeholder text with null string!\n");
+		vl_log(VL_ERROR, "Cannot initialize placeholder text with NULL string!\n");
 		return;
 	}
 	if(strlen(str) >= PHOS_GUI_MAX_TEXT_LEN)
@@ -917,7 +925,7 @@ void phos_gui_set_elem_pos(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot set the position of a null element!\n");
+		vl_log(VL_ERROR, "Cannot set the position of a NULL element!\n");
 		return;
 	}
 
@@ -932,7 +940,7 @@ void phos_gui_set_elem_size(phos_gui_elem *elem, float w, float h, phos_gui_opts
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot set the size of a null element!\n");
+		vl_log(VL_ERROR, "Cannot set the size of a NULL element!\n");
 		return;
 	}
 
@@ -947,7 +955,7 @@ void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, fl
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot set bounds of a null element!\n");
+		vl_log(VL_ERROR, "Cannot set bounds of a NULL element!\n");
 		return;
 	}
 
@@ -959,7 +967,7 @@ void phos_gui_init_color_set(phos_gui_color_set *set, Color normal_color, Color 
 {
 	if(!set)
 	{
-		vl_log(VL_ERROR, "Cannot set colors of null color set!\n");
+		vl_log(VL_ERROR, "Cannot set colors of NULL color set!\n");
 		return;
 	}
 
@@ -977,7 +985,7 @@ void phos_gui_gen_color_set(phos_gui_color_set *set, Color normal_color, float h
 {
 	if(!set)
 	{
-		vl_log(VL_ERROR, "Cannot generate colors of null color set!\n");
+		vl_log(VL_ERROR, "Cannot generate colors of NULL color set!\n");
 		return;
 	}
 	
@@ -988,16 +996,16 @@ void phos_gui_gen_color_set(phos_gui_color_set *set, Color normal_color, float h
 		.focus_color = ColorBrightness(normal_color, focus_color_factor) };
 }
 
-void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, const char *new_contents)
+void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, const char *new_contents, phos_gui_opts opts)
 {
 	if(!text_component)
 	{
-		vl_log(VL_ERROR, "Cannot set string contents of a null text_component!\n");
+		vl_log(VL_ERROR, "Cannot set string contents of a NULL text_component!\n");
 		return;
 	}
 	if(!new_contents)
 	{
-		vl_log(VL_ERROR, "String is null, cannot set an element's text contents!\n");
+		vl_log(VL_ERROR, "String is NULL, cannot set an element's text contents!\n");
 		return;
 	}
 
@@ -1010,16 +1018,17 @@ void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gu
 			break;
 		case PHOS_GUI_TARGET_PLACEHOLDER_TEXT:
 			// see if text component can be linked to a placeholder text extension:
-			if(!text_component->owner)
+			phos_gui_elem *owner = pluto_cs_get_owner(text_component);
+			if(!owner)
 			{
 				vl_log(VL_ERROR, "Cannot use PHOS_GUI_TARGET_PLACEHOLDER_TEXT, the text component's owner is NULL!\n");
 				return;
 			}
 
 			phos_gui_placeholder_text_extension *placeholder_text = NULL;
-			if(!(placeholder_text = pluto_cs_get_component(text_component->owner, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT)))
+			if(!(placeholder_text = pluto_cs_get_component(owner, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT)))
 			{
-				vl_log(VL_ERROR, "Cannot use PHOS_GUI_TARGET_PLACEHOLDER_TEXT, the element '%s' does not own a phos_gui_placeholder_text_extension component!\n", text_component->owner->ID);
+				vl_log(VL_ERROR, "Cannot use PHOS_GUI_TARGET_PLACEHOLDER_TEXT, the element '%s' does not own a phos_gui_placeholder_text_extension component!\n", owner->ID);
 				return;
 			}
 
@@ -1033,10 +1042,22 @@ void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gu
 	// use hardcoded size from string buffers:
 	snprintf(dest, PHOS_GUI_MAX_TEXT_LEN + 1, "%s", new_contents);
 	text_component->cursor_pos = text_component->len = strlen(dest);
+
+	// check opts
+	if(opts & PHOS_GUI_OPTS_FIT_TEXT)
+		phos_gui_make_text_fit_elem(text_component, target_str);
+	if(opts & PHOS_GUI_OPTS_REALIGN_TEXT)
+		phos_gui_align_elem_text(text_component, target_str, text_component->alignment);
 }
 
-static Vector2 resolve_elem_text_bounds(const phos_gui_elem *const elem, const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str)
+/* IMPORTANT: even though the owner of the text component could be obtained, and the 'elem' argument could be taken out,
+   other functions rely on copies of text components
+*/
+static Vector2 resolve_elem_text_bounds(const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str)
 {
+	// get owner of text component
+	const phos_gui_elem *const elem = pluto_cs_get_owner(text_component);
+
 	// get placeholder text data
 	phos_gui_placeholder_text_extension *placeholder_text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
 	
@@ -1075,9 +1096,22 @@ Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_g
 {
 	Vector2 v = {0};
 
-	if(!text_component || !text_component->owner || !text_component->font)
+	if(!text_component)
 	{
-		vl_log(VL_ERROR, "Cannot align text on null text component/element!\n");
+		vl_log(VL_ERROR, "Cannot align text on a NULL text component!\n");
+		return v;
+	}
+	if(!text_component->font)
+	{
+		vl_log(VL_ERROR, "To align a text component, its font must be set first!\n");
+		return v;
+	}
+
+	// get owner of text component
+	phos_gui_elem *owner = pluto_cs_get_owner(text_component);
+	if(!owner)
+	{
+		vl_log(VL_ERROR, "Cannot align text on the given text component because its owner is NULL!\n");
 		return v;
 	}
 
@@ -1088,10 +1122,10 @@ Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_g
 		alignment = PHOS_GUI_ALIGN_INNER_CENTER;
 	}
 
-	Vector2 text_bounds = resolve_elem_text_bounds(text_component->owner, text_component, target_str);
+	Vector2 text_bounds = resolve_elem_text_bounds(text_component, target_str);
 
-	v = get_proposed_align_pos(text_bounds, alignment, text_component->owner);
-	text_component->offset = Vector2Subtract(v, text_component->owner->pos);
+	v = get_proposed_align_pos(text_bounds, alignment, owner);
+	text_component->offset = Vector2Subtract(v, owner->pos);
 	text_component->alignment = alignment;
 
 	return v;
@@ -1102,12 +1136,12 @@ Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment align
 
 	if(!target_elem)
 	{
-		vl_log(VL_ERROR, "Cannot align null target element!\n");
+		vl_log(VL_ERROR, "Cannot align NULL target element!\n");
 		return v;
 	}
 	if(!reference_elem)
 	{
-		vl_log(VL_ERROR, "Cannot align target element with null reference element!\n");
+		vl_log(VL_ERROR, "Cannot align target element with NULL reference element!\n");
 		return v;
 	}
 
@@ -1155,7 +1189,7 @@ Vector2 phos_gui_align_elem_with_window(phos_gui_elem *target_elem, phos_gui_ali
 
 	if(!target_elem)
 	{
-		vl_log(VL_ERROR, "Cannot align null target element!\n");
+		vl_log(VL_ERROR, "Cannot align NULL target element!\n");
 		return v;
 	}
 	if(!curr_gui)
@@ -1209,7 +1243,7 @@ void phos_gui_fill_window_with_elem(phos_gui_elem *elem, phos_gui_opts opts)
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot fill window with a null element!\n");
+		vl_log(VL_ERROR, "Cannot fill window with a NULL element!\n");
 		return;
 	}
 
@@ -1217,68 +1251,103 @@ void phos_gui_fill_window_with_elem(phos_gui_elem *elem, phos_gui_opts opts)
 	phos_gui_set_elem_bounds(elem, 0.0f, 0.0f, GetScreenWidth(), GetScreenHeight(), opts);
 }
 
-static float get_largest_possible_font_size(const phos_gui_elem *const elem, const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str)
+static void use_largest_possible_font_size(phos_gui_text_component *text_component, phos_gui_target_text_string target_str)
 {
+	const phos_gui_elem *const elem = pluto_cs_get_owner(text_component);
+
 	// get content area
 	Vector2 size = phos_gui_get_rect_size(phos_gui_get_elem_content_rect(elem));
 
+	// create virtual padding around text
 	size.x -= TEXT_PADDING * 2.0f;
 	size.y -= TEXT_PADDING * 2.0f;
 
-	// measure initial text bounds
-	Vector2 text_bounds = resolve_elem_text_bounds(elem, text_component, target_str);
+	// start out at largest font size
+	text_component->font_size = PHOS_GUI_FONT_SIZE_LARGEST;
 
-	// create copy of text component
-	phos_gui_text_component text_copy = *text_component;
+	// measure initial text bounds
+	Vector2 text_bounds = resolve_elem_text_bounds(text_component, target_str);
 
 	// while the text takes up more space than the inner bounds, font size automatically has to shrink
-	while(text_copy.font_size > 1.0f && (text_bounds.x >= size.x || text_bounds.y >= size.y))
+	while(text_component->font_size > 1.0f && (text_bounds.x >= size.x || text_bounds.y >= size.y))
 	{
 		// go to next font size
-		text_copy.font_size -= 1.0f;
+		text_component->font_size -= 1.0f;
 
 		// re-measure text using current font size on the text component copy
-		text_bounds = resolve_elem_text_bounds(elem, &text_copy, target_str);
+		text_bounds = resolve_elem_text_bounds(text_component, target_str);
 	}
 
-	vl_log(VL_INFO, "Largest possible font size for '%s' is %.2f.\n", elem->ID, text_copy.font_size);
-
-	return text_copy.font_size;
+	vl_log(VL_INFO, "Largest possible font size for '%s' is %.2f.\n", elem->ID, text_component->font_size);
 }
-void phos_gui_clamp_elem_to_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str, phos_gui_opts opts)
+void phos_gui_clamp_elem_to_text(const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str, phos_gui_opts opts)
 {
-	if(!elem || !text_component || !text_component->font)
+	if(!text_component || !text_component->font)
 	{
-		vl_log(VL_ERROR, "To clamp the given element to the text component, 'elem,' 'text_component,' and 'text_component_target_str' can't be NULL/invalid!\n");
+		vl_log(VL_ERROR, "To clamp the element to the text, the text component can't be NULL/invalid!\n");
+		return;
+	}
+
+	// get owner of text component
+	phos_gui_elem *elem = pluto_cs_get_owner(text_component);
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "The text component's owner is NULL, cannot clamp!\n");
 		return;
 	}
 
 	// get resolved text bounds
-	Vector2 text_bounds = resolve_elem_text_bounds(elem, text_component, target_str);
+	Vector2 text_bounds = resolve_elem_text_bounds(text_component, target_str);
 
 	// match elem bounds to text bounds
 	phos_gui_set_elem_size(elem, text_bounds.x, text_bounds.y, opts);
 }
 
-void phos_gui_make_text_fit_elem(const phos_gui_elem *const elem, phos_gui_text_component *text_component, phos_gui_target_text_string target_str)
+void phos_gui_make_text_fit_elem(phos_gui_text_component *text_component, phos_gui_target_text_string target_str)
 {
-	if(!elem || !text_component || !text_component->font)
+	if(!text_component)
 	{
-		vl_log(VL_ERROR, "To make the given text component fit the element, 'elem,' 'text_component,' and 'text_component_target_str' can't be NULL/invalid!\n");
+		vl_log(VL_ERROR, "To make the given text component fit the element, the text component cannot be NULL!\n");
+		return;
+	}
+	if(!text_component->font)
+	{
+		vl_log(VL_ERROR, "To make the given text component fit the element, its font must be set first!\n");
+		return;
+	}
+
+	// get text component's owner
+	const phos_gui_elem *const elem = pluto_cs_get_owner(text_component);
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "To make the given text component fit its owner, the text component must have a valid owner element!\n");
 		return;
 	}
 
 	// if text already fits element, do not resize text
-	Vector2 text_bounds = resolve_elem_text_bounds(elem, text_component, target_str);
+	Vector2 text_bounds = resolve_elem_text_bounds(text_component, target_str);
 
 	// use largest possible font size
-	text_component->font_size = get_largest_possible_font_size(elem, text_component, target_str);
+	use_largest_possible_font_size(text_component, target_str);
 }
-void phos_gui_make_elem_fit_text(phos_gui_elem *elem, const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str)
+void phos_gui_make_elem_fit_text(const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str)
 {
-	if(!elem || !text_component || !text_component->font)
+	if(!text_component)
 	{
-		vl_log(VL_ERROR, "To make the given element fit the text component, 'elem,' 'text_component,' and 'text_component->font' can't be NULL/invalid!\n");
+		vl_log(VL_ERROR, "To make the given element fit the text component, the text component cannot be NULL!\n");
+		return;
+	}
+	if(!text_component->font)
+	{
+		vl_log(VL_ERROR, "To make the given element fit the text component, its font must be set first!\n");
+		return;
+	}
+
+	// get text component's owner
+	phos_gui_elem *elem = pluto_cs_get_owner(text_component);
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "To make the given element fit the text component, the text component must have a valid owner element!\n");
 		return;
 	}
 
@@ -1286,7 +1355,7 @@ void phos_gui_make_elem_fit_text(phos_gui_elem *elem, const phos_gui_text_compon
 	Rectangle bounds = phos_gui_get_elem_content_rect(elem);
 
 	// measure text bounds
-	Vector2 text_bounds = resolve_elem_text_bounds(elem, text_component, target_str);
+	Vector2 text_bounds = resolve_elem_text_bounds(text_component, target_str);
 
 	// expand element if necessary
 	if(text_bounds.x > bounds.width)
@@ -1307,15 +1376,15 @@ void phos_gui_make_elem_fit_text(phos_gui_elem *elem, const phos_gui_text_compon
 	}
 
 	// if element has a parent, make sure it can contain the text too
-	if(elem->parent)
-		phos_gui_make_elem_fit_text(elem->parent, text_component, target_str);
+	/*if(elem->parent)
+		phos_gui_make_elem_fit_text(elem->parent, text_component, target_str);*/
 }
 
 void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h)
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot setup a null element!\n");
+		vl_log(VL_ERROR, "Cannot setup a NULL element!\n");
 		return;
 	}
 
@@ -1331,7 +1400,7 @@ static int register_elem(phos_gui_elem *elem)
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot register a null element!\n");
+		vl_log(VL_ERROR, "Cannot register a NULL element!\n");
 		return 0;
 	}
 	if(!init)
@@ -1448,12 +1517,12 @@ int phos_gui_remove_elem_from_gui(phos_gui *gui, phos_gui_elem *elem)
 {
 	if(!gui)
 	{
-		vl_log(VL_ERROR, "Cannot remove an element from a null GUI!\n");
+		vl_log(VL_ERROR, "Cannot remove an element from a NULL GUI!\n");
 		return 0;
 	}
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot remove a null element from a GUI!\n");
+		vl_log(VL_ERROR, "Cannot remove a NULL element from a GUI!\n");
 		return 0;
 	}
 
@@ -1523,6 +1592,9 @@ int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child)
 	// the element's parent becomes the parent
 	child->parent = parent;
 
+	// auto-gen child ID if necessary
+	auto_gen_id(child->ID, child->ID, sizeof(child->ID), "elem", &elem_auto_id);
+
 	vl_log(VL_SUCCESS, "Element '%s' added to parent element '%s'!\n", child->ID, parent->ID);
 
 	return 1;
@@ -1535,12 +1607,12 @@ int phos_gui_remove_child(phos_gui_elem *parent, phos_gui_elem *child)
 {
 	if(!parent)
 	{
-		vl_log(VL_ERROR, "Cannot remove an element from a null container!\n");
+		vl_log(VL_ERROR, "Cannot remove an element from a NULL container!\n");
 		return 0;
 	}
 	if(!child)
 	{
-		vl_log(VL_ERROR,"Cannot remove a null element from a container!\n");
+		vl_log(VL_ERROR,"Cannot remove a NULL element from a container!\n");
 		return 0;
 	}
 
@@ -1576,7 +1648,7 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 {
 	if(!parent)
 	{
-		vl_log(VL_ERROR, "Cannot format a null parent element!\n");
+		vl_log(VL_ERROR, "Cannot format a NULL parent element!\n");
 		return 0;
 	}
 
@@ -1592,6 +1664,12 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 	Rectangle parent_content_area = phos_gui_get_elem_content_rect(parent);
 	float parent_x = parent_content_area.x;
 	float parent_y = parent_content_area.y;
+
+	// calculate layout width (if a scroll bar is rendered, minus SCROLL_BAR_WIDTH as an offset):
+	float parent_width = parent_content_area.width;
+	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(parent, PHOS_GUI_COMPONENT_SCROLL_PANE);
+	if(scroll_pane && scroll_pane->render_scroll_bar)
+		parent_width -= SCROLL_BAR_WIDTH;
 
 	// ensure layout can fit elements
 	size_t max_children = layout->rows * layout->cols;
@@ -1611,11 +1689,18 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 	   divided by number of rows and cols, with spacing
 	   taken into account properly.
 	*/
-	float total_spacing_x = layout->spacing_x * (layout->cols - 1);
-	float total_spacing_y = layout->spacing_y * (layout->rows - 1);
+	const float total_spacing_x = layout->spacing_x * (layout->cols - 1);
+	const float total_spacing_y = layout->spacing_y * (layout->rows - 1);
 	// size of each cell in the layout:
-	float cell_w = (parent_content_area.width - total_spacing_x) / layout->cols;
-	float cell_h = (parent_content_area.height - total_spacing_y) / layout->rows;
+	const float cell_w = (parent_width - total_spacing_x) / layout->cols; // cell_w relies on total width of layout
+	float cell_h = 0.0f;
+
+	if(layout->auto_fit_children)
+		cell_h = (parent_content_area.height - total_spacing_y) / layout->rows;
+
+	// store total content area for layout:
+	float total_content_width = 0.0f;
+	float total_content_height = 0.0f;
 
 	size_t row = 0, col = 0;
 	for(size_t i = 0; i < parent->num_children; ++i)
@@ -1623,10 +1708,28 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 		// child at i
 		phos_gui_elem *child = parent->children[i];
 
-		// resize child (take child's margin into account)
-		float child_w = cell_w - child->left_margin - child->right_margin;
-		float child_h = cell_h - child->top_margin - child->bottom_margin;
-		phos_gui_set_elem_size(child, child_w, child_h, opts);
+		// child width is the total cell width minus child's side margins
+		const float child_w = cell_w - child->left_margin - child->right_margin;
+		float child_h, cell_h;
+
+		if(layout->auto_fit_children)
+		{
+			// force child to fit into cells
+			cell_h = (parent_content_area.height - total_spacing_y) / layout->rows;
+			child_h = cell_h - child->top_margin - child->bottom_margin;
+
+			phos_gui_set_elem_size(child, child_w, child_h, opts);
+		}
+		else
+		{
+			// retain child height
+			child_h = child->size.y;
+			cell_h = child_h + child->top_margin + child->bottom_margin;
+
+			// but if necessary, force child to fit horizontally (ex. used when scroll bars are rendered)
+			if(child->size.x > child_w)
+				phos_gui_set_elem_size(child, child_w, child_h, opts);
+		} 
 
 		// move elem to the grid slot (take child's margin into account)
 		float cell_x = parent_x + ((cell_w + layout->spacing_x) * col);
@@ -1635,13 +1738,61 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 		float child_y = cell_y + child->top_margin;
 		phos_gui_set_elem_pos(child, child_x, child_y, opts);
 
-		// go to next grid slot:
-		col++; // next horizontal slot
-		if(col >= layout->cols) // go to next row if necessary
+		// total content width becomes the right edge of this child
+		float child_right = (child_x - parent_x) + child_w + child->right_margin;;
+		if(child_right > total_content_width)
+			total_content_width = child_right;
+
+		// total content height becomes the bottom edge of this child
+		float child_bottom = (child_y - parent_y) + child_h + child->bottom_margin;
+		if(child_bottom > total_content_height)
+			total_content_height = child_bottom;
+
+		// go to next grid slot based on the layout's flow:
+		switch(layout->flow)
 		{
-			col = 0; // first slot horizontally
-			row++; // next row, no need to check the row value because when it loops back, it checks the size again
+			case PHOS_GUI_LAYOUT_ROW_MAJOR:
+				// fill row, then go to next row
+				col++;
+				if(col >= layout->cols)
+				{
+					col = 0;
+					row++;
+				}
+				break;
+			case PHOS_GUI_LAYOUT_COLUMN_MAJOR:
+				// fill column, then go to next column
+				row++;
+				if(row >= layout->rows)
+				{
+					row = 0;
+					col++;
+				}
+				break;
+			default:
+				vl_log(VL_ERROR, "Invalid layout flow: %d!\n", layout->flow);
+				break;
 		}
+	}
+
+	// set 'total_content_width' and 'total_content_height' on the layout
+	layout->total_content_width = total_content_width;
+	layout->total_content_height = total_content_height;
+
+	// should the parent be clamped?
+	if(layout->clamp_parent)
+	{
+		Rectangle outer = phos_gui_get_elem_rect(parent);
+		Rectangle inner = phos_gui_get_elem_content_rect(parent);
+
+		float extra_width = outer.width - inner.width;
+		float extra_height = outer.height - inner.height;
+
+		// if clamping parent but rendering scroll bar, add back the scroll bar width offset
+		if(scroll_pane && scroll_pane->render_scroll_bar)
+			extra_width += SCROLL_BAR_WIDTH;
+
+		phos_gui_set_elem_size(parent, layout->total_content_width + extra_width, layout->total_content_height + extra_height, PHOS_GUI_OPTS_REALIGN_TEXT);
 	}
 
 	return 1;
@@ -1650,7 +1801,7 @@ phos_gui_elem *phos_gui_get_elem(const char *ID)
 {
 	if(!ID || strlen(ID) == 0)
 	{
-		vl_log(VL_ERROR, "Cannot obtain an element with null ID!\n");
+		vl_log(VL_ERROR, "Cannot obtain an element with NULL ID!\n");
 		return NULL;
 	}
 	if(!init)
@@ -1675,7 +1826,7 @@ static int create_blueprint(phos_gui_elem *elem, const char *ID, blueprint *bp)
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot clone a null element!\n");
+		vl_log(VL_ERROR, "Cannot clone a NULL element!\n");
 		return 0;
 	}
 	if(!ID || strlen(ID) == 0)
@@ -1795,7 +1946,7 @@ void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID)
 			auto_gen_id("auto", child_clone->ID, sizeof(child_clone->ID), "elem", &elem_auto_id);
 
 			// clone elements from child onto child_clone
-			if(pluto_cs_clone_all_components(child, &child_clone) == 0)
+			if(pluto_cs_clone_all_components(child, child_clone) == 0)
 				vl_log(VL_ERROR, "Failed to clone child components!\n");
 
 			// add child to target_elem
@@ -1831,7 +1982,7 @@ int phos_gui_create_button(phos_gui_elem *elem)
 		vl_log(VL_ERROR, "Failed to add a text component to the button element '%s'!\n", elem->ID);
 		return 0;
 	}
-	phos_gui_set_text_contents(text, PHOS_GUI_TARGET_MAIN_TEXT, "Text");
+	phos_gui_set_text_contents(text, PHOS_GUI_TARGET_MAIN_TEXT, "Text", PHOS_GUI_OPTS_NONE);
 
 	// if text has valid font, align text to center of elem
 	if(text->font && IsFontValid(*text->font))
@@ -2249,6 +2400,9 @@ static void update_elem(phos_gui_elem *e, float dt)
 		// calculate max scroll
 		scroll_pane->max_scroll = get_max_scroll(e);
 
+		// store current scroll value
+		float prev_scroll = scroll_pane->scroll;
+
 		// get mouse wheel ticks and add to total scroll amount
 		float ticks = GetMouseWheelMove();
 		scroll_pane->scroll -= ticks * scroll_pane->px_per_tick;
@@ -2259,14 +2413,12 @@ static void update_elem(phos_gui_elem *e, float dt)
 		else if(scroll_pane->scroll > scroll_pane->max_scroll)
 			scroll_pane->scroll = scroll_pane->max_scroll;
 
-		float delta = scroll_pane->scroll - scroll_pane->prev_scroll;
+		float delta = scroll_pane->scroll - prev_scroll;
 
 		// translate children based on scroll pane translation (only if user scrolled)
 		if(delta != 0.0f)
 			for(size_t i = 0; i < e->num_children; ++i)
 				phos_gui_move_elem_xy(e->children[i], 0.0f, -delta, PHOS_GUI_OPTS_NONE);
-
-		scroll_pane->prev_scroll = scroll_pane->scroll;
 	}
 
 	// update child elements
@@ -2381,6 +2533,13 @@ static void render_elem(const phos_gui_elem *const e)
 	// create elem rects:
 	const Rectangle vis_bounds = phos_gui_get_elem_rect(e);
 	const Rectangle content_bounds = phos_gui_get_elem_content_rect(e);
+
+	// if empty size, cannot render
+	if(vis_bounds.width <= 0 || vis_bounds.height <= 0 || content_bounds.width <= 0 || content_bounds.height <= 0)
+	{
+		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element with negative size: '%s'!\n", e->ID);
+		return;
+	}
 
 	// create elem ellipse info:
 	const float e_rx = vis_bounds.width / 2.0f;
@@ -2532,15 +2691,78 @@ static void render_elem(const phos_gui_elem *const e)
 
 	if(scroll_pane)
 	{
+		Rectangle child_clip = content_bounds;
+		if(scroll_pane->render_scroll_bar)
+			child_clip.width -= SCROLL_BAR_WIDTH;
+
 		// create new clip inside the element
-		if(phos_gui_new_clip_r(content_bounds))
+		if(phos_gui_new_clip_r(child_clip))
 		{
+			// total content height of scroll pane
+			float total_content_height = 0.0f;
+
+			// if the elem has a layout component, obtain its total content height
+			phos_gui_layout_component *layout = NULL;
+			if((layout = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_LAYOUT)))
+				total_content_height = layout->total_content_height;
+
 			// render children inside scroll clip
 			for(size_t i = 0; i < e->num_children; ++i)
-				render_elem(e->children[i]);
+			{
+				// child at i
+				phos_gui_elem *child = e->children[i];
+
+				// render child
+				render_elem(child);
+
+				// if a layout didn't already decide the total content height:
+				if(!layout)
+				{
+					// get whole rect of the child
+					Rectangle child_rect = phos_gui_get_elem_space_rect(child);
+
+					// bottom edge of this child
+					float child_bottom = child_rect.y + child_rect.height;
+
+					// find max total content height
+					total_content_height = fmax(total_content_height, child_bottom - content_bounds.y);
+				}
+			}
 
 			// end clip around elem
 			phos_gui_end_clip();
+
+			/* render scroll bar outside of child's clip:
+
+			   render scroll bar on right side
+			   of parent element (if render_scroll_bar is true)
+			*/
+			if(scroll_pane->render_scroll_bar)
+			{
+				// whole scroll bar
+				float scroll_bar_x = content_bounds.x + content_bounds.width - SCROLL_BAR_WIDTH;
+				float scroll_bar_y = content_bounds.y;
+
+				// scroll thumb
+				float scroll_thumb_height = (content_bounds.height / total_content_height) * content_bounds.height;
+				scroll_thumb_height = fmax(scroll_thumb_height, MIN_SCROLL_BAR_HEIGHT);
+				float scroll_thumb_interval = content_bounds.height - scroll_thumb_height;
+
+				float scroll_thumb_y = content_bounds.y;
+				if(total_content_height > content_bounds.height)
+				{
+					float max_scroll = total_content_height - content_bounds.height;
+					float scroll_percent = scroll_pane->scroll / max_scroll;
+					scroll_thumb_y = content_bounds.y + (scroll_pane->scroll / max_scroll) * scroll_thumb_interval;
+				}
+				else
+					scroll_thumb_height = content_bounds.height;
+
+				// render the whole bar
+				DrawRectangle(scroll_bar_x, scroll_bar_y, SCROLL_BAR_WIDTH, content_bounds.height, scroll_pane->scroll_bar_bg_color);
+				// render thumb
+				DrawRectangle(scroll_bar_x, scroll_thumb_y, SCROLL_BAR_WIDTH, scroll_thumb_height, scroll_pane->scroll_thumb_color);
+			}
 		}
 	}
 	else // no scroll pane
@@ -2621,7 +2843,7 @@ Texture2D *phos_gui_load_texture(const char *file_path)
 {
 	if(!file_path)
 	{
-		vl_log(VL_ERROR, "Cannot load texture using null file path!\n");
+		vl_log(VL_ERROR, "Cannot load texture using NULL file path!\n");
 		return NULL;
 	}
 
@@ -2653,7 +2875,7 @@ Font *phos_gui_load_font(const char *file_path)
 {
 	if(!file_path)
 	{
-		vl_log(VL_ERROR, "Cannot load font using null file path!\n");
+		vl_log(VL_ERROR, "Cannot load font using NULL file path!\n");
 		return NULL;
 	}
 
@@ -2684,7 +2906,7 @@ void phos_gui_set_default_font(const char *file_path)
 {
 	if(!file_path)
 	{
-		vl_log(VL_ERROR, "Cannot create defualt font using null file path!\n");
+		vl_log(VL_ERROR, "Cannot create defualt font using NULL file path!\n");
 		return;
 	}
 	default_font = phos_gui_load_font(file_path);
