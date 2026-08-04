@@ -107,17 +107,33 @@
 #define PHOS_GUI_FONT_SIZE_LARGEST PHOS_GUI_FONT_SIZE_XGIGANTIC
 
 /**
+  The default width/height of a drag bar on a phos_gui_drag_pane_component.
+*/
+#define PHOS_GUI_DRAG_BAR_DEFAULT_LENGTH 25.0f
+
+/**
   The window's origin.
 */
-#define PHOS_GUI_WIN_ORIGIN (Vector2) { 0.0f, 0.0f }
+#define PHOS_GUI_WINDOW_ORIGIN (Vector2) { 0.0f, 0.0f }
 /**
   The window's current size.
 */
-#define PHOS_GUI_WIN_SIZE (Vector2) { GetScreenWidth(), GetScreenHeight() }
+#define PHOS_GUI_WINDOW_SIZE (Vector2) { GetScreenWidth(), GetScreenHeight() }
 /**
   A Vector2 representing the window's origin and size.
+
+  @note This macro uses GetScreenWidth() and GetScreenHeight()
+  for the window size.
 */
-#define PHOS_GUI_WIN_RECT (Rectangle) { 0.0f, 0.0f, GetScreenWidth(), GetScreenHeight() }
+#define PHOS_GUI_WINDOW_RECT (Rectangle) { 0.0f, 0.0f, GetScreenWidth(), GetScreenHeight() }
+/**
+  The width of the mouse cursor in pixels.
+*/
+#define PHOS_GUI_CURSOR_WIDTH 32.0f
+/**
+  The height of the mouse cursor in pixels.
+*/
+#define PHOS_GUI_CURSOR_HEIGHT PHOS_GUI_CURSOR_WIDTH
 
 // colors:
 
@@ -419,6 +435,47 @@ typedef enum phos_gui_alignment
 } phos_gui_alignment;
 
 /**
+  Additional and optional settings for phos_gui functions.
+*/
+typedef enum phos_gui_opts
+{
+	/**
+	  Indicates there are no extra options to apply.
+	*/
+	PHOS_GUI_OPTS_NONE = 0,
+	/**
+	  Indicates that the action the function performs on an element
+	  should be passed down to all of the elements children.
+	*/
+	PHOS_GUI_OPTS_PASS_DOWN = 1 << 0,
+	/**
+	  Indicates that when resizing an element, its text component
+	  (if it has one) should be modified to fit the new size of the
+	  element.
+
+	  @note This only takes effect when the element becomes too small
+	  to contain its text.
+	*/
+	PHOS_GUI_OPTS_FIT_TEXT = 1 << 1,
+	/**
+	  Indicates that when resizing an element, its text component
+	  (if it has one) should be realigned. This option expects that
+	  the text's 'alignment' field to be a valid alignment.
+	*/
+	PHOS_GUI_OPTS_REALIGN_TEXT = 1 << 2,
+	/**
+	  Indicates that when moving an element, collisions between the
+	  element and other elements should be resolved.
+	*/
+	PHOS_GUI_OPTS_CHECK_ELEM_COLLISIONS = 1 << 3,
+	/**
+	  Indicates that when moving an element, collisions between the
+	  element and the window's edges should be resolved.
+	*/
+	PHOS_GUI_OPTS_CHECK_WINDOW_COLLISIONS = 1 << 4,
+} phos_gui_opts;
+
+/**
   The available component types.
 */
 typedef enum phos_gui_component_type
@@ -454,6 +511,14 @@ typedef enum phos_gui_component_type
 	  @see phos_gui_scroll_pane_component
 	*/
 	PHOS_GUI_COMPONENT_SCROLL_PANE,
+
+	/**
+	  Provides an element with the ability to be
+	  dragged around the screen.
+
+	  @see phos_gui_drag_pane_component
+	*/
+	PHOS_GUI_COMPONENT_DRAG_PANE,
 
 	/**
 	  Represents the last component ID in PhosphorusGUI.
@@ -804,6 +869,74 @@ typedef struct phos_gui_scroll_pane_component
 } phos_gui_scroll_pane_component;
 
 /**
+  A phos_gui_drag_pane_component provides an element with the ability
+  to be dragged around the screen using the mouse.
+*/
+typedef struct phos_gui_drag_pane_component
+{
+	/**
+	  If the drag pane uses a drag bar, this determines
+	  the size of the drag bar. By default, the drag
+	  bar's width is equal to the width of the
+	  drag pane's owner, and the drag bar's height is
+	  equal to PHOS_GUI_DRAG_BAR_DEFAULT_LENGTH, or 25.
+	*/
+	Vector2 drag_bar_size;
+	/**
+	  If the drag pane uses a drag bar, this determines
+	  where the drag bar is located on the element.
+
+	  By default, the drag bar is placed at the top
+	  of the element (PHOS_GUI_ALIGN_INNER_TOP).
+
+	  @important This alignment should always be either
+	  PHOS_GUI_ALIGN_INNER_LEFT, PHOS_GUI_ALIGN_INNER_TOP,
+	  PHOS_GUI_ALIGN_INNER_RIGHT, or PHOS_GUI_ALIGN_INNER_BOTTOM!
+	*/
+	phos_gui_alignment drag_bar_pos;
+	/**
+	  If the drag pane uses a drag bar, this color
+	  determines the color of the drag bar. The drag
+	  bar color is PHOS_GUI_LIGHT_GRAY by default.
+	*/
+	Color drag_bar_color;
+
+	/**
+	  Provides this drag pane with collisions based
+	  on what options you give it.
+
+	  For example, to give the drag pane collisions with
+	  other elements, set this to PHOS_GUI_OPTS_CHECK_ELEM_COLLISIONS.
+	  To give it collisions with the window's edges, add the
+	  PHOS_GUI_OPTS_CHECK_WINDOW_COLLISIONS option using the '|'
+	  operator. For both collision options, use PHOS_GUI_CHECK_ELEM_COLLISIONS
+	  | PHOS_GUI_CHECK_WINDOW_COLLISIONS.
+
+	  By default, this is set to PHOS_GUI_OPTS_NONE which means the drag
+	  pane will not have collisions enabled.
+	*/
+	phos_gui_opts collision_opts;
+
+	/**
+	  Determines how the user drags the element.
+
+	  By default, a drag pane is dragged when the
+	  user grabs anywhere within the element. However,
+	  setting this value to true provides the
+	  element with a drag bar. If the drag pane uses a
+	  drag bar, the user must grab the drag bar to drag
+	  the element.
+	*/
+	bool use_drag_bar;
+
+	/**
+	  Indicates whether or not the user is currently dragging
+	  this drag pane.
+	*/
+	bool grabbed;
+} phos_gui_drag_pane_component;
+
+/**
   A phos_gui_color_set represents a collection
   of colors a UI element uses.
 */
@@ -1104,37 +1237,6 @@ typedef struct phos_gui
 	size_t num_elems;
 } phos_gui;
 
-/**
-  Additional and optional settings for phos_gui functions.
-*/
-typedef enum phos_gui_opts
-{
-	/**
-	  Indicates there are no extra options to apply.
-	*/
-	PHOS_GUI_OPTS_NONE = 0,
-	/**
-	  Indicates that the action the function performs on an element
-	  should be passed down to all of the elements children.
-	*/
-	PHOS_GUI_OPTS_PASS_DOWN = 1 << 0,
-	/**
-	  Indicates that when resizing an element, its text component
-	  (if it has one) should be modified to fit the new size of the
-	  element.
-
-	  @note This only takes effect when the element becomes too small
-	  to contain its text.
-	*/
-	PHOS_GUI_OPTS_FIT_TEXT = 1 << 1,
-	/**
-	  Indicates that when resizing an element, its text component
-	  (if it has one) should be realigned. This option expects that
-	  the text's 'alignment' field to be a valid alignment.
-	*/
-	PHOS_GUI_OPTS_REALIGN_TEXT = 1 << 2,
-} phos_gui_opts;
-
 
 /**
   Initializes the PhosphorusGUI library.
@@ -1254,13 +1356,24 @@ PHOS_GUI_API Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem);
 */
 PHOS_GUI_API Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem);
 /**
-  Returns the content area of an element.
+  Returns the entire content area of an element.
 
-  The content area of an element is the same as its bounds,
-  but the element's outline thickness and padding is taken into
-  account. The content rectangle is the element's inner area.
+  The entire content area of an element refers to the
+  space inside of the element. Unlike the usable
+  content area however, the entire content area only
+  includes outlines and padding, not the sizes of visual
+  components added to the element.
 */
-PHOS_GUI_API Rectangle phos_gui_get_elem_content_rect(const phos_gui_elem *const elem);
+PHOS_GUI_API Rectangle phos_gui_get_elem_whole_content_rect(const phos_gui_elem *const elem);
+/**
+  Returns the usable content area of an element.
+
+  The content area of an element refers to the
+  space inside of the element. As you add components
+  or visual objects to the element, its usable
+  content area decreases.
+*/
+PHOS_GUI_API Rectangle phos_gui_get_elem_usable_content_rect(const phos_gui_elem *const elem);
 /**
   Returns the whole area of an element.
 
@@ -1613,6 +1726,12 @@ PHOS_GUI_API void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID
 PHOS_GUI_API int phos_gui_create_button(phos_gui_elem *elem);
 
 /**
+  Initializes Raylib for PhosphorusGUI.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_init_window(const char *title, int width, int height);
+/**
   Sets the global window scale in PhosphorusGUI.
 
   If your window is using a custom aspect ratio or
@@ -1623,13 +1742,29 @@ PHOS_GUI_API int phos_gui_create_button(phos_gui_elem *elem);
 
   @note This function does not affect the window.
 */
-PHOS_GUI_API void phos_gui_set_win_scale(float x, float y);
+PHOS_GUI_API void phos_gui_set_window_scale(float x, float y);
+/**
+  Sets the global window size in PhosphoursGUI.
+
+  This function only lets PhosphorusGUI know
+  about your window's size so it can use
+  correct calculations throughout the program.
+
+  @note If you are using a render texture that creates a virtual window size,
+  pass in the size of the render texture instead.
+
+  @important You must call this function after initializing Raylib! Note that
+  phos_gui_init_window(...), automatically does this for you.
+
+  @see phos_gui_init_window(const char*, int, int)
+*/
+PHOS_GUI_API void phos_gui_set_window_size(float w, float h);
 
 /**
   Obtains the current mouse position. This function
   takes the current window scale into account.
 
-  To set window scale, use phos_gui_set_win_scale(float, float).
+  To set window scale, use phos_gui_set_window_scale(float, float).
 
   @note This mouse position does not take the current translation
   offset into account. You can use phos_gui_get_translated_vec2(...)
