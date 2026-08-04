@@ -248,7 +248,7 @@ static void init_drag_pane_component(void *drag_pane_component)
 		vl_log(VL_ERROR, "Drag pane has no owner!\n");
 		return;
 	}
-	float owner_width = phos_gui_get_rect_size(phos_gui_get_elem_usable_content_rect(owner)).x;
+	float owner_width = phos_gui_get_rect_size(phos_gui_get_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE)).x;
 
 	// drag bar matches usable content width of owner, and a height of 25 pixels
 	drag_pane->drag_bar_size = (Vector2) { owner_width, 25 };
@@ -447,14 +447,11 @@ void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vector2 size)
 	phos_gui_set_elem_bounds(elem, elem_centered.x, elem_centered.y, elem->size.x, elem->size.y, PHOS_GUI_OPTS_REALIGN_TEXT);
 }
 
-static bool check_elem_collision(phos_gui_elem *elem1, phos_gui_elem *elem2, Rectangle (*get_elem_rect) (const phos_gui_elem *const))
+static bool check_elem_collision(phos_gui_elem *elem1, phos_gui_elem *elem2, phos_gui_elem_bounding_box bounds)
 {
-	if(!get_elem_rect)
-		return false;
-
 	// get elem rects
-	Rectangle r1 = get_elem_rect(elem1);
-	Rectangle r2 = get_elem_rect(elem2);
+	Rectangle r1 = phos_gui_get_elem_rect(elem1, bounds);
+	Rectangle r2 = phos_gui_get_elem_rect(elem2, bounds);
 
 	// check collision between them
 	return CheckCollisionRecs(r1, r2);
@@ -500,7 +497,7 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 				phos_gui_elem *e = elem->gui->elems[i];
 
 				// ensure elem does not collide with self
-				if(elem != e && check_elem_collision(elem, e, phos_gui_get_elem_rect))
+				if(elem != e && check_elem_collision(elem, e, PHOS_GUI_ELEM_BOUNDS_REAL))
 				{
 					collision = true;
 					break;
@@ -534,8 +531,8 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 static Vector2 get_proposed_align_pos(Vector2 target_object_size, phos_gui_alignment alignment, const phos_gui_elem *const reference_elem)
 {
 	// start at reference_rect origin
-	Rectangle whole_rect = phos_gui_get_elem_space_rect(reference_elem);
-	Rectangle content_rect = phos_gui_get_elem_whole_content_rect(reference_elem);
+	Rectangle whole_rect = phos_gui_get_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_TOTAL);
+	Rectangle content_rect = phos_gui_get_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
 
 	// keep track of position of the whole space rect
 	Vector2 v = phos_gui_get_rect_pos(whole_rect);
@@ -734,7 +731,7 @@ Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem)
 	return v;
 }
 
-Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem)
+Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem, phos_gui_elem_bounding_box bounds)
 {
 	Rectangle r = {0};
 
@@ -744,86 +741,78 @@ Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem)
 		return r;
 	}
 
+	// start out with the 'real' bounds of the element
 	r.x = elem->pos.x;
 	r.y = elem->pos.y;
 	r.width = elem->size.x;
 	r.height = elem->size.y;
 
-	return r;
-}
-Rectangle phos_gui_get_elem_whole_content_rect(const phos_gui_elem *const elem)
-{
-	Rectangle r = phos_gui_get_elem_rect(elem);
-	if(!elem)
-		return r;
-
-	// only include outlines and padding for the whole content rect
-	r.x += elem->outline_thickness + elem->left_padding;
-	r.y += elem->outline_thickness + elem->top_padding;
-	r.width -= ((elem->outline_thickness * 2.0f) + elem->right_padding + elem->left_padding);
-	r.height -= ((elem->outline_thickness * 2.0f) + elem->bottom_padding + elem->top_padding);
-
-	return r;
-}
-Rectangle phos_gui_get_elem_usable_content_rect(const phos_gui_elem *const elem)
-{
-	// start out with the entire content rect
-	Rectangle r = phos_gui_get_elem_whole_content_rect(elem);
-	if(!elem)
-		return r;
-
-	// check for components that reside within the element and add offsets:
-
-	// check for scroll pane
-	phos_gui_scroll_pane_component *scroll_pane = NULL;
-	if((scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE)))
-		r.width -= scroll_pane->scroll_bar_width;
-
-	// check for drag pane and drag bar
-	phos_gui_drag_pane_component *drag_pane = NULL;
-	if((drag_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_DRAG_PANE)))
+	switch(bounds)
 	{
-		// only modify usable content area if drag pane uses a drag bar
-		if(drag_pane->use_drag_bar)
-		{
-			// resize and shift content rect based on drag bar pos:
+		// if obtaining real bounds, just return the rect as is
+		case PHOS_GUI_ELEM_BOUNDS_REAL:
+			return r;
+		case PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL:
+			r.x += elem->outline_thickness + elem->left_padding;
+			r.y += elem->outline_thickness + elem->top_padding;
+			r.width -= ((elem->outline_thickness * 2.0f) + elem->right_padding + elem->left_padding);
+			r.height -= ((elem->outline_thickness * 2.0f) + elem->bottom_padding + elem->top_padding);
+			break;
+		case PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE:
+			// copy same bounds from total content area:
+			r.x += elem->outline_thickness + elem->left_padding;
+			r.y += elem->outline_thickness + elem->top_padding;
+			r.width -= ((elem->outline_thickness * 2.0f) + elem->right_padding + elem->left_padding);
+			r.height -= ((elem->outline_thickness * 2.0f) + elem->bottom_padding + elem->top_padding);
 
-			Vector2 drag_bar_pos = {0};
-			switch(drag_pane->drag_bar_pos)
+			// check for scroll pane
+			phos_gui_scroll_pane_component *scroll_pane = NULL;
+			if((scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE)))
+				r.width -= scroll_pane->scroll_bar_width;
+
+			// check for drag pane and drag bar
+			phos_gui_drag_pane_component *drag_pane = NULL;
+			if((drag_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_DRAG_PANE)))
 			{
-				case PHOS_GUI_ALIGN_INNER_LEFT:
-					r.x += drag_pane->drag_bar_size.x;
-					r.width -= drag_pane->drag_bar_size.x;
-					break;
-				case PHOS_GUI_ALIGN_INNER_TOP:
-					r.y += drag_pane->drag_bar_size.y;
-					r.height -= drag_pane->drag_bar_size.y;
-					break;
-				case PHOS_GUI_ALIGN_INNER_RIGHT:
-					r.width -= drag_pane->drag_bar_size.x;
-					break;
-				case PHOS_GUI_ALIGN_INNER_BOTTOM:
-					r.height -= drag_pane->drag_bar_size.y;
-					break;
-				default:
-					vl_delay_log(VL_ERROR, 5.0f, "Invalid drag bar position: %d! It must be either PHOS_GUI_ALIGN_INNER_LEFT, PHOS_GUI_ALIGN_INNER_TOP, PHOS_GUI_ALIGN_INNER_RIGHT, or PHOS_GUI_ALIGN_INNER_BOTTOM!\n", drag_pane->drag_bar_pos);
-					break;
+				// only modify usable content area if drag pane uses a drag bar
+				if(drag_pane->use_drag_bar)
+				{
+					// resize and shift content rect based on drag bar pos:
+
+					Vector2 drag_bar_pos = {0};
+					switch(drag_pane->drag_bar_pos)
+					{
+						case PHOS_GUI_ALIGN_INNER_LEFT:
+							r.x += drag_pane->drag_bar_size.x;
+							r.width -= drag_pane->drag_bar_size.x;
+							break;
+						case PHOS_GUI_ALIGN_INNER_TOP:
+							r.y += drag_pane->drag_bar_size.y;
+							r.height -= drag_pane->drag_bar_size.y;
+							break;
+						case PHOS_GUI_ALIGN_INNER_RIGHT:
+							r.width -= drag_pane->drag_bar_size.x;
+							break;
+						case PHOS_GUI_ALIGN_INNER_BOTTOM:
+							r.height -= drag_pane->drag_bar_size.y;
+							break;
+						default:
+							vl_delay_log(VL_ERROR, 5.0f, "Invalid drag bar position: %d! It must be either PHOS_GUI_ALIGN_INNER_LEFT, PHOS_GUI_ALIGN_INNER_TOP, PHOS_GUI_ALIGN_INNER_RIGHT, or PHOS_GUI_ALIGN_INNER_BOTTOM!\n", drag_pane->drag_bar_pos);
+							break;
+					}
+				}
 			}
-		}
+			break;
+		case PHOS_GUI_ELEM_BOUNDS_TOTAL:
+			r.x -= elem->left_margin;
+			r.y -= elem->top_margin;
+			r.width = elem->size.x + elem->left_margin + elem->right_margin;
+			r.height = elem->size.y + elem->top_margin + elem->bottom_margin;
+			break;
+		default:
+			vl_log(VL_ERROR, "Invalid element bounding box requested: %d!\n", bounds);
+			break;
 	}
-
-	return r;
-}
-Rectangle phos_gui_get_elem_space_rect(const phos_gui_elem *const elem)
-{
-	Rectangle r = phos_gui_get_elem_rect(elem);
-	if(!elem)
-		return r;
-
-	r.x -= elem->left_margin;
-	r.y -= elem->top_margin;
-	r.width = elem->size.x + elem->left_margin + elem->right_margin;
-	r.height = elem->size.y + elem->top_margin + elem->bottom_margin;
 
 	return r;
 }
@@ -956,18 +945,16 @@ static void update_text_scrolling(phos_gui_text_component *text)
 		return;
 	}
 
-	// first get visual bounds of text component on screen
-	//Rectangle vis_bounds = phos_gui_get_elem_rect(e);
-	Rectangle vis_bounds = phos_gui_get_elem_usable_content_rect(e);
-	// TODO
+	// text always resides in free content space:
+	Rectangle real_bounds = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
 	// get bounds of text
 	Rectangle text_bounds;
 	phos_gui_get_text_bounds(text, &text_bounds, NULL);
 
 	// calculate the overflow
-	float vis_left = vis_bounds.x;
-	float vis_right = vis_bounds.x + vis_bounds.width;
+	float vis_left = real_bounds.x;
+	float vis_right = real_bounds.x + real_bounds.width;
 	float vis_width = vis_right - (e->pos.x + text->offset.x);
 	float overflow = text_bounds.width - vis_width;
 
@@ -1296,7 +1283,7 @@ Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment align
 
 	target_elem->alignment = alignment;
 	// use the entire target_elem rect when aligning
-	v = get_proposed_align_pos(phos_gui_get_rect_size(phos_gui_get_elem_space_rect(target_elem)), target_elem->alignment, reference_elem);
+	v = get_proposed_align_pos(phos_gui_get_rect_size(phos_gui_get_elem_rect(target_elem, PHOS_GUI_ELEM_BOUNDS_TOTAL)), target_elem->alignment, reference_elem);
 	phos_gui_set_elem_pos(target_elem, v.x, v.y, opts);
 
 	return v;
@@ -1305,7 +1292,7 @@ Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment align
 static bool elem_in_bounds(const phos_gui_elem *const elem, Vector2 origin, Vector2 size)
 {
 	// get elem rect
-	Rectangle r = phos_gui_get_elem_rect(elem);
+	Rectangle r = phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_REAL);
 
 	// see if either rect is out of bounds (origin + size)
 	if(r.x < origin.x || r.x + r.width > origin.x + size.x ||
@@ -1373,7 +1360,7 @@ static void use_largest_possible_font_size(phos_gui_text_component *text_compone
 	const phos_gui_elem *const elem = pluto_cs_get_owner(text_component);
 
 	// get content area
-	Vector2 size = phos_gui_get_rect_size(phos_gui_get_elem_usable_content_rect(elem));
+	Vector2 size = phos_gui_get_rect_size(phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE));
 
 	// create virtual padding around text
 	size.x -= TEXT_PADDING * 2.0f;
@@ -1469,7 +1456,7 @@ void phos_gui_make_elem_fit_text(const phos_gui_text_component *const text_compo
 	}
 
 	// get content area of elem
-	Rectangle bounds = phos_gui_get_elem_usable_content_rect(elem);
+	Rectangle bounds = phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
 	// measure text bounds
 	Vector2 text_bounds = resolve_elem_text_bounds(text_component, target_str);
@@ -1778,7 +1765,7 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 	}
 
 	// obtain parent rects
-	Rectangle parent_content_area = phos_gui_get_elem_usable_content_rect(parent);
+	Rectangle parent_content_area = phos_gui_get_elem_rect(parent, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 	float parent_x = parent_content_area.x;
 	float parent_y = parent_content_area.y;
 
@@ -1893,8 +1880,8 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 	// should the parent be clamped?
 	if(layout->clamp_parent)
 	{
-		Rectangle outer = phos_gui_get_elem_rect(parent);
-		Rectangle inner = phos_gui_get_elem_usable_content_rect(parent);
+		Rectangle outer = phos_gui_get_elem_rect(parent, PHOS_GUI_ELEM_BOUNDS_REAL);
+		Rectangle inner = phos_gui_get_elem_rect(parent, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
 		float extra_width = outer.width - inner.width;
 		float extra_height = outer.height - inner.height;
@@ -2291,7 +2278,7 @@ static float get_max_scroll(const phos_gui_elem *const e)
 
 	float content_height = max_y - min_y;
 
-	float viewport_height = phos_gui_get_elem_usable_content_rect(e).height;
+	float viewport_height = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE).height;
 
 	float max_scroll = content_height - viewport_height;
 
@@ -2379,9 +2366,9 @@ static void update_elem(phos_gui_elem *e, float dt)
 		mouse_delta = Vector2Zero();
 
 	// get all rects for the elem:
-	Rectangle vis_bounds = phos_gui_get_elem_rect(e);
-	Rectangle whole_content_bounds = phos_gui_get_elem_whole_content_rect(e);
-	Rectangle usable_content_bounds = phos_gui_get_elem_usable_content_rect(e);
+	Rectangle real_bounds = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_REAL);
+	Rectangle whole_content_bounds = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	Rectangle usable_content_bounds = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
 	// if the element is not basic, update it
 	if(e->type != PHOS_GUI_TYPE_BASIC)
@@ -2395,7 +2382,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 		e->clicked = false;
 
 		// see if mouse over element:
-		bool mouse_over_elem = CheckCollisionPointRec(mouse_pos, vis_bounds);
+		bool mouse_over_elem = CheckCollisionPointRec(mouse_pos, real_bounds);
 
 		if(mouse_over_elem)
 		{
@@ -2408,7 +2395,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 			{
 				if(pluto_cs_check_component(parent, PHOS_GUI_COMPONENT_SCROLL_PANE))
 				{
-					Rectangle clip_bounds = phos_gui_get_elem_whole_content_rect(parent);
+					Rectangle clip_bounds = phos_gui_get_elem_rect(parent, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
 
 					if(!CheckCollisionPointRec(mouse_pos, clip_bounds))
 					{
@@ -2665,7 +2652,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 			else
 			{
 				// check for mouse over entire element
-				bool mouse_over_elem = phos_gui_is_mouse_over_rect(vis_bounds);
+				bool mouse_over_elem = phos_gui_is_mouse_over_rect(real_bounds);
 
 				if(mouse_over_elem || drag_pane->grabbed)
 				{
@@ -2792,14 +2779,14 @@ static void render_elem(const phos_gui_elem *const e)
 	const Color primary_color = resolve_elem_color(e, &e->primary_colors);
 
 	// create elem rects:
-	const Rectangle vis_bounds = phos_gui_get_elem_rect(e);
-	const Rectangle whole_content_bounds = phos_gui_get_elem_whole_content_rect(e);
-	const Rectangle usable_content_bounds = phos_gui_get_elem_usable_content_rect(e);
+	const Rectangle real_bounds = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_REAL);
+	const Rectangle whole_content_bounds = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	const Rectangle usable_content_bounds = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
 	// if empty size, cannot render
-	if(vis_bounds.width <= 0 || vis_bounds.height <= 0)
+	if(real_bounds.width <= 0 || real_bounds.height <= 0)
 	{
-		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element '%s' with negative visual bounds: %.2f, %.2f!\n", e->ID, vis_bounds.width, vis_bounds.height);
+		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element '%s' with negative visual bounds: %.2f, %.2f!\n", e->ID, real_bounds.width, real_bounds.height);
 		return;
 	}
 	if(whole_content_bounds.width <= 0 || whole_content_bounds.height <= 0)
@@ -2814,14 +2801,14 @@ static void render_elem(const phos_gui_elem *const e)
 	}
 
 	// create elem ellipse info:
-	const float e_rx = vis_bounds.width / 2.0f;
-	const float e_ry = vis_bounds.height / 2.0f;
+	const float e_rx = real_bounds.width / 2.0f;
+	const float e_ry = real_bounds.height / 2.0f;
 
 	// draw elem bg if it is valid
 	if(e->texture && IsTextureValid(*e->texture))
 	{
 		Rectangle src = { 0, 0, e->texture->width, e->texture->height };
-		DrawTexturePro(*e->texture, src, vis_bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, primary_color);
+		DrawTexturePro(*e->texture, src, real_bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, primary_color);
 	}
 	// else just draw base shape (if set)
 	else if(e->render_mode == PHOS_GUI_RENDER_FILL_OUTLINE || e->render_mode == PHOS_GUI_RENDER_FILL)
@@ -2829,14 +2816,14 @@ static void render_elem(const phos_gui_elem *const e)
 		switch(e->shape)
 		{
 			case PHOS_GUI_SHAPE_RECT:
-				DrawRectanglePro(vis_bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, primary_color);
+				DrawRectanglePro(real_bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, primary_color);
 				break;
 			case PHOS_GUI_SHAPE_ELLIPSE:
-				DrawEllipse(vis_bounds.x + e_rx, vis_bounds.y + e_ry, e_rx, e_ry, primary_color);
+				DrawEllipse(real_bounds.x + e_rx, real_bounds.y + e_ry, e_rx, e_ry, primary_color);
 				break;
 			case PHOS_GUI_SHAPE_ROUND_RECT:
 			{
-				Rectangle r = vis_bounds;
+				Rectangle r = real_bounds;
 				float t = e->outline_thickness;
 
 				r.x += t;
@@ -2933,14 +2920,14 @@ static void render_elem(const phos_gui_elem *const e)
 			switch(e->shape)
 			{
 				case PHOS_GUI_SHAPE_RECT:
-					DrawRectangleLinesEx(vis_bounds, e->outline_thickness, outline_color);
+					DrawRectangleLinesEx(real_bounds, e->outline_thickness, outline_color);
 					break;
 				case PHOS_GUI_SHAPE_ELLIPSE:
-					render_ellipse_outline(phos_gui_get_rect_pos(vis_bounds), e_rx, e_ry, e->outline_thickness, outline_color);
+					render_ellipse_outline(phos_gui_get_rect_pos(real_bounds), e_rx, e_ry, e->outline_thickness, outline_color);
 					break;
 				case PHOS_GUI_SHAPE_ROUND_RECT:
 				{
-					Rectangle r = vis_bounds;
+					Rectangle r = real_bounds;
 					float t = e->outline_thickness;
 					
 					r.x += t;
@@ -3000,7 +2987,7 @@ static void render_elem(const phos_gui_elem *const e)
 				if(!layout)
 				{
 					// get whole rect of the child
-					Rectangle child_rect = phos_gui_get_elem_space_rect(child);
+					Rectangle child_rect = phos_gui_get_elem_rect(child, PHOS_GUI_ELEM_BOUNDS_TOTAL);
 
 					// bottom edge of this child
 					float child_bottom = child_rect.y + child_rect.height;

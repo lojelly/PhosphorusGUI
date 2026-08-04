@@ -476,6 +476,50 @@ typedef enum phos_gui_opts
 } phos_gui_opts;
 
 /**
+  Defines the different types of rectangles/bounding boxes
+  that an element has.
+*/
+typedef enum phos_gui_elem_bounding_box
+{
+	/**
+	  The default element bounding box.
+
+	  Represents the actual position and size
+	  of the element stored inside the element's
+	  'pos' and 'size' fields.
+	*/
+	PHOS_GUI_ELEM_BOUNDS_REAL,
+	/**
+	  The rectangle defining the element's total
+	  content area.
+
+	  The total content area represents all of the
+	  space inside of the element, which takes
+	  the element's outline and padding values
+	  into account. The total content area also
+	  ignores any components or child elements
+	  within the element.
+	*/
+	PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL,
+	/**
+	  The rectangle defining the element's free
+	  content area.
+
+	  Like the element's total content area, the free
+	  content area is a bounding box where any non-components
+	  can reside within the element, such as child elements.
+	*/
+	PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE,
+	/**
+	  The largest bounding box for an element.
+
+	  This bounding box includes the element's
+	  margins.
+	*/
+	PHOS_GUI_ELEM_BOUNDS_TOTAL
+} phos_gui_elem_bounding_box;
+
+/**
   The available component types.
 */
 typedef enum phos_gui_component_type
@@ -1349,38 +1393,11 @@ PHOS_GUI_API Vector2 phos_gui_get_elem_center(phos_gui_elem *elem);
 PHOS_GUI_API Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem);
 
 /**
-  Returns the actual bounds of an element.
+  Returns the requested bounds of an element.
 
-  These bounds are the same as the 'pos' and 'size'
-  vector fields in the element.
+  @see phos_gui_elem_bounding_box
 */
-PHOS_GUI_API Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem);
-/**
-  Returns the entire content area of an element.
-
-  The entire content area of an element refers to the
-  space inside of the element. Unlike the usable
-  content area however, the entire content area only
-  includes outlines and padding, not the sizes of visual
-  components added to the element.
-*/
-PHOS_GUI_API Rectangle phos_gui_get_elem_whole_content_rect(const phos_gui_elem *const elem);
-/**
-  Returns the usable content area of an element.
-
-  The content area of an element refers to the
-  space inside of the element. As you add components
-  or visual objects to the element, its usable
-  content area decreases.
-*/
-PHOS_GUI_API Rectangle phos_gui_get_elem_usable_content_rect(const phos_gui_elem *const elem);
-/**
-  Returns the whole area of an element.
-
-  The whole area of an element is the same as its bounds, but it includes
-  the element's margin values.
-*/
-PHOS_GUI_API Rectangle phos_gui_get_elem_space_rect(const phos_gui_elem *const elem);
+PHOS_GUI_API Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem, phos_gui_elem_bounding_box bounds);
 
 /**
   Returns the bounds of a text component.
