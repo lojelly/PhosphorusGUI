@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include "dynamic_array_spellbook.h"
 #include "dynamic_map_spellbook.h"
+#include "raylib.h"
 #include "vibrant_logs.h"
 #include "plutonium_cs.h"
 #include "phosphorus_gui.h"
@@ -221,6 +222,17 @@ static void init_scroll_pane_component(void *scroll_pane_component)
 		return;
 
 	phos_gui_scroll_pane_component *scroll_pane = scroll_pane_component;
+
+	// get owner of scroll pane
+	phos_gui_elem *owner = pluto_cs_get_owner(scroll_pane);
+	if(!owner)
+	{
+		vl_log(VL_ERROR, "Scroll pane has no owner!\n");
+		return;
+	}
+
+	// by default, scroll panes result in the elem's content rect being clipped
+	owner->clip_content_rect = true;
 
 	scroll_pane->scroll = 0.0f;
 	scroll_pane->max_scroll = 0.0f;
@@ -471,12 +483,23 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 	elem->pos.x += x;
 	elem->pos.y += y;
 
+	// see if element falls within any kind of clip region
+	bool in_clip_region = false;
+	phos_gui_elem *parent = elem->parent;
+	while(parent)
+	{
+		in_clip_region = parent->clip_content_rect;
+		if(in_clip_region)
+			break;
+		parent = parent->parent;
+	}
+
 	// check for collisions:
 
 	bool collision = false;
 
 	// window collisions first
-	if(opts & PHOS_GUI_OPTS_CHECK_WINDOW_COLLISIONS)
+	if(!in_clip_region && opts & PHOS_GUI_OPTS_CHECK_WINDOW_COLLISIONS)
 	{
 		// first, check for window edge collisions
 		if(elem->pos.x <= 0.0f || elem->pos.y <= 0.0f ||
@@ -487,7 +510,7 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 	}
 
 	// then elem collisions
-	if(opts & PHOS_GUI_OPTS_CHECK_ELEM_COLLISIONS)
+	if(!in_clip_region & opts & PHOS_GUI_OPTS_CHECK_ELEM_COLLISIONS)
 	{
 		if(elem->gui) // TODO warning/error against no gui set?
 		{
@@ -510,19 +533,7 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 	if(collision)
 		elem->pos = old_pos;
 
-	/* TODO A bug has appeared here. when checking collisions, the visual bounds of each elem is checked,
-	   and elements in a layout are clipped but logically they are still there and therefore their visual
-	   bounds are there, outside of the layout's visual bounds, meaning they collide with the window's edges before
-	   the actual element does.
-
-	   !FIXME!:
-				to fix this, detect if the parent elem being checked has a scroll pane and if so, don't move children
-				until a collision actually occured with the parent element's visual bounds
-	*/
-
-	/* as long as the parent elem did not have to reset its pos due to 'collision' being true,
-	   move elem's child elements the same amount of pixels (if options include PHOS_GUI_OPTS_PASS_DOWN)
-	*/
+	// check for PHOS_GUI_OPTS_PASS_DOWN and if applied, check collisions on the child elements as well
 	if(!collision && opts & PHOS_GUI_OPTS_PASS_DOWN)
 		for(size_t i = 0; i < elem->num_children; ++i)
 			phos_gui_move_elem_xy(elem->children[i], x, y, opts);
@@ -749,6 +760,10 @@ Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem, phos_gui_elem_
 
 	switch(bounds)
 	{
+		// for an invalid bounds selection, return empty rectangle
+		case PHOS_GUI_ELEM_BOUNDS_NONE:
+			return (Rectangle) { 0, 0, 0, 0 };
+
 		// if obtaining real bounds, just return the rect as is
 		case PHOS_GUI_ELEM_BOUNDS_REAL:
 			return r;
@@ -1186,7 +1201,8 @@ void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gu
 		phos_gui_align_elem_text(text_component, target_str, text_component->alignment);
 }
 
-/* IMPORTANT: even though the owner of the text component could be obtained, and the 'elem' argument could be taken out,
+/*
+   IMPORTANT: even though the owner of the text component could be obtained, and the 'elem' argument could be taken out,
    other functions rely on copies of text components
 */
 static Vector2 resolve_elem_text_bounds(const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str)
@@ -1492,12 +1508,18 @@ void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_e
 		return;
 	}
 
+	// TODO finish default values for every field in 'phos_gui_elem'
+
 	elem->type = type;
 	elem->render_mode = render_mode;
 	elem->pos = (Vector2) { x, y };
 	elem->size = (Vector2) { w, h };
 	elem->left_padding = elem->top_padding = elem->right_padding = elem->bottom_padding = 0.0f;
 	elem->alignment = PHOS_GUI_ALIGN_INNER_TOP_LEFT;
+	elem->focus_on_start = false;
+	elem->unreachable = false;
+	elem->disabled = false;
+	elem->clip_content_rect = false;
 }
 
 static int register_elem(phos_gui_elem *elem)
@@ -2094,7 +2116,10 @@ int phos_gui_init_window(const char *title, int width, int height)
 	}
 
 	InitWindow(width, height, title);
-	SetTargetFPS(60);
+
+	int curr_monitor = GetCurrentMonitor();
+	SetTargetFPS(GetMonitorRefreshRate(curr_monitor));
+
 	SetExitKey(KEY_NULL);
 	phos_gui_set_window_size(width, height);
 
@@ -2284,29 +2309,73 @@ static float get_max_scroll(const phos_gui_elem *const e)
 
 	return max_scroll > 0 ? max_scroll : 0.0f;
 }
-static void get_scroll_bar_rects(Rectangle elem_whole_content_bounds, Rectangle elem_usable_content_bounds, phos_gui_scroll_pane_component *scroll_pane, float total_content_height, Rectangle *out_bar, Rectangle *out_thumb)
+static float get_elem_total_content_height(const phos_gui_elem *const e)
+{
+	float tch = 0.0f;
+
+	// default to layout component's total content height
+	phos_gui_layout_component *layout = NULL;
+	if((layout = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_LAYOUT)))
+		return layout->total_content_height;
+
+	// get whole content rect of elem
+	Rectangle whole_content = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+
+	// with no layout, default to elem free content rect's height
+	Rectangle free_content = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+	tch = free_content.height;
+
+	// manually find total content height now:
+	for(size_t i = 0; i < e->num_children; ++i)
+	{
+		const phos_gui_elem *const child = e->children[i];
+
+		// get total rect of child
+		Rectangle child_rect = phos_gui_get_elem_rect(child, PHOS_GUI_ELEM_BOUNDS_TOTAL);
+
+		float child_bottom = child_rect.y + child_rect.height;
+
+		// either choose 'child_bottom' or keep current 'tch' value
+		tch = fmax(tch, child_bottom - whole_content.y);
+	}
+
+	return tch;
+}
+static void get_scroll_bar_rects(phos_gui_scroll_pane_component *scroll_pane, Rectangle *out_bar, Rectangle *out_thumb)
 {
 	if(!out_bar && !out_thumb)
 		return;
 
+	// get owner of scroll pane
+	const phos_gui_elem *const elem = pluto_cs_get_owner(scroll_pane);
+	if(!elem)
+		return;
+
+	// get elem rects
+	Rectangle whole_content_bounds = phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	Rectangle usable_content_bounds = phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+
 	// whole scroll bar
-	float scroll_bar_x = elem_whole_content_bounds.x + elem_whole_content_bounds.width - scroll_pane->scroll_bar_width;
-	float scroll_bar_y = elem_usable_content_bounds.y;
+	float scroll_bar_x = whole_content_bounds.x + whole_content_bounds.width - scroll_pane->scroll_bar_width;
+	float scroll_bar_y = usable_content_bounds.y;
+
+	// get elem's total content height
+	float total_content_height = get_elem_total_content_height(elem);
 
 	// scroll thumb
-	float scroll_thumb_height = (elem_usable_content_bounds.height / total_content_height) * elem_usable_content_bounds.height;
+	float scroll_thumb_height = (usable_content_bounds.height / total_content_height) * usable_content_bounds.height;
 	scroll_thumb_height = fmax(scroll_thumb_height, MIN_SCROLL_BAR_HEIGHT);
-	float scroll_thumb_interval = elem_usable_content_bounds.height - scroll_thumb_height;
+	float scroll_thumb_interval = usable_content_bounds.height - scroll_thumb_height;
 
-	float scroll_thumb_y = elem_usable_content_bounds.y;
-	if(total_content_height > elem_usable_content_bounds.height)
+	float scroll_thumb_y = usable_content_bounds.y;
+	if(total_content_height > usable_content_bounds.height)
 	{
-		float max_scroll = total_content_height - elem_usable_content_bounds.height;
+		float max_scroll = total_content_height - usable_content_bounds.height;
 		float scroll_percent = scroll_pane->scroll / max_scroll;
-		scroll_thumb_y = elem_usable_content_bounds.y + (scroll_pane->scroll / max_scroll) * scroll_thumb_interval;
+		scroll_thumb_y = usable_content_bounds.y + (scroll_pane->scroll / max_scroll) * scroll_thumb_interval;
 	}
 	else
-		scroll_thumb_height = elem_usable_content_bounds.height;
+		scroll_thumb_height = usable_content_bounds.height;
 
 	Rectangle thumb = {0};
 	thumb.x = scroll_bar_x;
@@ -2318,7 +2387,7 @@ static void get_scroll_bar_rects(Rectangle elem_whole_content_bounds, Rectangle 
 	bar.x = scroll_bar_x;
 	bar.y = scroll_bar_y;
 	bar.width = scroll_pane->scroll_bar_width;
-	bar.height = elem_usable_content_bounds.height;
+	bar.height = usable_content_bounds.height;
 
 	if(out_bar)
 		*out_bar = bar;
@@ -2570,7 +2639,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 
 		// define rect around scroll thumb:
 		Rectangle thumb;
-		get_scroll_bar_rects(whole_content_bounds, usable_content_bounds, scroll_pane, whole_content_bounds.height, NULL, &thumb);
+		get_scroll_bar_rects(scroll_pane, NULL, &thumb);
 
 		// number of ticks (pixels of movement)
 		float ticks = 0.0f;
@@ -2651,8 +2720,8 @@ static void update_elem(phos_gui_elem *e, float dt)
 			}
 			else
 			{
-				// check for mouse over entire element
-				bool mouse_over_elem = phos_gui_is_mouse_over_rect(real_bounds);
+				// check for mouse over free content rect
+				bool mouse_over_elem = phos_gui_is_mouse_over_rect(usable_content_bounds);
 
 				if(mouse_over_elem || drag_pane->grabbed)
 				{
@@ -2763,6 +2832,7 @@ static Color resolve_elem_color(const phos_gui_elem *const e, const phos_gui_col
 	return color;
 }
 
+static void render_children(const phos_gui_elem *const e, phos_gui_elem_bounding_box bounds);
 static void render_elem(const phos_gui_elem *const e)
 {
 	// cannot render invalid elements
@@ -2857,8 +2927,10 @@ static void render_elem(const phos_gui_elem *const e)
 				vl_delay_log(VL_WARNING, 1.0f, "This element's ('%s') text component will not render correctly due to invalid font size, or the color's alpha is 0!\n", e->ID);
 			else
 			{
-				/* begin scissor mode to cut off text that has been scrolled off (USE PADDED REGION, NOT VISUAL)
-				   note: add CURSOR_WIDTH when rendering a text field to scissor rect so the cursor is not cut off at the right side */
+				/*
+				   begin scissor mode to cut off text that has been scrolled off (USE PADDED REGION, NOT VISUAL)
+				   note: add CURSOR_WIDTH when rendering a text field to scissor rect so the cursor is not cut off at the right side
+				*/
 				int clip_width = e->type == PHOS_GUI_TYPE_TEXT_FIELD ? usable_content_bounds.width + CURSOR_WIDTH : usable_content_bounds.width;
 				if(phos_gui_new_clip(usable_content_bounds.x, usable_content_bounds.y, clip_width, usable_content_bounds.height))
 				{
@@ -2945,7 +3017,10 @@ static void render_elem(const phos_gui_elem *const e)
 		}
 	}
 
-	// render drag pane if necessary (use_drag_bar is true)
+	// should there be a clip rect around the element's children?
+	phos_gui_elem_bounding_box child_clip_bounds = PHOS_GUI_ELEM_BOUNDS_NONE;
+
+	// render drag bar if necessary (use_drag_bar is true)
 	phos_gui_drag_pane_component *drag_pane = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_DRAG_PANE);
 	if(drag_pane && drag_pane->use_drag_bar)
 	{
@@ -2957,73 +3032,41 @@ static void render_elem(const phos_gui_elem *const e)
 		DrawRectangleRec(drag_bar_rect, drag_pane->drag_bar_color);
 	}
 
-	// handle scrollable elements
+	// render scroll bar if necessary (render_scroll_bar is true)
 	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_SCROLL_PANE);
-	if(scroll_pane)
+	if(scroll_pane && scroll_pane->render_scroll_bar)
 	{
-		Rectangle child_clip = usable_content_bounds;
+		// when using a scroll pane, clip around free content rect
+		child_clip_bounds = PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE;
 
-		// create new clip inside the element
-		if(phos_gui_new_clip_r(child_clip))
-		{
-			// total content height of scroll pane
-			float total_content_height = 0.0f;
+		// obtain bar and thumb rects
+		Rectangle bar, thumb;
+		get_scroll_bar_rects(scroll_pane, &bar, &thumb);
 
-			// if the elem has a layout component, obtain its total content height
-			phos_gui_layout_component *layout = NULL;
-			if((layout = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_LAYOUT)))
-				total_content_height = layout->total_content_height;
+		// render whole scroll bar
+		DrawRectangleRec(bar, scroll_pane->scroll_bar_bg_color);
 
-			// render children inside scroll clip
-			for(size_t i = 0; i < e->num_children; ++i)
-			{
-				// child at i
-				phos_gui_elem *child = e->children[i];
-
-				// render child
-				render_elem(child);
-
-				// if a layout didn't already decide the total content height:
-				if(!layout)
-				{
-					// get whole rect of the child
-					Rectangle child_rect = phos_gui_get_elem_rect(child, PHOS_GUI_ELEM_BOUNDS_TOTAL);
-
-					// bottom edge of this child
-					float child_bottom = child_rect.y + child_rect.height;
-
-					// find max total content height
-					total_content_height = fmax(total_content_height, child_bottom - whole_content_bounds.y);
-				}
-			}
-
-			// end clip around elem
-			phos_gui_end_clip();
-
-			/* render scroll bar outside of child's clip:
-
-			   render scroll bar on right side
-			   of parent element (if render_scroll_bar is true)
-			*/
-			if(scroll_pane->render_scroll_bar)
-			{
-				// obtain bar and thumb rects
-				Rectangle bar, thumb;
-				get_scroll_bar_rects(whole_content_bounds, usable_content_bounds, scroll_pane, total_content_height, &bar, &thumb);
-
-				// render whole scroll bar
-				DrawRectangleRec(bar, scroll_pane->scroll_bar_bg_color);
-
-				// choose color of thumb based on mouse state and render thumb
-				Color thumb_color = scroll_pane->thumb_has_focus || scroll_pane->thumb_grabbed ? scroll_pane->scroll_thumb_focus_color : scroll_pane->scroll_thumb_color;
-				DrawRectangleRec(thumb, thumb_color);
-			}
-		}
+		// choose color of thumb based on mouse state and render thumb
+		Color thumb_color = scroll_pane->thumb_has_focus || scroll_pane->thumb_grabbed ? scroll_pane->scroll_thumb_focus_color : scroll_pane->scroll_thumb_color;
+		DrawRectangleRec(thumb, thumb_color);
 	}
-	else // no scroll pane
-		// just render children with no clip region
-		for(size_t i = 0; i < e->num_children; ++i)
-			render_elem(e->children[i]);
+
+	render_children(e, child_clip_bounds);
+}
+static void render_children(const phos_gui_elem *const e, phos_gui_elem_bounding_box bounds)
+{
+	// start a new clip around children based on bounding box given
+	bool clip = false;
+	if(bounds != PHOS_GUI_ELEM_BOUNDS_NONE)
+		// 'clip_content_rect' must be true, and the clip rect must have been created
+		clip = e->clip_content_rect && phos_gui_new_clip_r(phos_gui_get_elem_rect(e, bounds));
+
+	for(size_t i = 0; i < e->num_children; ++i)
+		render_elem(e->children[i]);
+
+	// end clip if necessary
+	if(clip)
+		phos_gui_end_clip();
 }
 void phos_gui_render()
 {

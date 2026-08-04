@@ -482,6 +482,12 @@ typedef enum phos_gui_opts
 typedef enum phos_gui_elem_bounding_box
 {
 	/**
+	  Indicates invalid bounds or
+	  a selection of no bounds.
+	*/
+	PHOS_GUI_ELEM_BOUNDS_NONE,
+
+	/**
 	  The default element bounding box.
 
 	  Represents the actual position and size
@@ -954,7 +960,8 @@ typedef struct phos_gui_drag_pane_component
 	  To give it collisions with the window's edges, add the
 	  PHOS_GUI_OPTS_CHECK_WINDOW_COLLISIONS option using the '|'
 	  operator. For both collision options, use PHOS_GUI_CHECK_ELEM_COLLISIONS
-	  | PHOS_GUI_CHECK_WINDOW_COLLISIONS.
+	  | PHOS_GUI_CHECK_WINDOW_COLLISIONS. You can also add other options
+	  such as PHOS_GUI_OPTS_PASS_DOWN to add collisions for children.
 
 	  By default, this is set to PHOS_GUI_OPTS_NONE which means the drag
 	  pane will not have collisions enabled.
@@ -1245,6 +1252,19 @@ typedef struct phos_gui_elem
 	  color set is used.
 	*/
 	bool disabled;
+
+	/**
+	  Indicates whether or not this element, when rendered,
+	  has an active clip region around its free content rectangle
+	  (PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE).
+
+	  Some actions automatically set this to true, such as the
+	  phos_gui_scroll_pane_component being added to an element.
+
+	  @important You can also modify it but it is not recommended.
+	  If you do set it to false, PhoshporusGUI interprets it as an override.
+	*/
+	bool clip_content_rect;
 } phos_gui_elem;
 
 /**
