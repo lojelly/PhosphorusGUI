@@ -2159,6 +2159,92 @@ bool phos_gui_is_mouse_over_rect(Rectangle r)
 	return CheckCollisionPointRec(mouse_pos, r);
 }
 
+int phos_gui_add_event_listener(phos_gui *gui, phos_gui_event_listener listener)
+{
+	if(!gui)
+	{
+		vl_log(VL_ERROR, "To add an event listener, the phos_gui cannot be NULL!\n");
+		return 0;
+	}
+
+	// add the listener to the gui
+	if(gui->num_listeners >= PHOS_GUI_MAX_EVENT_LISTENERS)
+	{
+		vl_log(VL_WARNING, "No more event listeners can be added to this phos_gui: '%s'!\n", gui->ID);
+		return 0;
+	}
+	gui->listeners[gui->num_listeners++] = listener;
+
+	return 1;
+}
+// return true on action executed, false on failure
+static bool run_event_listener(phos_gui_event_listener *listener)
+{
+	phos_gui_event_type event = listener->event;
+	phos_gui_event_target_type target_type = listener->target_type;
+	phos_gui_elem *elem = listener->elem;
+	phos_gui_event_listener_action action = listener->action;
+
+	// validate listener
+	if(event == PHOS_GUI_EVENT_NONE)
+	{
+		vl_log(VL_ERROR, "Invalid event listener event: %d!\n", event);
+		return false;
+	}
+	if(target_type == PHOS_GUI_EVENT_TARGET_NONE)
+	{
+		vl_log(VL_ERROR, "Invalid event listener target type: %d!\n", target_type);
+		return false;
+	}
+	if(elem== NULL && target_type != PHOS_GUI_EVENT_TARGET_WINDOW)
+	{
+		vl_log(VL_ERROR, "Null target on event listener!\n");
+		return false;
+	}
+	if(!action)
+	{
+		vl_log(VL_WARNING, "This event listener has a null action!\n");
+		return false;
+	}
+
+	Rectangle window_rect = { 0, 0, GetRenderWidth(), GetRenderHeight() };
+
+	// check event conditions:
+	bool mouse_clicked = elem ? elem->clicked : IsMouseButtonPressed(listener->mouse_btn);
+	bool mouse_down = elem ? elem->pressed : IsMouseButtonDown(listener->mouse_btn);
+	bool mouse_hovered = elem ? elem->hovered : phos_gui_is_mouse_over_rect(window_rect);
+	bool key_clicked = IsKeyPressed(listener->key);
+	bool key_down = IsKeyDown(listener->key);
+
+	bool can_execute = false;
+	switch(event)
+	{
+		case PHOS_GUI_EVENT_MOUSE_CLICK:
+			can_execute = mouse_clicked;
+			break;
+		case PHOS_GUI_EVENT_MOUSE_DOWN:
+			can_execute = mouse_down;
+			break;
+		case PHOS_GUI_EVENT_KEY_CLICK:
+			can_execute = key_clicked;
+			break;
+		case PHOS_GUI_EVENT_KEY_DOWN:
+			can_execute = key_down;
+			break;
+		case PHOS_GUI_EVENT_HOVER:
+			can_execute = mouse_hovered;
+			break;
+		default:
+			break;
+	}
+
+	// execute action if conditions are true
+	if(can_execute)
+		action(elem, listener->opts);
+
+	return can_execute;
+}
+
 static void move_cursor_left(phos_gui_text_component *t)
 {
 	if(t->cursor_pos > 0)
@@ -2371,10 +2457,7 @@ static void go_to_next_elem()
 
 	// if a valid elem was traveled to, it gains focus
 	if(curr_travel_elem)
-	{
 		curr_travel_elem->has_focus = true;
-		vl_log(VL_DEBUG, "traveled to '%s'!\n", curr_travel_elem->ID);
-	}
 }
 static void go_to_prev_elem()
 {
@@ -2593,7 +2676,8 @@ static void update_elem(phos_gui_elem *e, float dt)
 			phos_gui_elem *parent = e->parent;
 			while(parent)
 			{
-				if(pluto_cs_check_component(parent, PHOS_GUI_COMPONENT_SCROLL_PANE))
+				// use clip_content_rect here instead of checking for specific components
+				if(parent->clip_content_rect)
 				{
 					Rectangle clip_bounds = phos_gui_get_elem_rect(parent, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
 
@@ -2923,6 +3007,10 @@ void phos_gui_update(float dt)
 		if(elem->gained_focus)
 			curr_travel_elem = elem;
 	}
+
+	// update event listeners
+	for(size_t i = 0; i < curr_gui->num_listeners; ++i)
+		run_event_listener(&curr_gui->listeners[i]);
 
 	// if no elems to update, warn user
 	if(curr_gui->num_elems == 0)

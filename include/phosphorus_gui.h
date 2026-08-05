@@ -56,6 +56,12 @@
 #define PHOS_GUI_MAX_CHILDREN 48
 
 /**
+  The max number of event listeners that a
+  single phos_gui can hold.
+*/
+#define PHOS_GUI_MAX_EVENT_LISTENERS 64
+
+/**
   The max length of an element's ID.
 */
 #define PHOS_GUI_MAX_ID_LEN 32
@@ -1272,6 +1278,120 @@ typedef struct phos_gui_elem
 } phos_gui_elem;
 
 /**
+  The different types of events an event listener
+  can listen for.
+*/
+typedef enum phos_gui_event_type
+{
+	/**
+	  An invalid/null event.
+	*/
+	PHOS_GUI_EVENT_NONE,
+	/**
+	  Used to listen for a single mouse click.
+	*/
+	PHOS_GUI_EVENT_MOUSE_CLICK,
+	/**
+	  Used to listen for the mouse being held down.
+	*/
+	PHOS_GUI_EVENT_MOUSE_DOWN,
+	/**
+	  Used to listen for a single key press.
+	*/
+	PHOS_GUI_EVENT_KEY_CLICK,
+	/**
+	  Used to listen for a key being held down.
+	*/
+	PHOS_GUI_EVENT_KEY_DOWN,
+	/**
+	  Used to listen for a hover event.
+	*/
+	PHOS_GUI_EVENT_HOVER,
+} phos_gui_event_type;
+
+/**
+  The different types of targets an event listener
+  can be attached to.
+*/
+typedef enum phos_gui_event_target_type
+{
+	/**
+	  An invalid/null target type.
+	*/
+	PHOS_GUI_EVENT_TARGET_NONE,
+	/**
+	  Used to target phos_gui_elem objects.
+	*/
+	PHOS_GUI_EVENT_TARGET_ELEM,
+	/**
+	  Used to target the window.
+	*/
+	PHOS_GUI_EVENT_TARGET_WINDOW
+} phos_gui_event_target_type;
+
+/**
+  Provides an event listener with executable code.
+
+  The function returns nothing and takes in the target
+  object, or NULL if the target object was the window,
+  as well as additional options.
+*/
+typedef void (*phos_gui_event_listener_action) (phos_gui_elem *elem, phos_gui_opts opts);
+
+/**
+  A phos_gui_event_listener gives PhosphorusGUI information
+  about an event, such as a mouse click or key press, and then
+  an action to execute when that event occurs.
+*/
+typedef struct phos_gui_event_listener
+{
+	/**
+	  The action to execute when the event occurs.
+	*/
+	phos_gui_event_listener_action action;
+
+	/**
+	  The target element.
+
+	  The target element is what will be receiving
+	  the user's input.
+
+	  @note This can be NULL but only if the target
+	  type of the listener is equal to
+	  PHOS_GUI_EVENT_TARGET_WINDOW.
+	*/
+	phos_gui_elem *elem;
+	/**
+	  The type of the target object.
+
+	  @see target
+	*/
+	phos_gui_event_target_type target_type;
+
+	/**
+	  The type of event to listen for.
+	*/
+	phos_gui_event_type event;
+
+	/**
+	  If wanting to pass additional options into
+	  the action function, add the options here.
+	*/
+	phos_gui_opts opts;
+
+	/**
+	  If listening for a mouse event, this determines
+	  the mouse button to listen for.
+	*/
+	MouseButton mouse_btn;
+	/**
+	  If listening for a key event, this determines
+	  the key to listen for.
+	*/
+	KeyboardKey key;
+} phos_gui_event_listener;
+
+/**
   A phos_gui is used to store and organize UI elements.
 
   It represents the scene, or the context, in which the
@@ -1280,6 +1400,11 @@ typedef struct phos_gui_elem
 */
 typedef struct phos_gui
 {
+	/**
+	  The event listeners added to this GUI.
+	*/
+	phos_gui_event_listener listeners[PHOS_GUI_MAX_EVENT_LISTENERS];
+
 	/**
 	  The elements inside the GUI.
 	*/
@@ -1303,6 +1428,10 @@ typedef struct phos_gui
 	  The current amount of elements inside this GUI.
 	*/
 	size_t num_elems;
+	/**
+	  The current amount of event listeners added to this GUI.
+	*/
+	size_t num_listeners;
 } phos_gui;
 
 
@@ -1817,6 +1946,13 @@ PHOS_GUI_API Vector2 phos_gui_get_mouse_pos(void);
   defined by a rectangle.
 */
 PHOS_GUI_API bool phos_gui_is_mouse_over_rect(Rectangle r);
+
+/**
+  Adds an event listener to the current phos_gui.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_add_event_listener(phos_gui *gui, phos_gui_event_listener listener);
 
 /**
   Updates the current phos_gui's elements.
