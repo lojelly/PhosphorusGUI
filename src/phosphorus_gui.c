@@ -2207,11 +2207,41 @@ static void update_key_timer(phos_gui_text_component *t, float dt, key_timer *kt
 		kt->active = false;
 }
 
+static bool is_elem_unreachable(const phos_gui_elem *const e)
+{
+	return e->unreachable ||
+		   e->disabled ||
+		   e->type == PHOS_GUI_TYPE_INVALID ||
+		   e->type == PHOS_GUI_TYPE_BASIC;
+}
 static void goto_next_elem()
 {
 	if(!curr_gui)
 	{
 		vl_log(VL_WARNING, "No current GUI, cannot go to next element!\n");
+		return;
+	}
+
+	if(curr_gui->num_elems == 0)
+	{
+		vl_log(VL_WARNING, "The current GUI is empty, cannot travel elements!\n");
+		return;
+	}
+
+	// see if the gui only contains unreachable elements which would create an infinite loop below:
+	bool all_unreachable = true;
+	for(size_t i = 0; i < curr_gui->num_elems; ++i)
+	{
+		if(!is_elem_unreachable(curr_gui->elems[i]))
+		{
+			all_unreachable = false;
+			break;
+		}
+	}
+
+	if(all_unreachable)
+	{
+		vl_log(VL_WARNING, "The current GUI only contains unreachable elements, cannot travel elements!\n");
 		return;
 	}
 
@@ -2230,7 +2260,7 @@ static void goto_next_elem()
 	phos_gui_elem *elem = curr_gui->elems[curr_gui_elem_num];
 
 	// if the elem is unreachable or disabled or has an invalid type, skip it and repeat process
-	if(elem->unreachable || elem->disabled || elem->type == PHOS_GUI_TYPE_INVALID || elem->type == PHOS_GUI_TYPE_BASIC)
+	if(is_elem_unreachable(elem))
 		goto get_next_elem;
 
 	// mark that elem as focused 
@@ -2243,6 +2273,23 @@ static void goto_prev_elem()
 		vl_log(VL_WARNING, "No current GUI, cannot go to previous element!\n");
 		return;
 	}
+
+	// see if the gui only contains unreachable elements which would create an infinite loop below:
+	bool all_unreachable = true;
+	for(size_t i = 0; i < curr_gui->num_elems; ++i)
+	{
+		if(!is_elem_unreachable(curr_gui->elems[i]))
+		{
+			all_unreachable = false;
+			break;
+		}
+	}
+
+	if(all_unreachable)
+	{
+		vl_log(VL_WARNING, "The current GUI only contains unreachable elements, cannot travel elements!\n");
+		return;
+	}	
 
 	get_prev_elem:
 
@@ -2260,7 +2307,7 @@ static void goto_prev_elem()
 	phos_gui_elem *elem = curr_gui->elems[curr_gui_elem_num];
 
 	// if the elem is unreachable or disabled or has an invalid type, skip it and repeat process
-	if(elem->unreachable || elem->disabled || elem->type == PHOS_GUI_TYPE_INVALID || elem->type == PHOS_GUI_TYPE_BASIC)
+	if(is_elem_unreachable(elem))
 		goto get_prev_elem;
 
 	// mark that elem as focused
