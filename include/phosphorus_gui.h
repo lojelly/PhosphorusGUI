@@ -1234,10 +1234,12 @@ typedef struct phos_gui_elem
 	  parent element containing some elements, by default,
 	  that parent element is included in the travel sequence.
 	  If you want to skip the parent container, mark it as
-	  unreachable and the user cannot travel to it. Unreachable
-	  elements are skipped.
+	  unreachable by setting 'focusable' to false and the
+	  user cannot travel to it.
+
+	  This is true by default.
 	*/
-	bool unreachable;
+	bool focusable;
 
 	/**
 	  Indicates whether or not this element is currently
@@ -1250,6 +1252,8 @@ typedef struct phos_gui_elem
 	  interact with it. Additionally, if the element's
 	  outline is rendered, the normal color on its outline
 	  color set is used.
+
+	  This is false by default.
 	*/
 	bool disabled;
 

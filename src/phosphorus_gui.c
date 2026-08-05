@@ -78,6 +78,7 @@ typedef struct gui_arr
 	size_t size, capacity;
 } gui_arr;
 
+// core info and registries
 static bool init = false;
 static dynas_string_arr all_ids;
 static elem_arr elem_registry;
@@ -87,8 +88,7 @@ static gui_arr gui_registry;
 static tex_arr textures;
 static font_arr fonts;
 
-
-// for objects with "auto" ID, ensures unique auto-generated IDs
+// for objects with ID="auto":
 static size_t elem_auto_id = 0;
 static size_t blueprint_auto_id = 0;
 static size_t gui_auto_id = 0;
@@ -110,11 +110,14 @@ static key_timer right_arrow_timer = {0};
 
 static phos_gui *prev_gui = NULL;
 static phos_gui *curr_gui = NULL;
+
+// travel logic:
+
+// the element the user has traveled to (could be a parent or child element)
+static phos_gui_elem *curr_travel_elem = NULL;
 static bool resolve_focus_on_start_elem = false;
 
-// keep track of current 'goto' elem in the current GUI
-static int curr_gui_elem_num = -1;
-
+// window info:
 static float win_scale_x = 1.0f;
 static float win_scale_y = 1.0f;
 static float win_size_w = 0.0f;
@@ -391,7 +394,7 @@ void phos_gui_set_gui(phos_gui *new_gui)
 	}
 
 	// reset 'goto' elem tracker
-	curr_gui_elem_num = -1;
+	curr_travel_elem = NULL;
 
 	// signal that the focus_on_start elem has to be resolved for this gui when updated for the first time
 	resolve_focus_on_start_elem = true;
@@ -1517,7 +1520,7 @@ void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_e
 	elem->left_padding = elem->top_padding = elem->right_padding = elem->bottom_padding = 0.0f;
 	elem->alignment = PHOS_GUI_ALIGN_INNER_TOP_LEFT;
 	elem->focus_on_start = false;
-	elem->unreachable = false;
+	elem->focusable= true;
 	elem->disabled = false;
 	elem->clip_content_rect = false;
 }
@@ -2210,7 +2213,7 @@ static void update_key_timer(phos_gui_text_component *t, float dt, key_timer *kt
 static bool is_elem_unreachable(const phos_gui_elem *const e)
 {
 	return !e ||
-		   e->unreachable ||
+		   !e->focusable ||
 		   e->disabled ||
 		   e->type == PHOS_GUI_TYPE_INVALID ||
 		   e->type == PHOS_GUI_TYPE_BASIC;
@@ -2230,102 +2233,187 @@ static bool are_all_elems_unreachable(phos_gui_elem **elems, size_t max_len)
 
 	return all_unreachable;
 }
-static void goto_next_elem()
+static phos_gui_elem *next_sibling(phos_gui *gui, phos_gui_elem *elem)
+{
+	if(!elem)
+		return NULL;
+
+	// root element:
+	if(!elem->parent)
+	{
+		for(size_t i = 0; i < gui->num_elems - 1; ++i)
+		{
+			if(gui->elems[i] == elem)
+				return gui->elems[i + 1];
+		}
+
+		return NULL;
+	}
+
+	// child element:
+	phos_gui_elem *parent = elem->parent;
+
+	for(size_t i = 0; i < parent->num_children - 1; ++i)
+	{
+		if(parent->children[i] == elem)
+			return parent->children[i + 1];
+	}
+
+	return NULL;
+}
+static phos_gui_elem *tree_next_elem(phos_gui *gui, phos_gui_elem *curr)
+{
+	if(!curr)
+		return gui->elems[0];
+
+	if(curr->num_children > 0)
+		return curr->children[0];
+
+	while(curr)
+	{
+		phos_gui_elem *sibling = next_sibling(gui, curr);
+
+		if(sibling)
+			return sibling;
+
+		curr = curr->parent;
+	}
+
+	return gui->elems[0];
+}
+static phos_gui_elem *prev_sibling(phos_gui *gui, phos_gui_elem *elem)
+{
+	if(!elem)
+		return NULL;
+
+	if(!elem->parent)
+	{
+		for(size_t i = 1; i < gui->num_elems; ++i)
+		{
+			if(gui->elems[i] == elem)
+				return gui->elems[i - 1];
+		}
+
+		return NULL;
+	}
+
+	phos_gui_elem *parent = elem->parent;
+
+	for(size_t i = 1; i < parent->num_children; ++i)
+	{
+		if(parent->children[i] == elem)
+			return parent->children[i - 1];
+	}
+
+	return NULL;
+}
+// obtain the last deepest child on the element
+static phos_gui_elem *get_final_child(phos_gui_elem *elem)
+{
+	while(elem->num_children > 0)
+		elem = elem->children[elem->num_children - 1];
+
+	return elem;
+}
+static phos_gui_elem *tree_prev_elem(phos_gui *gui, phos_gui_elem *curr)
+{
+	if(!curr)
+		return get_final_child(gui->elems[gui->num_elems - 1]);
+
+	phos_gui_elem *sibling = prev_sibling(gui, curr);
+
+	if(sibling)
+		return get_final_child(sibling);
+
+	if(curr->parent)
+		return curr->parent;
+
+	return get_final_child(gui->elems[gui->num_elems - 1]);
+}
+static phos_gui_elem *next_elem(phos_gui *gui, phos_gui_elem *curr)
+{
+	if(!gui || gui->num_elems == 0)
+		return NULL;
+
+	do
+	{
+		curr = tree_next_elem(gui, curr);
+	} while(curr && is_elem_unreachable(curr));
+
+	return curr;
+}
+static phos_gui_elem *prev_elem(phos_gui *gui, phos_gui_elem *curr)
+{
+	if(!gui || gui->num_elems == 0)
+		return NULL;
+
+	do
+	{
+		curr = tree_prev_elem(gui, curr);
+	} while(curr && is_elem_unreachable(curr));
+
+	return curr;
+}
+static void go_to_next_elem()
 {
 	if(!curr_gui)
 	{
-		vl_log(VL_WARNING, "No current GUI, cannot go to next element!\n");
+		vl_log(VL_WARNING, "No current GUI, cannot go to the next element!\n");
 		return;
 	}
 
-	if(curr_gui->num_elems == 0)
+	// current elem loses focus
+	if(curr_travel_elem)
+		curr_travel_elem->has_focus = false;
+
+	// get next element
+	curr_travel_elem = next_elem(curr_gui, curr_travel_elem);
+
+	// if a valid elem was traveled to, it gains focus
+	if(curr_travel_elem)
 	{
-		vl_log(VL_WARNING, "The current GUI is empty, cannot travel elements!\n");
-		return;
+		curr_travel_elem->has_focus = true;
+		vl_log(VL_DEBUG, "traveled to '%s'!\n", curr_travel_elem->ID);
 	}
-
-	// see if the gui only contains unreachable elements which would create an infinite loop below:
-	if(are_all_elems_unreachable(curr_gui->elems, PHOS_GUI_MAX_ELEMS))
-	{
-		vl_log(VL_WARNING, "The current GUI only contains unreachable elements, cannot travel elements!\n");
-		return;
-	}
-
-	get_next_elem:
-	
-	// curr elem loses focus
-	if(curr_gui_elem_num >= 0)
-		curr_gui->elems[curr_gui_elem_num]->has_focus = false;
-
-	// go to next elem or loop back
-	curr_gui_elem_num++;
-	if(curr_gui_elem_num >= curr_gui->num_elems)
-		curr_gui_elem_num = 0;
-
-	// get new elem
-	phos_gui_elem *elem = curr_gui->elems[curr_gui_elem_num];
-
-	// if the elem is unreachable or disabled or has an invalid type, skip it and repeat process
-	if(is_elem_unreachable(elem))
-		goto get_next_elem;
-
-	// mark that elem as focused 
-	elem->has_focus = true;
 }
-static void goto_prev_elem()
+static void go_to_prev_elem()
 {
 	if(!curr_gui)
 	{
-		vl_log(VL_WARNING, "No current GUI, cannot go to previous element!\n");
+		vl_log(VL_WARNING, "No current GUI, cannot go to the previous element!\n");
 		return;
 	}
 
-	// see if the gui only contains unreachable elements which would create an infinite loop below:
-	if(are_all_elems_unreachable(curr_gui->elems, PHOS_GUI_MAX_ELEMS))
-	{
-		vl_log(VL_WARNING, "The current GUI only contains unreachable elements, cannot travel elements!\n");
-		return;
-	}
+	// current elem loses focus
+	if(curr_travel_elem)
+		curr_travel_elem->has_focus = false;
 
-	get_prev_elem:
+	// get prev element
+	curr_travel_elem = prev_elem(curr_gui, curr_travel_elem);
 
-	// curr elem loses focus
-	if(curr_gui_elem_num >= 0)
-		curr_gui->elems[curr_gui_elem_num]->has_focus = false;
-
-	// loop back, or go to previous elem
-	if(curr_gui_elem_num <= 0)
-		curr_gui_elem_num = curr_gui->num_elems - 1;
-	else
-		curr_gui_elem_num--;
-
-	// get new elem
-	phos_gui_elem *elem = curr_gui->elems[curr_gui_elem_num];
-
-	// if the elem is unreachable or disabled or has an invalid type, skip it and repeat process
-	if(is_elem_unreachable(elem))
-		goto get_prev_elem;
-
-	// mark that elem as focused
-	elem->has_focus = true;
+	// if a valid elem was traveled to, it gains focus
+	if(curr_travel_elem)
+		curr_travel_elem->has_focus = true;
 }
+// return true if traveling succeeded, false is no traveling occurred:
 static bool travel_elems()
 {
-	// goto prev or next elem
+	// go to prev or next elem based on keys pressed
 	bool tab_pressed = IsKeyPressed(KEY_TAB);
 	if(IsKeyDown(KEY_LEFT_SHIFT) && tab_pressed)
 	{
-		goto_prev_elem();
+		go_to_prev_elem();
 		return true;
 	}
 	else if(tab_pressed)
 	{
-		goto_next_elem();
+		go_to_next_elem();
 		return true;
 	}
 
 	return false;
 }
+
 static float get_max_scroll(const phos_gui_elem *const e)
 {
 	float min_y = FLT_MAX;
@@ -2536,29 +2624,29 @@ static void update_elem(phos_gui_elem *e, float dt)
 					e->has_focus = true;
 				}
 			}
-			// else if user clicks OFF of the element
-			else if(mouse_clicked || mouse_down)
-			{
-				// ensure elem loses focus
-				e->has_focus = false;
+		}
+		// else if user clicks OFF of the element
+		else if(mouse_clicked || mouse_down)
+		{
+			// ensure elem loses focus
+			e->has_focus = false;
 
-				// if curr_gui_elem_num points to this elem, reset it
-				if(curr_gui->elems[curr_gui_elem_num] == e)
-					curr_gui_elem_num = -1;
-			}
-			else
+			// if curr_gui_elem_num points to this elem, reset it
+			if(curr_travel_elem == e)
+				curr_travel_elem = NULL;
+		}
+		else
+		{
+			// if no mouse input detected, check to see if user reached the elem and is using keyboard input instead
+			if(curr_travel_elem == e)
 			{
-				// if no mouse input detected, check to see if user reached the elem and is using keyboard input instead
-				if(e == curr_gui->elems[curr_gui_elem_num])
+				if(IsKeyPressed(KEY_ENTER))
 				{
-					if(IsKeyPressed(KEY_ENTER))
-					{
-						e->pressed = true;
-						e->clicked = true;
-					}
-					else if(IsKeyDown(KEY_ENTER))
-						e->pressed = true;
+					e->pressed = true;
+					e->clicked = true;
 				}
+				else if(IsKeyDown(KEY_ENTER))
+					e->pressed = true;
 			}
 		}
 
@@ -2657,9 +2745,9 @@ static void update_elem(phos_gui_elem *e, float dt)
 			e->has_focus = false;
 			e->gained_focus = false;
 
-			// if curr_gui_elem_num points to this elem, reset it
-			if(curr_gui->elems[curr_gui_elem_num] == e)
-				curr_gui_elem_num = -1;
+			// if curr_travel_elem points to this elem, reset it
+			if(curr_travel_elem == e)
+				curr_travel_elem = NULL;
 		}
 	}
 
@@ -2797,7 +2885,6 @@ void phos_gui_update(float dt)
 	// 'tab' and 'shift+tab' to travel between elems
 	travel_elems();
 
-	// resolve focus_on_start elem if necessary
 	if(resolve_focus_on_start_elem)
 	{
 		for(size_t i = 0; i < curr_gui->num_elems; ++i)
@@ -2812,9 +2899,7 @@ void phos_gui_update(float dt)
 					vl_log(VL_ERROR, "Cannot focus this element '%s' on start because it has an invalid type!\n", elem->ID);
 				else
 				{
-					// use same index
-					curr_gui_elem_num = i;
-					// give elem focus
+					curr_travel_elem = elem;
 					elem->has_focus = true;
 					break;
 				}
@@ -2836,7 +2921,7 @@ void phos_gui_update(float dt)
 
 		// if elem gained focus, make this elem the current one
 		if(elem->gained_focus)
-			curr_gui_elem_num = i;
+			curr_travel_elem = elem;
 	}
 
 	// if no elems to update, warn user
