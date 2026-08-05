@@ -2209,10 +2209,26 @@ static void update_key_timer(phos_gui_text_component *t, float dt, key_timer *kt
 
 static bool is_elem_unreachable(const phos_gui_elem *const e)
 {
-	return e->unreachable ||
+	return !e ||
+		   e->unreachable ||
 		   e->disabled ||
 		   e->type == PHOS_GUI_TYPE_INVALID ||
 		   e->type == PHOS_GUI_TYPE_BASIC;
+}
+static bool are_all_elems_unreachable(phos_gui_elem **elems, size_t max_len)
+{
+	bool all_unreachable = true;
+	for(size_t i = 0; i < max_len; ++i)
+	{
+		// if elem is reachable, then they are not all unreachable
+		if(!is_elem_unreachable(elems[i]))
+		{
+			all_unreachable = false;
+			break;
+		}
+	}
+
+	return all_unreachable;
 }
 static void goto_next_elem()
 {
@@ -2229,17 +2245,7 @@ static void goto_next_elem()
 	}
 
 	// see if the gui only contains unreachable elements which would create an infinite loop below:
-	bool all_unreachable = true;
-	for(size_t i = 0; i < curr_gui->num_elems; ++i)
-	{
-		if(!is_elem_unreachable(curr_gui->elems[i]))
-		{
-			all_unreachable = false;
-			break;
-		}
-	}
-
-	if(all_unreachable)
+	if(are_all_elems_unreachable(curr_gui->elems, PHOS_GUI_MAX_ELEMS))
 	{
 		vl_log(VL_WARNING, "The current GUI only contains unreachable elements, cannot travel elements!\n");
 		return;
@@ -2275,21 +2281,11 @@ static void goto_prev_elem()
 	}
 
 	// see if the gui only contains unreachable elements which would create an infinite loop below:
-	bool all_unreachable = true;
-	for(size_t i = 0; i < curr_gui->num_elems; ++i)
-	{
-		if(!is_elem_unreachable(curr_gui->elems[i]))
-		{
-			all_unreachable = false;
-			break;
-		}
-	}
-
-	if(all_unreachable)
+	if(are_all_elems_unreachable(curr_gui->elems, PHOS_GUI_MAX_ELEMS))
 	{
 		vl_log(VL_WARNING, "The current GUI only contains unreachable elements, cannot travel elements!\n");
 		return;
-	}	
+	}
 
 	get_prev_elem:
 
