@@ -151,6 +151,37 @@ static Rectangle clips[MAX_CLIPS];
 		assert_obj_ptr(map, values, __VA_ARGS__); \
 	} while(0)
 
+static void init_mouse_listener_component(void *mouse_listener_component)
+{
+	if(!mouse_listener_component)
+		return;
+
+	phos_gui_mouse_listener_component *listener = mouse_listener_component;
+
+	// get owner of mouse listener
+	phos_gui_elem *owner = pluto_cs_get_owner(listener);
+	if(!owner)
+	{
+		vl_log(VL_ERROR, "Mouse listener has no owner!\n");
+		return;
+	}
+
+	listener->type = PHOS_GUI_MOUSE_LISTENER_DEFAULT;
+
+	// generate colors for the listener:
+	phos_gui_gen_bg_colors(listener, -0.2f, -0.3f, 0.0f);
+	phos_gui_gen_outline_colors(listener, 0.0f, 0.0f, 0.0f);
+
+	listener->clicked = false;
+	listener->pressed = false;
+	listener->toggled = false;
+	listener->toggled_on = false;
+	listener->hovered = false;
+	listener->has_focus = false;
+	listener->gained_focus = false;
+	listener->focus_on_start = false;
+}
+
 static void init_text_component(void *text_component)
 {
 	if(!text_component)
@@ -242,8 +273,8 @@ static void init_scroll_pane_component(void *scroll_pane_component)
 	scroll_pane->px_per_tick = 1.0f;
 	scroll_pane->scroll_bar_width = 12.0f;
 	scroll_pane->scroll_bar_bg_color = PHOS_GUI_LIGHT_GRAY;
-	scroll_pane->scroll_thumb_color = PHOS_GUI_DARK_GRAY;
-	scroll_pane->scroll_thumb_focus_color = PHOS_GUI_GRAY;
+	scroll_pane->scroll_thumb_color = PHOS_GUI_GRAY;
+	scroll_pane->scroll_thumb_focus_color = PHOS_GUI_DARK_GRAY;
 	scroll_pane->render_scroll_bar = true;
 	scroll_pane->thumb_has_focus = false;
 	scroll_pane->thumb_grabbed = false;
@@ -298,6 +329,7 @@ int phos_gui_init()
 	right_arrow_timer.key = KEY_RIGHT;
 
 	// register PhosphorusGUI component types
+	pluto_cs_register(PHOS_GUI_COMPONENT_MOUSE_LISTENER, sizeof(phos_gui_mouse_listener_component), init_mouse_listener_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_TEXT, sizeof(phos_gui_text_component), init_text_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT, sizeof(phos_gui_placeholder_text_extension), init_placeholder_text_extension, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_LAYOUT, sizeof(phos_gui_layout_component), init_layout_component, NULL);
@@ -1117,39 +1149,6 @@ void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, fl
 	phos_gui_set_elem_size(elem, w, h, opts);
 }
 
-void phos_gui_init_color_set(phos_gui_color_set *set, Color normal_color, Color hover_color, Color press_color, Color focus_color)
-{
-	if(!set)
-	{
-		vl_log(VL_ERROR, "Cannot set colors of NULL color set!\n");
-		return;
-	}
-
-	*set = (phos_gui_color_set) {
-		.normal_color = normal_color,
-		.hover_color = hover_color,
-		.press_color = press_color,
-		.focus_color = focus_color };
-}
-void phos_gui_fill_color_set(phos_gui_color_set *set, Color color)
-{
-	phos_gui_init_color_set(set, color, color, color, color);
-}
-void phos_gui_gen_color_set(phos_gui_color_set *set, Color normal_color, float hover_color_factor, float press_color_factor, float focus_color_factor)
-{
-	if(!set)
-	{
-		vl_log(VL_ERROR, "Cannot generate colors of NULL color set!\n");
-		return;
-	}
-	
-	*set = (phos_gui_color_set) {
-		.normal_color = normal_color,
-		.hover_color = ColorBrightness(normal_color, hover_color_factor),
-		.press_color = ColorBrightness(normal_color, press_color_factor),
-		.focus_color = ColorBrightness(normal_color, focus_color_factor) };
-}
-
 void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, const char *new_contents, phos_gui_opts opts)
 {
 	if(!text_component)
@@ -1519,10 +1518,47 @@ void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_e
 	elem->size = (Vector2) { w, h };
 	elem->left_padding = elem->top_padding = elem->right_padding = elem->bottom_padding = 0.0f;
 	elem->alignment = PHOS_GUI_ALIGN_INNER_TOP_LEFT;
-	elem->focus_on_start = false;
-	elem->focusable= true;
 	elem->disabled = false;
 	elem->clip_content_rect = false;
+}
+
+void phos_gui_gen_bg_colors(phos_gui_mouse_listener_component *mouse_listener, float hover_color_factor, float press_color_factor, float focus_color_factor)
+{
+	if(!mouse_listener)
+	{
+		vl_log(VL_ERROR, "Cannot generate colors on a null mouse listener component!\n");
+		return;
+	}
+
+	phos_gui_elem *owner = pluto_cs_get_owner(mouse_listener);
+	if(!owner)
+	{
+		vl_log(VL_ERROR, "Generating colors requires the mouse listener to have a valid owner!\n");
+		return;
+	}
+
+	mouse_listener->bg_hover_color = ColorBrightness(owner->bg_color, hover_color_factor);
+	mouse_listener->bg_press_color = ColorBrightness(owner->bg_color, press_color_factor);
+	mouse_listener->bg_focus_color = ColorBrightness(owner->bg_color, focus_color_factor);
+}
+void phos_gui_gen_outline_colors(phos_gui_mouse_listener_component *mouse_listener, float hover_color_factor, float press_color_factor, float focus_color_factor)
+{
+	if(!mouse_listener)
+	{
+		vl_log(VL_ERROR, "Cannot generate colors on a null mouse listener component!\n");
+		return;
+	}
+
+	phos_gui_elem *owner = pluto_cs_get_owner(mouse_listener);
+	if(!owner)
+	{
+		vl_log(VL_ERROR, "Generating colors requires the mouse listener to have a valid owner!\n");
+		return;
+	}
+
+	mouse_listener->outline_hover_color = ColorBrightness(owner->outline_color, hover_color_factor);
+	mouse_listener->outline_press_color = ColorBrightness(owner->outline_color, press_color_factor);
+	mouse_listener->outline_focus_color = ColorBrightness(owner->outline_color, focus_color_factor);
 }
 
 static int register_elem(phos_gui_elem *elem)
@@ -2081,35 +2117,6 @@ void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID)
 		vl_log(VL_ERROR, "Failed to initialize a cloned element! Cloning components failed! Source element: '%s', target element: '%s'", bp->elem->ID, target_elem->ID);
 }
 
-int phos_gui_create_button(phos_gui_elem *elem)
-{
-	if(!elem)
-	{
-		vl_log(VL_ERROR, "Cannot turn the given element into a button!\n");
-		return 0;
-	}
-
-	phos_gui_init_elem(elem, PHOS_GUI_TYPE_BUTTON, PHOS_GUI_RENDER_FILL_OUTLINE, 0, 0, 200, 100);
-	phos_gui_gen_color_set(&elem->primary_colors, WHITE, -0.1f, -0.2f, 0.0f);
-	phos_gui_fill_color_set(&elem->outline_colors, PHOS_GUI_BLACK);
-	elem->outline_thickness = 5.0f;
-
-	// add text component to button
-	phos_gui_text_component *text = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_TEXT);
-	if(!text)
-	{
-		vl_log(VL_ERROR, "Failed to add a text component to the button element '%s'!\n", elem->ID);
-		return 0;
-	}
-	phos_gui_set_text_contents(text, PHOS_GUI_TARGET_MAIN_TEXT, "Text", PHOS_GUI_OPTS_NONE);
-
-	// if text has valid font, align text to center of elem
-	if(text->font && IsFontValid(*text->font))
-		phos_gui_align_elem_text(text, PHOS_GUI_TARGET_MAIN_TEXT, PHOS_GUI_ALIGN_INNER_CENTER);
-
-	return 1;
-}
-
 int phos_gui_init_window(const char *title, int width, int height)
 {
 	if(!init)
@@ -2181,7 +2188,6 @@ int phos_gui_add_event_listener(phos_gui *gui, phos_gui_event_listener listener)
 static bool run_event_listener(phos_gui_event_listener *listener)
 {
 	phos_gui_event_type event = listener->event;
-	phos_gui_event_target_type target_type = listener->target_type;
 	phos_gui_elem *elem = listener->elem;
 	phos_gui_event_listener_action action = listener->action;
 
@@ -2189,16 +2195,6 @@ static bool run_event_listener(phos_gui_event_listener *listener)
 	if(event == PHOS_GUI_EVENT_NONE)
 	{
 		vl_log(VL_ERROR, "Invalid event listener event: %d!\n", event);
-		return false;
-	}
-	if(target_type == PHOS_GUI_EVENT_TARGET_NONE)
-	{
-		vl_log(VL_ERROR, "Invalid event listener target type: %d!\n", target_type);
-		return false;
-	}
-	if(elem== NULL && target_type != PHOS_GUI_EVENT_TARGET_WINDOW)
-	{
-		vl_log(VL_ERROR, "Null target on event listener!\n");
 		return false;
 	}
 	if(!action)
@@ -2209,10 +2205,13 @@ static bool run_event_listener(phos_gui_event_listener *listener)
 
 	Rectangle window_rect = { 0, 0, GetRenderWidth(), GetRenderHeight() };
 
+	// see if elem has a mouse listener component 
+	const phos_gui_mouse_listener_component *const mouse_listener = elem ? pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER) : NULL;
+
 	// check event conditions:
-	bool mouse_clicked = elem ? elem->clicked : IsMouseButtonPressed(listener->mouse_btn);
-	bool mouse_down = elem ? elem->pressed : IsMouseButtonDown(listener->mouse_btn);
-	bool mouse_hovered = elem ? elem->hovered : phos_gui_is_mouse_over_rect(window_rect);
+	bool mouse_clicked = elem && mouse_listener ? mouse_listener->clicked : IsMouseButtonPressed(listener->mouse_btn);
+	bool mouse_down = elem && mouse_listener ? mouse_listener->pressed : IsMouseButtonDown(listener->mouse_btn);
+	bool mouse_hovered = elem && mouse_listener ? mouse_listener->hovered : phos_gui_is_mouse_over_rect(window_rect);
 	bool key_clicked = IsKeyPressed(listener->key);
 	bool key_down = IsKeyDown(listener->key);
 
@@ -2298,11 +2297,13 @@ static void update_key_timer(phos_gui_text_component *t, float dt, key_timer *kt
 
 static bool is_elem_unreachable(const phos_gui_elem *const e)
 {
+	// if elem has no mouse listener component is cannot gain focus:
+	const phos_gui_mouse_listener_component *const mouse_listener = e ? pluto_cs_get_component(e, PHOS_GUI_COMPONENT_MOUSE_LISTENER) : NULL;
 	return !e ||
-		   !e->focusable ||
+		   !mouse_listener ||
 		   e->disabled ||
 		   e->type == PHOS_GUI_TYPE_INVALID ||
-		   e->type == PHOS_GUI_TYPE_BASIC;
+		   e->type == PHOS_GUI_TYPE_BLANK;
 }
 static bool are_all_elems_unreachable(phos_gui_elem **elems, size_t max_len)
 {
@@ -2448,16 +2449,19 @@ static void go_to_next_elem()
 		return;
 	}
 
+	// get mouse listener component on curr_travel_elem
+	phos_gui_mouse_listener_component *mouse_listener = curr_travel_elem ? pluto_cs_get_component(curr_travel_elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER) : NULL;
+
 	// current elem loses focus
-	if(curr_travel_elem)
-		curr_travel_elem->has_focus = false;
+	if(curr_travel_elem && mouse_listener)
+		mouse_listener->has_focus = false;
 
 	// get next element
 	curr_travel_elem = next_elem(curr_gui, curr_travel_elem);
 
 	// if a valid elem was traveled to, it gains focus
-	if(curr_travel_elem)
-		curr_travel_elem->has_focus = true;
+	if(curr_travel_elem && mouse_listener)
+		mouse_listener->has_focus = true;
 }
 static void go_to_prev_elem()
 {
@@ -2467,16 +2471,19 @@ static void go_to_prev_elem()
 		return;
 	}
 
+	// get mouse listener component on curr_travel_elem
+	phos_gui_mouse_listener_component *mouse_listener = curr_travel_elem ? pluto_cs_get_component(curr_travel_elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER) : NULL;
+
 	// current elem loses focus
-	if(curr_travel_elem)
-		curr_travel_elem->has_focus = false;
+	if(curr_travel_elem && mouse_listener)
+		mouse_listener->has_focus = false;
 
 	// get prev element
 	curr_travel_elem = prev_elem(curr_gui, curr_travel_elem);
 
 	// if a valid elem was traveled to, it gains focus
-	if(curr_travel_elem)
-		curr_travel_elem->has_focus = true;
+	if(curr_travel_elem && mouse_listener)
+		mouse_listener->has_focus = true;
 }
 // return true if traveling succeeded, false is no traveling occurred:
 static bool travel_elems()
@@ -2636,6 +2643,9 @@ static void update_elem(phos_gui_elem *e, float dt)
 		vl_delay_log(VL_ERROR, 5.0f, "Cannot update element with invalid type: '%s'!\n", e->ID);
 		return;
 	}
+	// skip basic elements as well
+	else if(e->type == PHOS_GUI_TYPE_BLANK)
+		return;
 
 	// obtain all input state here:
 	Vector2 mouse_pos = phos_gui_get_mouse_pos();
@@ -2653,16 +2663,17 @@ static void update_elem(phos_gui_elem *e, float dt)
 	Rectangle whole_content_bounds = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
 	Rectangle usable_content_bounds = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
-	// if the element is not basic, update it
-	if(e->type != PHOS_GUI_TYPE_BASIC)
+	// update mouse listener component:
+	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+	if(mouse_listener)
 	{
 		// keep track of whether or not elem gained focus
-		bool no_focus = !e->has_focus;
+		bool no_focus = !mouse_listener->has_focus;
 
 		// reset mouse state
-		e->hovered = false;
-		e->pressed = false;
-		e->clicked = false;
+		mouse_listener->hovered = false;
+		mouse_listener->pressed = false;
+		mouse_listener->clicked = false;
 
 		// see if mouse over element:
 		bool mouse_over_elem = CheckCollisionPointRec(mouse_pos, real_bounds);
@@ -2695,17 +2706,36 @@ static void update_elem(phos_gui_elem *e, float dt)
 			// if mouse is over elem and all clip regions, handle elem-mouse logic:
 			if(mouse_over_clip_region)
 			{
-				e->hovered = true;
+				mouse_listener->hovered = true;
 
-				if(mouse_clicked)
+				// default mouse listener logic:
+				if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_DEFAULT)
 				{
-					e->clicked = true;
-					e->has_focus = true;
+					if(mouse_clicked)
+					{
+						mouse_listener->clicked = true;
+						mouse_listener->has_focus = true;
+					}
+					else if(mouse_down)
+					{
+						mouse_listener->pressed = true;
+						mouse_listener->has_focus = true;
+					}
 				}
-				else if(mouse_down)
+				// toggle-style mouse listener:
+				else if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_TOGGLED)
 				{
-					e->pressed = true;
-					e->has_focus = true;
+					if(mouse_clicked)
+					{
+						mouse_listener->toggled = true;
+						mouse_listener->toggled_on = !mouse_listener->toggled_on;
+						mouse_listener->has_focus = true;
+					}
+					else if(mouse_down)
+					{
+						mouse_listener->pressed = true;
+						mouse_listener->has_focus = true;
+					}
 				}
 			}
 		}
@@ -2713,7 +2743,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 		else if(mouse_clicked || mouse_down)
 		{
 			// ensure elem loses focus
-			e->has_focus = false;
+			mouse_listener->has_focus = false;
 
 			// if curr_gui_elem_num points to this elem, reset it
 			if(curr_travel_elem == e)
@@ -2726,113 +2756,106 @@ static void update_elem(phos_gui_elem *e, float dt)
 			{
 				if(IsKeyPressed(KEY_ENTER))
 				{
-					e->pressed = true;
-					e->clicked = true;
+					mouse_listener->pressed = true;
+					mouse_listener->clicked = true;
 				}
 				else if(IsKeyDown(KEY_ENTER))
-					e->pressed = true;
+					mouse_listener->pressed = true;
 			}
 		}
 
 		// if elem now has focus, it gained focus
-		if(no_focus && e->has_focus)
-			e->gained_focus = true;
+		if(no_focus && mouse_listener->has_focus)
+			mouse_listener->gained_focus = true;
 		else
-			e->gained_focus = false;
+			mouse_listener->gained_focus = false;
+	}
 
-		// check type of element:
-		if(e->type == PHOS_GUI_TYPE_TEXT_FIELD)
+	// update text components:
+	phos_gui_text_component *text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXT);
+	if(text)
+	{
+		// reset 'edited' field
+		text->edited = false;
+
+		// only type into text if it can be edited and has focus (requires mouse listener component)
+		if(text->editable && mouse_listener && mouse_listener->has_focus)
 		{
-			// get text component
-			if(!pluto_cs_check_component(e, PHOS_GUI_COMPONENT_TEXT))
-				vl_delay_log(VL_WARNING, 5.0f, "Element '%s' is a text field, but is missing a text component!\n", e->ID);
-			else
+			// collect key
+			int k = GetKeyPressed();
+			text->key_typed = k;
+
+			// collect every char typed:
+			char c = GetCharPressed();
+
+			while(c > 0)
 			{
-				phos_gui_text_component *text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXT);
+				// get type of c
+				bool letter = isalpha(c);
+				bool num = isdigit(c);
+				bool special = !letter & !num;
 
-				// reset 'edited' field
-				text->edited = false;
-
-				// only type into text field if it has focus
-				if(e->has_focus)
+				// see if text accepts this type of char
+				if(letter && !text->accept_letters)
 				{
-					// collect key
-					int k = GetKeyPressed();
-					text->key_typed = k;
-
-					// collect every char typed:
-					char c = GetCharPressed();
-
-					while(c > 0)
-					{
-						// get type of c
-						bool letter = isalpha(c);
-						bool num = isdigit(c);
-						bool special = !letter & !num;
-
-						// see if text field accepts this type of char
-						if(letter && !text->accept_letters)
-						{
-							c = GetCharPressed();
-							continue;
-						}
-						if(num && !text->accept_nums)
-						{
-							c = GetCharPressed();
-							continue;
-						}
-						// let ' ' through the special char check
-						if(special && !text->accept_specials && c != ' ')
-						{
-							c = GetCharPressed();
-							continue;
-						}
-
-						// assign char typed
-						text->char_typed = c;
-
-						// insert char into string at cursor pos (if possible)
-						if(text->len + 1 <= text->max_len && text->len + 1 < PHOS_GUI_MAX_TEXT_LEN)
-						{
-							// first, move all chars at cursor pos one slot over to the right
-							memmove(text->str + text->cursor_pos + 1, text->str + text->cursor_pos, text->len - text->cursor_pos + 1);
-
-							// insert char and move to next cursor pos
-							text->str[text->cursor_pos++] = c;
-
-							// increase string length by one
-							text->len++;
-
-							text->edited = true;
-						}
-
-						// get next char pressed
-						c = GetCharPressed();
-					}
-
-					update_key_timer(text, dt, &backspace_timer, backspace);
-					update_key_timer(text, dt, &left_arrow_timer, move_cursor_left);
-					update_key_timer(text, dt, &right_arrow_timer, move_cursor_right);
+					c = GetCharPressed();
+					continue;
 				}
-				else
-					text->edited = false;
+				if(num && !text->accept_nums)
+				{
+					c = GetCharPressed();
+					continue;
+				}
+				// let ' ' through the special char check
+				if(special && !text->accept_specials && c != ' ')
+				{
+					c = GetCharPressed();
+					continue;
+				}
 
-				// update text scrolling if edited
-				if(text->edited)
-					update_text_scrolling(text);
+				// assign char typed
+				text->char_typed = c;
+
+				// insert char into string at cursor pos (if possible)
+				if(text->len + 1 <= text->max_len && text->len + 1 < PHOS_GUI_MAX_TEXT_LEN)
+				{
+					// first, move all chars at cursor pos one slot over to the right
+					memmove(text->str + text->cursor_pos + 1, text->str + text->cursor_pos, text->len - text->cursor_pos + 1);
+
+					// insert char and move to next cursor pos
+					text->str[text->cursor_pos++] = c;
+
+					// increase string length by one
+					text->len++;
+
+					text->edited = true;
+				}
+
+				// get next char pressed
+				c = GetCharPressed();
 			}
-		}
 
-		// if elem has focus and ESC pressed, lose focus
-		if(e->has_focus && IsKeyPressed(KEY_ESCAPE))
-		{
-			e->has_focus = false;
-			e->gained_focus = false;
-
-			// if curr_travel_elem points to this elem, reset it
-			if(curr_travel_elem == e)
-				curr_travel_elem = NULL;
+			update_key_timer(text, dt, &backspace_timer, backspace);
+			update_key_timer(text, dt, &left_arrow_timer, move_cursor_left);
+			update_key_timer(text, dt, &right_arrow_timer, move_cursor_right);
 		}
+		else
+			text->edited = false;
+
+		// update text scrolling if edited
+		if(text->edited)
+			update_text_scrolling(text);
+	}
+
+	// if elem has focus and ESC pressed, lose focus
+	if(mouse_listener && mouse_listener->has_focus && IsKeyPressed(KEY_ESCAPE))
+	{
+		mouse_listener->has_focus = false;
+		mouse_listener->gained_focus = false;
+
+		// if curr_travel_elem points to this elem, reset it
+		if(curr_travel_elem == e)
+			curr_travel_elem = NULL;
 	}
 
 	// then no matter what, update input panes:
@@ -2958,6 +2981,29 @@ static void update_elem(phos_gui_elem *e, float dt)
 		update_elem(e->children[i], dt);
 }
 
+void phos_gui_launch()
+{
+	if(!init)
+	{
+		vl_log(VL_ERROR, "Cannot launch loop, PhosphorusGUI was never initialized!\n");
+		return;
+	}
+
+	while(!WindowShouldClose())
+	{
+		float dt = GetFrameTime();
+
+		vl_update(dt);
+		phos_gui_update(dt);
+
+		BeginDrawing();
+		ClearBackground(PHOS_GUI_BLACK);
+
+		phos_gui_render();
+
+		EndDrawing();
+	}
+}
 void phos_gui_update(float dt)
 {
 	if(!curr_gui)
@@ -2976,15 +3022,17 @@ void phos_gui_update(float dt)
 			// get elem at i
 			phos_gui_elem *elem = curr_gui->elems[i];
 
-			if(elem->focus_on_start)
+			// focus_on_start requires mouse listener component
+			phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+			if(mouse_listener && mouse_listener->focus_on_start)
 			{
 				// verify valid elem type
-				if(elem->type == PHOS_GUI_TYPE_INVALID || elem->type == PHOS_GUI_TYPE_BASIC || elem->disabled)
+				if(elem->type == PHOS_GUI_TYPE_INVALID || elem->type == PHOS_GUI_TYPE_BLANK || elem->disabled)
 					vl_log(VL_ERROR, "Cannot focus this element '%s' on start because it has an invalid type!\n", elem->ID);
 				else
 				{
 					curr_travel_elem = elem;
-					elem->has_focus = true;
+					mouse_listener->has_focus = true;
 					break;
 				}
 			}
@@ -3003,8 +3051,9 @@ void phos_gui_update(float dt)
 		// update the element and its children
 		update_elem(elem, dt);
 
-		// if elem gained focus, make this elem the current one
-		if(elem->gained_focus)
+		// if elem gained focus, make this elem the current one (requires mouse listener component)
+		phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+		if(mouse_listener && mouse_listener->gained_focus)
 			curr_travel_elem = elem;
 	}
 
@@ -3023,27 +3072,133 @@ static void render_ellipse_outline(Vector2 pos, float rx, float ry, float line_t
 		DrawEllipseLines(pos.x + rx, pos.y + ry, rx - i * 0.7f, ry - i * 0.7f, color);
 }
 
-static Color resolve_elem_color(const phos_gui_elem *const e, const phos_gui_color_set *const colors)
+static Color resolve_elem_bg_color(const phos_gui_elem *const e)
 {
-	// if elem's primary colors are given and the elem is disabled, always use the disabled_color
-	if(e->disabled && colors == &e->primary_colors)
+	if(e->disabled)
 		return e->disabled_color;
-	// if elem's outline colors are given and the elem is disabled, always use the outline's normal color
-	if(e->disabled && colors == &e->outline_colors)
-		return e->outline_colors.normal_color;
 
 	// get the normal color of elem
-	Color color = colors->normal_color;
+	Color color = e->bg_color;
 
-	// 1. check to see if mouse button held down over element
-	if(e->pressed)
-		color = colors->press_color;
-	// 2. check to see if they only have the mouse over the element
-	else if(e->hovered)
-		color = colors->hover_color;
-	// 3. check to see if the elem has focus
-	else if(e->has_focus)
-		color = colors->focus_color;
+	// see if elem has a mouse listener component
+	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+	if(mouse_listener)
+	{
+		// first see if the mouse listener is using toggle style
+		if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_TOGGLED)
+		{
+			// see if it's on/off
+			if(mouse_listener->toggled_on)
+			{
+				// check to see if mouse button held down over element
+				if(mouse_listener->pressed)
+					color = ColorTint(mouse_listener->bg_focus_color, mouse_listener->bg_press_color);
+				// check to see if they only have the mouse over the element
+				else if(mouse_listener->hovered)
+					color = ColorTint(mouse_listener->bg_focus_color, mouse_listener->bg_hover_color);
+				else if(!mouse_listener->toggled_on)
+					// elem's primary bg color is the toggled-off color
+					color = e->bg_color;
+				// check to see if the elem has focus
+				else if(mouse_listener->has_focus)
+					color = mouse_listener->bg_focus_color;
+
+				return color;
+			}
+			else
+			{
+				// check to see if mouse button held down over element
+				if(mouse_listener->pressed)
+					color = ColorTint(e->bg_color, mouse_listener->bg_press_color);
+				// check to see if they only have the mouse over the element
+				else if(mouse_listener->hovered)
+					color = ColorTint(e->bg_color, mouse_listener->bg_hover_color);
+				else if(!mouse_listener->toggled_on)
+					// elem's primary bg color is the toggled-off color
+					color = e->bg_color;
+				// check to see if the elem has focus
+				else if(mouse_listener->has_focus)
+					color = ColorTint(e->bg_color, mouse_listener->bg_focus_color);
+
+				return color;
+			}
+		}
+
+		// check to see if mouse button held down over element
+		if(mouse_listener->pressed)
+			color = mouse_listener->bg_press_color;
+		// check to see if they only have the mouse over the element
+		else if(mouse_listener->hovered)
+			color = mouse_listener->bg_hover_color;
+		// check to see if the elem has focus
+		else if(mouse_listener->has_focus)
+			color = mouse_listener->bg_focus_color;
+	}
+
+	return color;
+}
+static Color resolve_elem_outline_color(const phos_gui_elem *const e)
+{
+	if(e->disabled)
+		return e->disabled_color;
+
+	// get the normal color of elem
+	Color color = e->outline_color;
+
+	// see if elem has a mouse listener component
+	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+	if(mouse_listener)
+	{
+		// first see if the mouse listener is using toggle style
+		if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_TOGGLED)
+		{
+			// see if it's on/off
+			if(mouse_listener->toggled_on)
+			{
+				// check to see if mouse button held down over element
+				if(mouse_listener->pressed)
+					color = ColorTint(mouse_listener->outline_focus_color, mouse_listener->outline_press_color);
+				// check to see if they only have the mouse over the element
+				else if(mouse_listener->hovered)
+					color = ColorTint(mouse_listener->outline_focus_color, mouse_listener->outline_hover_color);
+				else if(!mouse_listener->toggled_on)
+					// elem's primary bg color is the toggled-off color
+					color = e->outline_color;
+				// check to see if the elem has focus
+				else if(mouse_listener->has_focus)
+					color = mouse_listener->outline_focus_color;
+
+				return color;
+			}
+			else
+			{
+				// check to see if mouse button held down over element
+				if(mouse_listener->pressed)
+					color = ColorTint(e->outline_color, mouse_listener->outline_press_color);
+				// check to see if they only have the mouse over the element
+				else if(mouse_listener->hovered)
+					color = ColorTint(e->outline_color, mouse_listener->outline_hover_color);
+				else if(!mouse_listener->toggled_on)
+					// elem's primary bg color is the toggled-off color
+					color = e->outline_color;
+				// check to see if the elem has focus
+				else if(mouse_listener->has_focus)
+					color = ColorTint(e->outline_color, mouse_listener->outline_focus_color);
+
+				return color;
+			}
+		}
+
+		// check to see if mouse button held down over element
+		if(mouse_listener->pressed)
+			color = mouse_listener->outline_press_color;
+		// check to see if they only have the mouse over the element
+		else if(mouse_listener->hovered)
+			color = mouse_listener->outline_hover_color;
+		// check to see if the elem has focus
+		else if(mouse_listener->has_focus)
+			color = mouse_listener->outline_focus_color;
+	}
 
 	return color;
 }
@@ -3062,7 +3217,7 @@ static void render_elem(const phos_gui_elem *const e)
 		return;
 
 	// get color of elem
-	const Color primary_color = resolve_elem_color(e, &e->primary_colors);
+	const Color primary_color = resolve_elem_bg_color(e);
 
 	// create elem rects:
 	const Rectangle real_bounds = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_REAL);
@@ -3093,12 +3248,18 @@ static void render_elem(const phos_gui_elem *const e)
 	// draw elem bg if it is valid
 	if(e->texture && IsTextureValid(*e->texture))
 	{
+		if(primary_color.a == 0)
+			vl_delay_log(VL_WARNING, 5.0f, "Cannot render element with 0 alpha: '%s'!\n", e->ID);
+
 		Rectangle src = { 0, 0, e->texture->width, e->texture->height };
 		DrawTexturePro(*e->texture, src, real_bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, primary_color);
 	}
 	// else just draw base shape (if set)
 	else if(e->render_mode == PHOS_GUI_RENDER_FILL_OUTLINE || e->render_mode == PHOS_GUI_RENDER_FILL)
 	{
+		if(primary_color.a == 0)
+			vl_delay_log(VL_WARNING, 5.0f, "Cannot render element with 0 alpha: '%s'!\n", e->ID);
+
 		switch(e->shape)
 		{
 			case PHOS_GUI_SHAPE_RECT:
@@ -3126,12 +3287,13 @@ static void render_elem(const phos_gui_elem *const e)
 		}
 	}
 
-	// render text component of element (if valid):
-	if(pluto_cs_check_component(e, PHOS_GUI_COMPONENT_TEXT))
-	{
-		// get text component
-		const phos_gui_text_component *const text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXT);
+	// get mouse listener component
+	const phos_gui_mouse_listener_component *const mouse_listener = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
 
+	// render text component of element (if valid):
+	const phos_gui_text_component *const text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXT);
+	if(text)
+	{
 		// get placeholder data as well (will be NULL if no placeholder text extension found)
 		const phos_gui_placeholder_text_extension *const placeholder_text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
 
@@ -3144,48 +3306,34 @@ static void render_elem(const phos_gui_elem *const e)
 			else
 			{
 				/*
-				   begin scissor mode to cut off text that has been scrolled off (USE PADDED REGION, NOT VISUAL)
-				   note: add CURSOR_WIDTH when rendering a text field to scissor rect so the cursor is not cut off at the right side
+				   begin scissor mode to cut off text that has been scrolled off (use usable content bounds)
 				*/
-				int clip_width = e->type == PHOS_GUI_TYPE_TEXT_FIELD ? usable_content_bounds.width + CURSOR_WIDTH : usable_content_bounds.width;
-				if(phos_gui_new_clip(usable_content_bounds.x, usable_content_bounds.y, clip_width, usable_content_bounds.height))
+				if(phos_gui_new_clip_r(usable_content_bounds))
 				{
-					switch(e->type)
+					// calculate where to draw the text
+					Vector2 draw_pos = text_pos;
+					draw_pos.x -= text->scroll;
+
+					// determine if text's main text, or placeholder text should be rendered
+					if(placeholder_text && strlen(text->str) == 0 && strlen(placeholder_text->str) > 0)
+						DrawTextEx(*text->font, placeholder_text->str, draw_pos, text->font_size, 0.0f, placeholder_text->color);
+					else
+						DrawTextEx(*text->font, text->str, draw_pos, text->font_size, 0.0f, text->color);
+
+					// render cursor (only if placeholder text is not being rendered and text has focus)
+					if(strlen(text->str) > 0 && text->editable && mouse_listener && mouse_listener->has_focus)
 					{
-						// for basic elems and buttons, just render text with the set attributes
-						case PHOS_GUI_TYPE_BASIC:
-						case PHOS_GUI_TYPE_BUTTON:
-							DrawTextEx(*text->font, text->str, text_pos, text->font_size, 0.0f, text->color);
-							break;
-						case PHOS_GUI_TYPE_TEXT_FIELD:
-						{
-							// calculate where to draw the text
-							Vector2 draw_pos = text_pos;
-							draw_pos.x -= text->scroll;
+						char buf[PHOS_GUI_MAX_TEXT_LEN + 1];
+						memcpy(buf, text->str, text->cursor_pos);
+						buf[text->cursor_pos] = '\0';
 
-							// determine if text field's main text, or placeholder text should be rendered
-							if(placeholder_text && strlen(text->str) == 0 && strlen(placeholder_text->str) > 0)
-								DrawTextEx(*text->font, placeholder_text->str, draw_pos, text->font_size, 0.0f, placeholder_text->color);
-							else
-								DrawTextEx(*text->font, text->str, draw_pos, text->font_size, 0.0f, text->color);
-
-							// render cursor (only if placeholder text is not being rendered and text field has focus)
-							if(strlen(text->str) > 0 && e->has_focus)
-							{
-								char buf[PHOS_GUI_MAX_TEXT_LEN + 1];
-								memcpy(buf, text->str, text->cursor_pos);
-								buf[text->cursor_pos] = '\0';
-
-								float caret_x = MeasureTextEx(*text->font, buf, text->font_size, 0.0f).x;
-								float cx = draw_pos.x + caret_x;
-								DrawRectangle(cx, draw_pos.y, CURSOR_WIDTH, text->font_size, text->color);
-							}
-							break;
-						}
-						default:
-							break;
+						Vector2 caret_pos = MeasureTextEx(*text->font, buf, text->font_size, 0.0f);
+						float cx = draw_pos.x + caret_pos.x;
+						float cy = draw_pos.y + caret_pos.y;
+						DrawRectangle(cx, cy, CURSOR_WIDTH, text->font_size, text->color);
 					}
 
+					// end clip
 					phos_gui_end_clip();
 				}
 			}
@@ -3203,7 +3351,10 @@ static void render_elem(const phos_gui_elem *const e)
 		else
 		{
 			// get outline color
-			Color outline_color = resolve_elem_color(e, &e->outline_colors);
+			Color outline_color = resolve_elem_outline_color(e);
+
+			if(outline_color.a == 0)
+				vl_delay_log(VL_WARNING, 5.0f, "Cannot render element outline with 0 alpha: '%s'!\n", e->ID);
 
 			switch(e->shape)
 			{

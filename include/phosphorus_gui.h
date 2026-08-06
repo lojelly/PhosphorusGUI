@@ -267,15 +267,14 @@ typedef enum phos_gui_elem_type
 	  The most basic element type. This type
 	  indicates the element has no functionality.
 	*/
-	PHOS_GUI_TYPE_BASIC,
+	PHOS_GUI_TYPE_BLANK,
 	/**
-	  The button element type.
+	  The primary element type. This type
+	  indicates the element can be interacted
+	  with, such as being clicked, dragged,
+	  etc.
 	*/
-	PHOS_GUI_TYPE_BUTTON,
-	/**
-	  The text field element type.
-	*/
-	PHOS_GUI_TYPE_TEXT_FIELD
+	PHOS_GUI_TYPE_INTERACTIVE
 } phos_gui_elem_type;
 
 /**
@@ -537,16 +536,15 @@ typedef enum phos_gui_elem_bounding_box
 typedef enum phos_gui_component_type
 {
 	/**
-	  The text component.
-
+	  @see phos_gui_mouse_listener_component
+	*/
+	PHOS_GUI_COMPONENT_MOUSE_LISTENER,
+	/**
 	  @see phos_gui_text_component
 	*/
-	PHOS_GUI_COMPONENT_TEXT = 1,
+	PHOS_GUI_COMPONENT_TEXT,
 	/**
 	  An extension of the text component.
-
-	  This indicates the element should also
-	  have placeholder text.
 
 	  @see phos_gui_text_component
 	  @see phos_gui_placeholder_text_extension
@@ -554,24 +552,16 @@ typedef enum phos_gui_component_type
 	PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT,
 
 	/**
-	  Provides an element with a layout.
-
 	  @see phos_gui_layout_component
 	*/
 	PHOS_GUI_COMPONENT_LAYOUT,
 
 	/**
-	  Provides an element with the ability to be
-	  scrolled.
-
 	  @see phos_gui_scroll_pane_component
 	*/
 	PHOS_GUI_COMPONENT_SCROLL_PANE,
 
 	/**
-	  Provides an element with the ability to be
-	  dragged around the screen.
-
 	  @see phos_gui_drag_pane_component
 	*/
 	PHOS_GUI_COMPONENT_DRAG_PANE,
@@ -587,6 +577,7 @@ typedef enum phos_gui_component_type
 
 	  Example:
 
+	  @code
 	  enum my_components
 	  {
 		  C1 = PHOS_GUI_COMPONENT_LAST,
@@ -594,9 +585,150 @@ typedef enum phos_gui_component_type
 		  C3,
 		  ...
 	  }
+	  @endcode
 	*/
 	PHOS_GUI_COMPONENT_LAST
 } phos_gui_component_type;
+
+/**
+  The different types of mouse listeners.
+*/
+typedef enum phos_gui_mouse_listener_component_type
+{
+	/**
+	  The default mouse listener type.
+	*/
+	PHOS_GUI_MOUSE_LISTENER_DEFAULT,
+	/**
+	  Results in the mouse listener being toggled
+	  on/off instead of being clicked.
+	*/
+	PHOS_GUI_MOUSE_LISTENER_TOGGLED
+} phos_gui_mouse_listener_component_type;
+
+/**
+  A phos_gui_mouse_listener_component provides an element
+  with the ability to receive mouse input.
+
+  @important Mouse listener components give elemements the
+  ability to gain and lose focus as well. Some other components
+  may require the element to be focusable, such as an editable text
+  component.
+*/
+typedef struct phos_gui_mouse_listener_component
+{
+	/**
+	  The type of the mouse listener.
+	*/
+	phos_gui_mouse_listener_component_type type;
+
+	/**
+	  The background hover color.
+
+	  This color is used when the mouse is hovering over the element.
+
+	  @important When the mouse listener's type is PHOS_GUI_MOUSE_LISTENER_TOGGLED,
+	  this color is used to tint the current color of the element.
+	*/
+	Color bg_hover_color;
+	/**
+	  The background press color.
+
+	  This color is used when the mouse is held down while hovered over
+	  the element.
+
+	  @important When the mouse listener's type is PHOS_GUI_MOUSE_LISTENER_TOGGLED,
+	  this color is used to tint the current color of the element.
+	*/
+	Color bg_press_color;
+	/**
+	  The background focus color.
+
+	  This color is used when the element currently has focus.
+
+	  @important When the mouse listener's type is PHOS_GUI_MOUSE_LISTENER_TOGGLED,
+	  this color represents the toggled-on color.
+	*/
+	Color bg_focus_color;
+
+	/**
+	  The outline hover color.
+
+	  This color is used when the mouse is hovering over the element.
+
+	  @important When the mouse listener's type is PHOS_GUI_MOUSE_LISTENER_TOGGLED,
+	  this color is used to tint the current color of the element.
+	*/
+	Color outline_hover_color;
+	/**
+	  The outline press color.
+
+	  This color is used when the mouse is held down while hovered over
+	  the element.
+
+	  @important When the mouse listener's type is PHOS_GUI_MOUSE_LISTENER_TOGGLED,
+	  this color is used to tint the current color of the element.
+	*/
+	Color outline_press_color;
+	/**
+	  The outline focus color.
+
+	  This color is used when the element currently has focus.
+
+	  @important When the mouse listener's type is PHOS_GUI_MOUSE_LISTENER_TOGGLED,
+	  this color represents the toggled-on color.
+	*/
+	Color outline_focus_color;
+
+	/**
+	  Whether or not the element was clicked this frame.
+
+	  @note This value is only modified when the mouse listener
+	  uses the PHOS_GUI_MOUSE_LISTENER_DEFAULT type.
+	*/
+	bool clicked;
+	/**
+	  Whether or not the element is being held down.
+
+	  This value is used no matter what the type of the mouse
+	  listener is.
+	*/
+	bool pressed;
+	/**
+	  Whether or not the element was toggled this frame.
+
+	  @note For a mouse listener to be toggled on/off, set the mouse listeners's
+	  type to PHOS_GUI_BUTTON_TOGGLED.
+	*/
+	bool toggled;
+	/**
+	  Whether or not the element is toggled on.
+	*/
+	bool toggled_on;
+	/**
+	  Whether or not the user is hovering over the element.
+	*/
+	bool hovered;
+
+	/**
+	  Whether or not the element has focus.
+	*/
+	bool has_focus;
+	/**
+	  Whether or not the element gained focus this frame.
+	*/
+	bool gained_focus;
+	/**
+	  Indicates whether or not the element should have focus
+	  when its phos_gui is switched to.
+
+	  @note Only one element in a phos_gui should have this
+	  attriubte set to true. PhosphorusGUI only gives
+	  focus to the first element added to a phos_gui
+	  with this set to true.
+	*/
+	bool focus_on_start;
+} phos_gui_mouse_listener_component;
 
 /**
   In some PhosphorusGUI functions, a string
@@ -727,23 +859,23 @@ typedef struct phos_gui_text_component
 	*/
 	bool editable;
 	/**
-	  Whether or not the text field was edited by the user this frame.
+	  Whether or not the text was edited by the user this frame.
 
-	  Hitting a key like the enter key does not mark the text field
+	  Hitting a key like the enter key does not mark the text
 	  as edited. Only updating the contents of the text marks
 	  it as edited.
 	*/
 	bool edited;
 	/**
-	  Whether or not letters are accepted in this text field's input.
+	  Whether or not letters are accepted in this text's input.
 	*/
 	bool accept_letters;
 	/**
-	  Whether or not numbers are accepted in this text field's input.
+	  Whether or not numbers are accepted in this text's input.
 	*/
 	bool accept_nums;
 	/**
-	  Whether or not special characters are accepted in this text field's input.
+	  Whether or not special characters are accepted in this text's input.
 	*/
 	bool accept_specials;
 } phos_gui_text_component;
@@ -888,13 +1020,13 @@ typedef struct phos_gui_scroll_pane_component
 	/**
 	  The color of the scroll bar's background.
 
-	  This is LIGHTGRAY by default.
+	  This is PHOS_GUI_LIGHT_GRAY by default.
 	*/
 	Color scroll_bar_bg_color;
 	/**
 	  The color of the scroll thumb.
 
-	  This is DARKGRAY by default.
+	  This is PHOS_GUI_GRAY by default.
 	*/
 	Color scroll_thumb_color;
 	/**
@@ -903,7 +1035,7 @@ typedef struct phos_gui_scroll_pane_component
 
 	  This color is used when 'has_focus' is true.
 
-	  This is GRAY by default.
+	  This is PHOS_GUI_DARK_GRAY by default.
 	*/
 	Color scroll_thumb_focus_color;
 
@@ -994,39 +1126,6 @@ typedef struct phos_gui_drag_pane_component
 } phos_gui_drag_pane_component;
 
 /**
-  A phos_gui_color_set represents a collection
-  of colors a UI element uses.
-*/
-typedef struct phos_gui_color_set
-{
-	/**
-	  The normal color.
-
-	  This color is used when rendering the element in its default state.
-	*/
-	Color normal_color;
-	/**
-	  The hover color.
-
-	  This color is used when the mouse is hovering over the element.
-	*/
-	Color hover_color;
-	/**
-	  The press color.
-
-	  This color is used when the mouse is held down while hovered over
-	  the element.
-	*/
-	Color press_color;
-	/**
-	  The focus color.
-
-	  This color is used when the element currently has focus.
-	*/
-	Color focus_color;
-} phos_gui_color_set;
-
-/**
   A phos_gui_elem represents a single UI element
   within a phos_gui.
 */
@@ -1050,15 +1149,6 @@ typedef struct phos_gui_elem
 	  ID to '!auto' and it will be properly set.
 	*/
 	char ID[PHOS_GUI_MAX_ID_LEN + 1];
-
-	/**
-	  The element's primary color set.
-	*/
-	phos_gui_color_set primary_colors;
-	/**
-	  The element's outline color set.
-	*/
-	phos_gui_color_set outline_colors;
 
 	/**
 	  The phos_gui instance this element belongs to.
@@ -1130,6 +1220,14 @@ typedef struct phos_gui_elem
 	phos_gui_alignment alignment;
 
 	/**
+	  The element's background color.
+	*/
+	Color bg_color;
+	/**
+	  The element's outline color.
+	*/
+	Color outline_color;
+	/**
 	  The color of the element when it is disabled.
 
 	  @see disabled
@@ -1186,66 +1284,6 @@ typedef struct phos_gui_elem
 	  This value represents the amount of space below the element.
 	*/
 	float bottom_margin;
-
-	/**
-	  Determines if this element currently has focus.
-
-	  An element gains focus when the user clicks
-	  it.
-
-	  An element loses focus when the user clicks
-	  somewhere else on screen.
-	*/
-	bool has_focus;
-	/**
-	  Determines if the element gained focus this frame.
-
-	  @see has_focus
-	*/
-	bool gained_focus;
-	/**
-	  Determines if the mouse is over this element.
-	*/
-	bool hovered;
-	/**
-	  Determines if the mouse is clicked while
-	  hovered over this element.
-	*/
-	bool clicked;
-	/**
-	  Determines if the mouse is held down while
-	  hovered over this element.
-	*/
-	bool pressed;
-
-	/**
-	  Indicates whether or not this element should
-	  have focus when its phos_gui is switched to.
-
-	  @note Only one element in a phos_gui should
-	  have this set to true. PhosphorusGUI only
-	  gives focus to the first element added to a phos_gui
-	  with 'focus_on_start' set to true.
-	*/
-	bool focus_on_start;
-
-	/**
-	  Indicates whether or not the user can travel
-	  to this element when pressing TAB or SHIFT+TAB.
-
-	  When the user presses TAB or SHIFT+TAB, every
-	  element in a phos_gui is included in the travel
-	  sequence. But sometimes, it may not make sense to
-	  include an element. For example, if you have a
-	  parent element containing some elements, by default,
-	  that parent element is included in the travel sequence.
-	  If you want to skip the parent container, mark it as
-	  unreachable by setting 'focusable' to false and the
-	  user cannot travel to it.
-
-	  This is true by default.
-	*/
-	bool focusable;
 
 	/**
 	  Indicates whether or not this element is currently
@@ -1310,26 +1348,6 @@ typedef enum phos_gui_event_type
 } phos_gui_event_type;
 
 /**
-  The different types of targets an event listener
-  can be attached to.
-*/
-typedef enum phos_gui_event_target_type
-{
-	/**
-	  An invalid/null target type.
-	*/
-	PHOS_GUI_EVENT_TARGET_NONE,
-	/**
-	  Used to target phos_gui_elem objects.
-	*/
-	PHOS_GUI_EVENT_TARGET_ELEM,
-	/**
-	  Used to target the window.
-	*/
-	PHOS_GUI_EVENT_TARGET_WINDOW
-} phos_gui_event_target_type;
-
-/**
   Provides an event listener with executable code.
 
   The function returns nothing and takes in the target
@@ -1356,17 +1374,11 @@ typedef struct phos_gui_event_listener
 	  The target element is what will be receiving
 	  the user's input.
 
-	  @note This can be NULL but only if the target
-	  type of the listener is equal to
-	  PHOS_GUI_EVENT_TARGET_WINDOW.
+	  @note This can be NULL but when it is NULL,
+	  PhosphorusGUI assumes the target of the event
+	  is the window.
 	*/
 	phos_gui_elem *elem;
-	/**
-	  The type of the target object.
-
-	  @see target
-	*/
-	phos_gui_event_target_type target_type;
 
 	/**
 	  The type of event to listen for.
@@ -1616,28 +1628,6 @@ PHOS_GUI_API void phos_gui_set_elem_size(phos_gui_elem *elem, float w, float h, 
 PHOS_GUI_API void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, float h, phos_gui_opts opts);
 
 /**
-  Quickly sets up the specified color set.
-*/
-PHOS_GUI_API void phos_gui_init_color_set(phos_gui_color_set *set, Color normal_color, Color hover_color, Color press_color, Color focus_color);
-/**
-  Sets each color in a color set to the one color given here.
-*/
-PHOS_GUI_API void phos_gui_fill_color_set(phos_gui_color_set *set, Color color);
-/**
-  Quickly generates an color set.
-
-  This function uses the ColorBrightness(...) function
-  to quickly generate the hover and press color of
-  a color set based on the default color given here.
-  All you have to provide is the brightness
-  factors for each respective color.
-
-  @note This function sets the 'normal_color' field in the
-  given color set to the 'normal_color' given.
-*/
-PHOS_GUI_API void phos_gui_gen_color_set(phos_gui_color_set *set, Color normal_color, float hover_color_factor, float press_color_factor, float focus_color_factor);
-
-/**
   Sets the contents of the given element's text component.
 
   @note If the options given include PHOS_GUI_OPTS_REALIGN_TEXT,
@@ -1724,9 +1714,27 @@ PHOS_GUI_API void phos_gui_make_text_fit_elem(phos_gui_text_component *text_comp
 PHOS_GUI_API void phos_gui_make_elem_fit_text(const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str);
 
 /**
-  Sets some basic element attributes.
+  Sets some basic element attributes
+  and puts the element in a valid state.
 */
 PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h);
+
+/**
+  Generates the background colors on a mouse listener component using brightness factors.
+
+  For example, if the element's primary background color is white, passing
+  in some small negative numbers into this function darkens white by that
+  percentage and sets that respective color on the mouse listener.
+*/
+PHOS_GUI_API void phos_gui_gen_bg_colors(phos_gui_mouse_listener_component *mouse_listener, float hover_color_factor, float press_color_factor, float focus_color_factor);
+/**
+  Generates the outline colors on a mouse listener component using brightness factors.
+
+  For example, if the element's primary outline color is white, passing
+  in some small negative numbers into this function darkens white by that
+  percentage and sets that respective color on the mouse listener.
+*/
+PHOS_GUI_API void phos_gui_gen_outline_colors(phos_gui_mouse_listener_component *mouse_listener, float hover_color_factor, float press_color_factor, float focus_color_factor);
 
 /**
   Adds a UI element to the given phos_gui instance.
@@ -1882,20 +1890,6 @@ PHOS_GUI_API void phos_gui_clone_full_elem(phos_gui_elem *elem, const char *ID);
 PHOS_GUI_API void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID);
 
 /**
-  Turns the given phos_gui_elem into a simple button element.
-
-  @note This function does not fully customize the button. It only
-  sets it up to be a button element. Additionally, this function
-  automatically adds a phos_gui_text_component to the element.
-  To remove it, use pluto_cs_remove_component(...).
-
-  @see pluto_cs_remove_component(void*, int)
-
-  @return 1 on success, 0 on failure.
-*/
-PHOS_GUI_API int phos_gui_create_button(phos_gui_elem *elem);
-
-/**
   Initializes Raylib for PhosphorusGUI.
 
   @return 1 on success, 0 on failure.
@@ -1954,6 +1948,32 @@ PHOS_GUI_API bool phos_gui_is_mouse_over_rect(Rectangle r);
 */
 PHOS_GUI_API int phos_gui_add_event_listener(phos_gui *gui, phos_gui_event_listener listener);
 
+/**
+  Launches a custom program loop for PhosphorusGUI.
+
+  @note If you need to add extra functionality to
+  your program loop, do not call this function.
+
+  The loop looks like this:
+
+  @code
+  while(!WindowShouldClose())
+  {
+	  float dt = GetFrameTime();
+
+	  vl_update(dt);
+	  phos_gui_update(dt);
+
+	  BeginDrawing();
+	  ClearBackground(PHOS_GUI_BLACK);
+
+	  phos_gui_render();
+
+	  EndDrawing();
+  }
+  @endcode
+*/
+PHOS_GUI_API void phos_gui_launch(void);
 /**
   Updates the current phos_gui's elements.
 
