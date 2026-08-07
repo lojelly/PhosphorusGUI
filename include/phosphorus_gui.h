@@ -454,6 +454,13 @@ typedef enum phos_gui_opts
 	*/
 	PHOS_GUI_OPTS_PASS_DOWN = 1 << 0,
 	/**
+	  Indicates that the action the function performs on an element
+	  should be performed on all the element's siblings and parent,
+	  and then it walks up the element tree and performs it on
+	  all subsequent parents and children.
+	*/
+	PHOS_GUI_OPTS_PASS_UP = 1 << 1,
+	/**
 	  Indicates that when resizing an element, its text component
 	  (if it has one) should be modified to fit the new size of the
 	  element.
@@ -461,23 +468,23 @@ typedef enum phos_gui_opts
 	  @note This only takes effect when the element becomes too small
 	  to contain its text.
 	*/
-	PHOS_GUI_OPTS_FIT_TEXT = 1 << 1,
+	PHOS_GUI_OPTS_FIT_TEXT = 1 << 2,
 	/**
 	  Indicates that when resizing an element, its text component
 	  (if it has one) should be realigned. This option expects that
 	  the text's 'alignment' field to be a valid alignment.
 	*/
-	PHOS_GUI_OPTS_REALIGN_TEXT = 1 << 2,
+	PHOS_GUI_OPTS_REALIGN_TEXT = 1 << 3,
 	/**
 	  Indicates that when moving an element, collisions between the
 	  element and other elements should be resolved.
 	*/
-	PHOS_GUI_OPTS_CHECK_ELEM_COLLISIONS = 1 << 3,
+	PHOS_GUI_OPTS_CHECK_ELEM_COLLISIONS = 1 << 4,
 	/**
 	  Indicates that when moving an element, collisions between the
 	  element and the window's edges should be resolved.
 	*/
-	PHOS_GUI_OPTS_CHECK_WINDOW_COLLISIONS = 1 << 4,
+	PHOS_GUI_OPTS_CHECK_WINDOW_COLLISIONS = 1 << 5,
 } phos_gui_opts;
 
 /**
@@ -969,16 +976,12 @@ typedef struct phos_gui_layout_component
 	  Indicates whether or not phos_gui_format_children(...) forces
 	  all the layout's children to fit into the layout's total content area.
 	  By default, this is true.
-
-	  @note This shouldn't be true if 'clamp_parent' is also true.
 	*/
 	bool auto_fit_children;
 	/**
 	  Indicates whether or not phos_gui_format_children(...) clamps
 	  the parent element's size to match the total amount of space
 	  its children take up. By default, this is false.
-
-	  @note This shouldn't be true if 'auto_fit_children' is also true.
 	*/
 	bool clamp_parent;
 } phos_gui_layout_component;
@@ -1090,21 +1093,15 @@ typedef struct phos_gui_drag_pane_component
 	Color drag_bar_color;
 
 	/**
-	  Provides this drag pane with collisions based
-	  on what options you give it.
-
-	  For example, to give the drag pane collisions with
-	  other elements, set this to PHOS_GUI_OPTS_CHECK_ELEM_COLLISIONS.
-	  To give it collisions with the window's edges, add the
-	  PHOS_GUI_OPTS_CHECK_WINDOW_COLLISIONS option using the '|'
-	  operator. For both collision options, use PHOS_GUI_CHECK_ELEM_COLLISIONS
-	  | PHOS_GUI_CHECK_WINDOW_COLLISIONS. You can also add other options
-	  such as PHOS_GUI_OPTS_PASS_DOWN to add collisions for children.
+	  Provides this drag pane with additional options
+	  when the element is dragged.
 
 	  By default, this is set to PHOS_GUI_OPTS_NONE which means the drag
-	  pane will not have collisions enabled.
+	  pane will not have any options.
+
+	  @see phos_gui_opts
 	*/
-	phos_gui_opts collision_opts;
+	phos_gui_opts drag_opts;
 
 	/**
 	  Determines how the user drags the element.
@@ -1786,9 +1783,14 @@ PHOS_GUI_API int phos_gui_remove_elem_from_gui_id(phos_gui *gui, const char *ID)
 /**
   Adds a UI element as a child to another UI element.
 
-  @important This function does not add the parent
+  @note This function does not add the parent
   or child to a phos_gui instance. PhosphorusGUI only
   maintains root elements in every phos_gui.
+
+  @important This function expects the child's position
+  to be relative to the parent's position. For example, a child with
+  a position of (0, 0) indicates it's top left corner is at the same
+  position as the parent's top left corner.
 
   @return 1 on success, 0 on failure.
 */
@@ -1802,6 +1804,8 @@ PHOS_GUI_API int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child)
   maintains root elements in every phos_gui.
 
   @return 1 on success, 0 on failure.
+
+  @see phos_gui_add_child(phos_gui_elem*, phos_gui_elem*)
 */
 PHOS_GUI_API int phos_gui_add_child_id(phos_gui_elem *parent, const char *ID);
 /**

@@ -294,13 +294,13 @@ static void init_drag_pane_component(void *drag_pane_component)
 		vl_log(VL_ERROR, "Drag pane has no owner!\n");
 		return;
 	}
-	float owner_width = phos_gui_get_rect_size(phos_gui_get_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE)).x;
+	float owner_width = phos_gui_get_rect_size(phos_gui_get_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL)).x;
 
 	// drag bar matches usable content width of owner, and a height of 25 pixels
 	drag_pane->drag_bar_size = (Vector2) { owner_width, 25 };
 	drag_pane->drag_bar_pos = PHOS_GUI_ALIGN_INNER_TOP;
 	drag_pane->drag_bar_color = PHOS_GUI_LIGHT_GRAY;
-	drag_pane->collision_opts = PHOS_GUI_OPTS_NONE;
+	drag_pane->drag_opts = PHOS_GUI_OPTS_NONE;
 	drag_pane->use_drag_bar = false;
 	drag_pane->grabbed = false;
 }
@@ -572,6 +572,33 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 	if(!collision && opts & PHOS_GUI_OPTS_PASS_DOWN)
 		for(size_t i = 0; i < elem->num_children; ++i)
 			phos_gui_move_elem_xy(elem->children[i], x, y, opts);
+	// check for PHOS_GUI_OPTS_PASS_UP and if applied, check collisions on the elements as well
+	else if(!collision && opts & PHOS_GUI_OPTS_PASS_UP)
+	{
+		phos_gui_elem *curr = elem;
+		phos_gui_elem *parent = elem->parent;
+		while(parent)
+		{
+			// move children
+			for(size_t i = 0; i < parent->num_children; ++i)
+			{
+				phos_gui_elem *child = parent->children[i];
+
+				// because the elem is included here, skip it since it was already affected
+				if(curr == child)
+					continue;
+
+				phos_gui_move_elem_xy(child, x, y, PHOS_GUI_OPTS_PASS_DOWN);
+			}
+
+			// move parent
+			phos_gui_move_elem_xy(parent, x, y, PHOS_GUI_OPTS_NONE);
+
+			// save current elem and go up to next parent
+			curr = parent;
+			parent = parent->parent;
+		}
+	}
 }
 
 static Vector2 get_proposed_align_pos(Vector2 target_object_size, phos_gui_alignment alignment, const phos_gui_elem *const reference_elem)
@@ -695,8 +722,11 @@ static void resize_single_elem_wh(phos_gui_elem *elem, float w, float h, phos_gu
 	if(elem_tx)
 	{
 		// based on given options, modify text component:
+
+		// fit text first
 		if(opts & PHOS_GUI_OPTS_FIT_TEXT)
 			phos_gui_make_text_fit_elem(elem_tx, PHOS_GUI_TARGET_AUTO_TEXT);
+		// then realign
 		if(opts & PHOS_GUI_OPTS_REALIGN_TEXT)
 			phos_gui_align_elem_text(elem_tx, PHOS_GUI_TARGET_AUTO_TEXT, elem_tx->alignment);
 	}
@@ -2093,7 +2123,7 @@ void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID)
 		for(size_t i = 0; i < bp->elem->num_children; ++i)
 		{
 			// child at i
-			phos_gui_elem *child = bp->elem->children[i];
+			const phos_gui_elem *const child = bp->elem->children[i];
 
 			// clone the child
 			phos_gui_elem *child_clone = target_elem->children[i];
@@ -2953,7 +2983,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 					drag_pane->grabbed = true;
 
 					// add to elem pos based on mouse delta
-					phos_gui_move_elem_xy(e, mouse_delta.x, mouse_delta.y, PHOS_GUI_OPTS_REALIGN_TEXT | PHOS_GUI_OPTS_PASS_DOWN | drag_pane->collision_opts);
+					phos_gui_move_elem_xy(e, mouse_delta.x, mouse_delta.y, drag_pane->drag_opts);
 				}
 			}
 			else
@@ -2967,7 +2997,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 					drag_pane->grabbed = true;
 
 					// add to elem pos based on mouse delta
-					phos_gui_move_elem_xy(e, mouse_delta.x, mouse_delta.y, PHOS_GUI_OPTS_REALIGN_TEXT | PHOS_GUI_OPTS_PASS_DOWN | drag_pane->collision_opts);
+					phos_gui_move_elem_xy(e, mouse_delta.x, mouse_delta.y, drag_pane->drag_opts);
 				}
 			}
 		}
