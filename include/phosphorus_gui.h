@@ -16,6 +16,7 @@
 
 
 #include <string.h>
+#include <stdint.h>
 #include "raylib.h"
 
 
@@ -440,54 +441,6 @@ typedef enum phos_gui_alignment
 } phos_gui_alignment;
 
 /**
-  Additional and optional settings for phos_gui functions.
-*/
-typedef enum phos_gui_opts
-{
-	/**
-	  Indicates there are no extra options to apply.
-	*/
-	PHOS_GUI_OPTS_NONE = 0,
-	/**
-	  Indicates that the action the function performs on an element
-	  should be passed down to all of the elements children.
-	*/
-	PHOS_GUI_OPTS_PASS_DOWN = 1 << 0,
-	/**
-	  Indicates that the action the function performs on an element
-	  should be performed on all the element's siblings and parent,
-	  and then it walks up the element tree and performs it on
-	  all subsequent parents and children.
-	*/
-	PHOS_GUI_OPTS_PASS_UP = 1 << 1,
-	/**
-	  Indicates that when resizing an element, its text component
-	  (if it has one) should be modified to fit the new size of the
-	  element.
-
-	  @note This only takes effect when the element becomes too small
-	  to contain its text.
-	*/
-	PHOS_GUI_OPTS_FIT_TEXT = 1 << 2,
-	/**
-	  Indicates that when resizing an element, its text component
-	  (if it has one) should be realigned. This option expects that
-	  the text's 'alignment' field to be a valid alignment.
-	*/
-	PHOS_GUI_OPTS_REALIGN_TEXT = 1 << 3,
-	/**
-	  Indicates that when moving an element, collisions between the
-	  element and other elements should be resolved.
-	*/
-	PHOS_GUI_OPTS_CHECK_ELEM_COLLISIONS = 1 << 4,
-	/**
-	  Indicates that when moving an element, collisions between the
-	  element and the window's edges should be resolved.
-	*/
-	PHOS_GUI_OPTS_CHECK_WINDOW_COLLISIONS = 1 << 5,
-} phos_gui_opts;
-
-/**
   Defines the different types of rectangles/bounding boxes
   that an element has.
 */
@@ -536,6 +489,87 @@ typedef enum phos_gui_elem_bounding_box
 	*/
 	PHOS_GUI_ELEM_BOUNDS_TOTAL
 } phos_gui_elem_bounding_box;
+
+/**
+  Additional and optional settings for some phos_gui functions.
+
+  @important Some options are documented as 'immediate' or
+  'one-time.' Those options are only executed on the initial
+  or first element encountered.
+*/
+typedef uint32_t phos_gui_opts;
+
+enum
+{
+	/**
+	  Indicates there are no extra options to apply.
+	*/
+	PHOS_GUI_OPTS_NONE = 0,
+	/**
+	  Indicates that the action the function performs on an element
+	  should be passed down to all of the elements children.
+	*/
+	PHOS_GUI_OPTS_PASS_DOWN = 1u << 0,
+	/**
+	  Indicates that the action the function performs on an element
+	  should be performed on all the element's siblings and parent,
+	  and then it walks up the element tree and performs it on
+	  all subsequent parents and children.
+	*/
+	PHOS_GUI_OPTS_PASS_UP = 1u << 1,
+	/**
+	  Indicates that when resizing an element, its text component
+	  (if it has one) should be modified to fit the new size of the
+	  element.
+
+	  @note This only takes effect when the element becomes too small
+	  to contain its text.
+	*/
+	PHOS_GUI_OPTS_FIT_TEXT = 1u << 2,
+	/**
+	  Indicates that when moving an element, collisions between the
+	  element and other elements should be resolved.
+	*/
+	PHOS_GUI_OPTS_CHECK_ELEM_COLLISIONS = 1u << 3,
+	/**
+	  Indicates that when moving an element, collisions between the
+	  element and the window's edges should be resolved.
+	*/
+	PHOS_GUI_OPTS_CHECK_WINDOW_COLLISIONS = 1u << 4,
+	/**
+	  Indicates the child should be resized to fit the
+	  parent's size.
+
+	  @note This option is immediate and only affects
+	  the child specifically targeted with this option.
+	*/
+	PHOS_GUI_OPTS_CHILD_MAXIMIZED = 1u << 5,
+	/**
+	  Indicates the child's position should be interpreted
+	  as relative to the parent's position.
+
+	  @note This option is immediate and only affects
+	  the child specifically targeted with this option.
+	*/
+	PHOS_GUI_OPTS_CHILD_HAS_RELATIVE_POS = 1u << 6,
+};
+
+/**
+  The different clip modes for elements.
+*/
+typedef enum phos_gui_clip_mode
+{
+	/**
+	  Indicates there is no clip region
+	  for the element.
+	*/
+	PHOS_GUI_CLIP_NONE,
+	/**
+	  Indicates the element has an active
+	  clip region.
+	*/
+	PHOS_GUI_CLIP_ACTIVE,
+} phos_gui_clip_mode;
 
 /**
   The available component types.
@@ -818,11 +852,6 @@ typedef struct phos_gui_text_component
 	Vector2 offset;
 
 	/**
-	  The alignment of the text.
-	*/
-	phos_gui_alignment alignment;
-
-	/**
 	  This text component's font size.
 	*/
 	float font_size;
@@ -842,6 +871,11 @@ typedef struct phos_gui_text_component
 	  @see scroll
 	*/
 	float max_scroll;
+
+	/**
+	  The alignment the text component used last.
+	*/
+	phos_gui_alignment alignment;
 
 	/**
 	  The color of the text component's main contents ('str').
@@ -1060,11 +1094,44 @@ typedef struct phos_gui_scroll_pane_component
 } phos_gui_scroll_pane_component;
 
 /**
+  The different drag bar orientations.
+*/
+typedef enum phos_gui_drag_bar_orientation
+{
+	/**
+	  The default drag bar orientation:
+	  the drag bar resides at the element's top
+	  edge and spans its width.
+	*/
+	PHOS_GUI_DRAG_BAR_HORIZONTAL_TOP,
+	/**
+	  The drag bar will be the left edge of the
+	  element and span its height.
+	*/
+	PHOS_GUI_DRAG_BAR_VERTICAL_LEFT,
+	/**
+	  The drag bar will be at the right edge of the
+	  element and span its height.
+	*/
+	PHOS_GUI_DRAG_BAR_VERTICAL_RIGHT,
+	/**
+	  The drag bar will be at the bottom edge of
+	  the element and span its width.
+	*/
+	PHOS_GUI_DRAG_BAR_HORIZONTAL_BOTTOM,
+} phos_gui_drag_bar_orientation;
+
+/**
   A phos_gui_drag_pane_component provides an element with the ability
   to be dragged around the screen using the mouse.
 */
 typedef struct phos_gui_drag_pane_component
 {
+	/**
+	  The amount of pixels the drag pane has been moved
+	  since the last frame.
+	*/
+	Vector2 drag_delta;
 	/**
 	  If the drag pane uses a drag bar, this determines
 	  the size of the drag bar. By default, the drag
@@ -1075,16 +1142,15 @@ typedef struct phos_gui_drag_pane_component
 	Vector2 drag_bar_size;
 	/**
 	  If the drag pane uses a drag bar, this determines
-	  where the drag bar is located on the element.
-
-	  By default, the drag bar is placed at the top
-	  of the element (PHOS_GUI_ALIGN_INNER_TOP).
-
-	  @important This alignment should always be either
-	  PHOS_GUI_ALIGN_INNER_LEFT, PHOS_GUI_ALIGN_INNER_TOP,
-	  PHOS_GUI_ALIGN_INNER_RIGHT, or PHOS_GUI_ALIGN_INNER_BOTTOM!
+	  where the drag bar is located. The default location
+	  of the drag bar is the top edge of the element.
 	*/
-	phos_gui_alignment drag_bar_pos;
+	Vector2 drag_bar_pos;
+	/**
+	  If the drag pane uses a drag bar, this determines
+	  the drag bar's orientation.
+	*/
+	phos_gui_drag_bar_orientation drag_bar_orienation;
 	/**
 	  If the drag pane uses a drag bar, this color
 	  determines the color of the drag bar. The drag
@@ -1207,14 +1273,19 @@ typedef struct phos_gui_elem
 	*/
 	phos_gui_elem_render_mode render_mode;
 	/**
-	  This element's alignment.
-
-	  When the element is added to a parent element or
-	  aligned with another element, this alignment
-	  tells PhosphorusGUI how to align this element
-	  with the reference element.
+	  The alignment this element used last.
 	*/
 	phos_gui_alignment alignment;
+	/**
+	  If this element was added as a child to another
+	  element, this includes the options given to
+	  phos_gui_add_child(...).
+	*/
+	phos_gui_opts child_opts;
+	/**
+	  Provides ehe element with clipping options.
+	*/
+	phos_gui_clip_mode clip_mode;
 
 	/**
 	  The element's background color.
@@ -1297,19 +1368,6 @@ typedef struct phos_gui_elem
 	  This is false by default.
 	*/
 	bool disabled;
-
-	/**
-	  Indicates whether or not this element, when rendered,
-	  has an active clip region around its free content rectangle
-	  (PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE).
-
-	  Some actions automatically set this to true, such as the
-	  phos_gui_scroll_pane_component being added to an element.
-
-	  @important You can also modify it but it is not recommended.
-	  If you do set it to false, PhoshporusGUI interprets it as an override.
-	*/
-	bool clip_content_rect;
 } phos_gui_elem;
 
 /**
@@ -1623,12 +1681,13 @@ PHOS_GUI_API void phos_gui_set_elem_size(phos_gui_elem *elem, float w, float h, 
   Quickly sets the bounds of an element (its position and size).
 */
 PHOS_GUI_API void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, float h, phos_gui_opts opts);
+/**
+  Sets the bounds of an element using a Rectangle.
+*/
+PHOS_GUI_API void phos_gui_set_elem_bounds_r(phos_gui_elem *elem, Rectangle r, phos_gui_opts opts);
 
 /**
   Sets the contents of the given element's text component.
-
-  @note If the options given include PHOS_GUI_OPTS_REALIGN_TEXT,
-  make sure the text component's alignment has already been set.
 
   @param text_component The text component to modify.
   @param target_str The specific string buffer to set on the text component.
@@ -1663,7 +1722,8 @@ PHOS_GUI_API Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_comp
   move 'target_elem.'
 
   @param target_elem The element to move and align.
-  @param alignment The alignment to use. The element's 'alignment' field is automatically assigned to the value given.
+  @param alignment The alignment to use.
+  The element's 'alignment' field is automatically assigned to the value given.
   @param reference_elem The element 'target_elem' is being aligned with.
 */
 PHOS_GUI_API Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment alignment, const phos_gui_elem *const reference_elem, phos_gui_opts opts);
@@ -1680,6 +1740,10 @@ PHOS_GUI_API Vector2 phos_gui_align_elem_with_window(phos_gui_elem *target_elem,
   to PHOS_GUI_ALIGN_INNER_TOP_LEFT.
 */
 PHOS_GUI_API void phos_gui_fill_window_with_elem(phos_gui_elem *elem, phos_gui_opts opts);
+/**
+  Fills an element's bounding box with another element.
+*/
+PHOS_GUI_API void phos_gui_fill_elem_with_elem(phos_gui_elem *target_elem, const phos_gui_elem *const reference_elem, phos_gui_elem_bounding_box bounds, phos_gui_opts opts);
 
 /**
   Makes the owner of the text component fit the text's bounds.
@@ -1787,14 +1851,19 @@ PHOS_GUI_API int phos_gui_remove_elem_from_gui_id(phos_gui *gui, const char *ID)
   or child to a phos_gui instance. PhosphorusGUI only
   maintains root elements in every phos_gui.
 
+  @note There are some additional and optional settings you can
+  pass in using phos_gui_child_opts.
+
   @important This function expects the child's position
   to be relative to the parent's position. For example, a child with
   a position of (0, 0) indicates it's top left corner is at the same
   position as the parent's top left corner.
 
   @return 1 on success, 0 on failure.
+
+  @see phos_gui_child_opts
 */
-PHOS_GUI_API int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child);
+PHOS_GUI_API int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child, phos_gui_opts child_opts);
 /**
   Adds a UI element as a child to another UI element
   using the child's ID.
@@ -1805,9 +1874,9 @@ PHOS_GUI_API int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child)
 
   @return 1 on success, 0 on failure.
 
-  @see phos_gui_add_child(phos_gui_elem*, phos_gui_elem*)
+  @see phos_gui_add_child(phos_gui_elem*, phos_gui_elem*, phos_gui_child_opts)
 */
-PHOS_GUI_API int phos_gui_add_child_id(phos_gui_elem *parent, const char *ID);
+PHOS_GUI_API int phos_gui_add_child_id(phos_gui_elem *parent, const char *ID, phos_gui_opts child_opts);
 /**
   Removes a child element from a parent element.
 

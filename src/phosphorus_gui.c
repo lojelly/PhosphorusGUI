@@ -16,7 +16,7 @@
 
 #define ROUND_RECT_SEGMENTS 32
 
-#define TEXT_PADDING 8.0f
+#define TEXT_PADDING 4.0f
 
 #define MAX_CLIPS 16
 
@@ -190,16 +190,22 @@ static void init_text_component(void *text_component)
 	phos_gui_text_component *text = text_component;
 
 	text->font = default_font;
-	text->font_size = PHOS_GUI_FONT_SIZE_DEFAULT;
-	text->accept_letters = true;
-	text->accept_nums = true;
-	text->accept_specials = true;
-	text->editable = true;
 	text->max_len = PHOS_GUI_MAX_TEXT_LEN;
 	text->len = 0;
 	text->cursor_pos = 0;
-	text->color = PHOS_GUI_BLACK;
 	text->offset = Vector2Zero();
+	text->font_size = PHOS_GUI_FONT_SIZE_DEFAULT;
+	text->scroll = 0.0f;
+	text->max_scroll = 0.0f;
+	text->alignment = PHOS_GUI_ALIGN_INNER_CENTER;
+	text->color = PHOS_GUI_BLACK;
+	text->key_typed = KEY_NULL;
+	text->char_typed = '\0';
+	text->editable = true;
+	text->edited = false;
+	text->accept_letters = true;
+	text->accept_nums = true;
+	text->accept_specials = true;
 	snprintf(text->str, sizeof(text->str), "");
 }
 
@@ -265,8 +271,8 @@ static void init_scroll_pane_component(void *scroll_pane_component)
 		return;
 	}
 
-	// by default, scroll panes result in the elem's content rect being clipped
-	owner->clip_content_rect = true;
+	// enable clip region for the element
+	owner->clip_mode = PHOS_GUI_CLIP_ACTIVE;
 
 	scroll_pane->scroll = 0.0f;
 	scroll_pane->max_scroll = 0.0f;
@@ -296,9 +302,11 @@ static void init_drag_pane_component(void *drag_pane_component)
 	}
 	float owner_width = phos_gui_get_rect_size(phos_gui_get_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL)).x;
 
+	Rectangle owner_free_content = phos_gui_get_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+
 	// drag bar matches usable content width of owner, and a height of 25 pixels
 	drag_pane->drag_bar_size = (Vector2) { owner_width, 25 };
-	drag_pane->drag_bar_pos = PHOS_GUI_ALIGN_INNER_TOP;
+	drag_pane->drag_bar_pos = (Vector2) { owner_free_content.x, owner_free_content.y };
 	drag_pane->drag_bar_color = PHOS_GUI_LIGHT_GRAY;
 	drag_pane->drag_opts = PHOS_GUI_OPTS_NONE;
 	drag_pane->use_drag_bar = false;
@@ -491,7 +499,7 @@ void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vector2 size)
 	
 	Vector2 elem_centered = { container_center.x - elem_size.x / 2.0f, container_center.y - elem_size.y / 2.0f };
 
-	phos_gui_set_elem_bounds(elem, elem_centered.x, elem_centered.y, elem->size.x, elem->size.y, PHOS_GUI_OPTS_REALIGN_TEXT);
+	phos_gui_set_elem_bounds(elem, elem_centered.x, elem_centered.y, elem->size.x, elem->size.y, PHOS_GUI_OPTS_NONE);
 }
 
 static bool check_elem_collision(phos_gui_elem *elem1, phos_gui_elem *elem2, phos_gui_elem_bounding_box bounds)
@@ -523,7 +531,7 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 	phos_gui_elem *parent = elem->parent;
 	while(parent)
 	{
-		in_clip_region = parent->clip_content_rect;
+		in_clip_region = parent->clip_mode != PHOS_GUI_CLIP_NONE;
 		if(in_clip_region)
 			break;
 		parent = parent->parent;
@@ -605,7 +613,9 @@ static Vector2 get_proposed_align_pos(Vector2 target_object_size, phos_gui_align
 {
 	// start at reference_rect origin
 	Rectangle whole_rect = phos_gui_get_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_TOTAL);
+	Rectangle real_bounds = phos_gui_get_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_REAL);
 	Rectangle content_rect = phos_gui_get_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	Rectangle free_content_rect = phos_gui_get_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
 	// keep track of position of the whole space rect
 	Vector2 v = phos_gui_get_rect_pos(whole_rect);
@@ -726,9 +736,9 @@ static void resize_single_elem_wh(phos_gui_elem *elem, float w, float h, phos_gu
 		// fit text first
 		if(opts & PHOS_GUI_OPTS_FIT_TEXT)
 			phos_gui_make_text_fit_elem(elem_tx, PHOS_GUI_TARGET_AUTO_TEXT);
-		// then realign
-		if(opts & PHOS_GUI_OPTS_REALIGN_TEXT)
-			phos_gui_align_elem_text(elem_tx, PHOS_GUI_TARGET_AUTO_TEXT, elem_tx->alignment);
+
+		// then realign text
+		phos_gui_align_elem_text(elem_tx, PHOS_GUI_TARGET_AUTO_TEXT, elem_tx->alignment);
 	}
 }
 void phos_gui_resize_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
@@ -745,11 +755,18 @@ void phos_gui_resize_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opt
 	// pass changes down to children
 	if(elem->num_children > 0)
 	{
-		// then shrink/expand the elem's child elements the same amount of pixels (only if PHOS_GUI_PASS_DOWN is set)
-		if(opts & PHOS_GUI_OPTS_PASS_DOWN)
+		for(size_t i = 0; i < elem->num_children; ++i)
 		{
-			for(size_t i = 0; i < elem->num_children; ++i)
-				phos_gui_resize_elem_wh(elem->children[i], w, h, opts);
+			phos_gui_elem *child = elem->children[i];
+
+			// only resize child if PHOS_GUI_OPTS_PASS_DOWN included
+			if(opts & PHOS_GUI_OPTS_PASS_DOWN)
+				phos_gui_resize_elem_wh(child, w, h, opts);
+
+			// but always realign text
+			phos_gui_text_component *child_text = pluto_cs_get_component(child, PHOS_GUI_COMPONENT_TEXT);
+			if(child_text)
+				phos_gui_align_elem_text(child_text, PHOS_GUI_TARGET_AUTO_TEXT, child_text->alignment);
 		}
 	}
 }
@@ -857,27 +874,25 @@ Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem, phos_gui_elem_
 				// only modify usable content area if drag pane uses a drag bar
 				if(drag_pane->use_drag_bar)
 				{
-					// resize and shift content rect based on drag bar pos:
-
-					Vector2 drag_bar_pos = {0};
-					switch(drag_pane->drag_bar_pos)
+					// resize and shift content rect based on drag bar pos and orientation:
+					switch(drag_pane->drag_bar_orienation)
 					{
-						case PHOS_GUI_ALIGN_INNER_LEFT:
-							r.x += drag_pane->drag_bar_size.x;
-							r.width -= drag_pane->drag_bar_size.x;
-							break;
-						case PHOS_GUI_ALIGN_INNER_TOP:
+						case PHOS_GUI_DRAG_BAR_HORIZONTAL_TOP:
 							r.y += drag_pane->drag_bar_size.y;
 							r.height -= drag_pane->drag_bar_size.y;
 							break;
-						case PHOS_GUI_ALIGN_INNER_RIGHT:
+						case PHOS_GUI_DRAG_BAR_VERTICAL_LEFT:
+							r.x += drag_pane->drag_bar_size.x;
 							r.width -= drag_pane->drag_bar_size.x;
 							break;
-						case PHOS_GUI_ALIGN_INNER_BOTTOM:
+						case PHOS_GUI_DRAG_BAR_VERTICAL_RIGHT:
+							r.width -= drag_pane->drag_bar_size.x;
+							break;
+						case PHOS_GUI_DRAG_BAR_HORIZONTAL_BOTTOM:
 							r.height -= drag_pane->drag_bar_size.y;
 							break;
 						default:
-							vl_delay_log(VL_ERROR, 5.0f, "Invalid drag bar position: %d! It must be either PHOS_GUI_ALIGN_INNER_LEFT, PHOS_GUI_ALIGN_INNER_TOP, PHOS_GUI_ALIGN_INNER_RIGHT, or PHOS_GUI_ALIGN_INNER_BOTTOM!\n", drag_pane->drag_bar_pos);
+							vl_log(VL_ERROR, "Invalid drag bar orientation: %d!\n", drag_pane->drag_bar_orienation);
 							break;
 					}
 				}
@@ -1178,6 +1193,10 @@ void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, fl
 	phos_gui_set_elem_pos(elem, x, y, opts);
 	phos_gui_set_elem_size(elem, w, h, opts);
 }
+void phos_gui_set_elem_bounds_r(phos_gui_elem *elem, Rectangle r, phos_gui_opts opts)
+{
+	phos_gui_set_elem_bounds(elem, r.x, r.y, r.width, r.height, opts);
+}
 
 void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, const char *new_contents, phos_gui_opts opts)
 {
@@ -1229,8 +1248,7 @@ void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gu
 	// check opts
 	if(opts & PHOS_GUI_OPTS_FIT_TEXT)
 		phos_gui_make_text_fit_elem(text_component, target_str);
-	if(opts & PHOS_GUI_OPTS_REALIGN_TEXT)
-		phos_gui_align_elem_text(text_component, target_str, text_component->alignment);
+	phos_gui_align_elem_text(text_component, target_str, text_component->alignment);
 }
 
 /*
@@ -1378,11 +1396,11 @@ Vector2 phos_gui_align_elem_with_window(phos_gui_elem *target_elem, phos_gui_ali
 	if(alignment < PHOS_GUI_ALIGN_INNER_LEFT || alignment > PHOS_GUI_ALIGN_INNER_BOTTOM_RIGHT)
 	{
 		vl_log(VL_ERROR, "Invalid alignment: %d! When aligning an element with the window, the alignment must be a PHOS_GUI_ALIGN_INNER... alignment! Defaulting to PHOS_GUI_ALIGN_INNER_TOP_LEFT!\n", alignment);
-		alignment = PHOS_GUI_ALIGN_TOP_LEFT;
+		alignment = PHOS_GUI_ALIGN_INNER_TOP_LEFT;
 	}
 
 	target_elem->alignment = alignment;
-	
+
 	// create temp elem representing the window
 	phos_gui_elem temp = {0};
 	phos_gui_set_elem_bounds(&temp, 0, 0, GetRenderWidth(), GetRenderHeight(), opts);
@@ -1401,6 +1419,19 @@ void phos_gui_fill_window_with_elem(phos_gui_elem *elem, phos_gui_opts opts)
 
 	elem->alignment = PHOS_GUI_ALIGN_INNER_TOP_LEFT;
 	phos_gui_set_elem_bounds(elem, 0.0f, 0.0f, GetRenderWidth(), GetRenderHeight(), opts);
+}
+void phos_gui_fill_elem_with_elem(phos_gui_elem *target_elem, const phos_gui_elem *const reference_elem, phos_gui_elem_bounding_box bounds, phos_gui_opts opts)
+{
+	if(!target_elem || !reference_elem)
+	{
+		vl_log(VL_ERROR, "To fill an element with another element, both elements must be valid pointers!\n");
+		return;
+	}
+
+	// obtain bounds info
+	Rectangle r = phos_gui_get_elem_rect(reference_elem, bounds);
+	// match bounds on element to bounding box
+	phos_gui_set_elem_bounds_r(target_elem, r, opts);
 }
 
 static void use_largest_possible_font_size(phos_gui_text_component *text_component, phos_gui_target_text_string target_str)
@@ -1516,7 +1547,7 @@ void phos_gui_make_elem_fit_text(const phos_gui_text_component *const text_compo
 		float diff_w = text_bounds.x - bounds.height;
 
 		// expand by that much
-		phos_gui_resize_elem_wh(elem, diff_w, 0.0f, PHOS_GUI_OPTS_REALIGN_TEXT);
+		phos_gui_resize_elem_wh(elem, diff_w, 0.0f, PHOS_GUI_OPTS_NONE);
 	}
 	if(text_bounds.y > bounds.height)
 	{
@@ -1524,7 +1555,7 @@ void phos_gui_make_elem_fit_text(const phos_gui_text_component *const text_compo
 		float diff_h = text_bounds.y - bounds.height;
 
 		// expand by that much
-		phos_gui_resize_elem_wh(elem, 0.0f, diff_h, PHOS_GUI_OPTS_REALIGN_TEXT);
+		phos_gui_resize_elem_wh(elem, 0.0f, diff_h, PHOS_GUI_OPTS_NONE);
 	}
 
 	// if element has a parent, make sure it can contain the text too
@@ -1547,9 +1578,9 @@ void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_e
 	elem->pos = (Vector2) { x, y };
 	elem->size = (Vector2) { w, h };
 	elem->left_padding = elem->top_padding = elem->right_padding = elem->bottom_padding = 0.0f;
-	elem->alignment = PHOS_GUI_ALIGN_INNER_TOP_LEFT;
+	elem->alignment = PHOS_GUI_ALIGN_INNER_CENTER;
 	elem->disabled = false;
-	elem->clip_content_rect = false;
+	elem->clip_mode = PHOS_GUI_CLIP_NONE;
 }
 
 void phos_gui_gen_bg_colors(phos_gui_mouse_listener_component *mouse_listener, float hover_color_factor, float press_color_factor, float focus_color_factor)
@@ -1759,7 +1790,7 @@ int phos_gui_remove_elem_from_gui_id(phos_gui *gui, const char *ID)
 {
 	return phos_gui_remove_elem_from_gui(gui, phos_gui_get_elem(ID));
 }
-int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child)
+int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child, phos_gui_opts child_opts)
 {
 	if(!parent || !child)
 	{
@@ -1790,13 +1821,35 @@ int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child)
 	// auto-gen child ID if necessary
 	auto_gen_id(child->ID, child->ID, sizeof(child->ID), "elem", &elem_auto_id);
 
+	// handle child opts:
+	if(child_opts & PHOS_GUI_OPTS_CHILD_MAXIMIZED)
+	{
+		phos_gui_resize_elem_wh(child, parent->size.x, parent->size.y, child_opts);
+
+		// remove maximized option
+		child_opts &= ~PHOS_GUI_OPTS_CHILD_MAXIMIZED;
+	}
+	if(child_opts & PHOS_GUI_OPTS_CHILD_HAS_RELATIVE_POS)
+	{
+		// calculate child's real pos
+		float child_x = child->pos.x + parent->pos.x;
+		float child_y = child->pos.y + parent->pos.y;
+		phos_gui_set_elem_pos(child, child_x, child_y, child_opts);
+
+		// remove relative pos option
+		child_opts &= ~PHOS_GUI_OPTS_CHILD_HAS_RELATIVE_POS;
+	}
+
+	// save child opts
+	child->child_opts = child_opts;
+
 	vl_log(VL_SUCCESS, "Element '%s' added to parent element '%s'!\n", child->ID, parent->ID);
 
 	return 1;
 }
-int phos_gui_add_child_id(phos_gui_elem *parent, const char *ID)
+int phos_gui_add_child_id(phos_gui_elem *parent, const char *ID, phos_gui_opts child_opts)
 {
-	return phos_gui_add_child(parent, phos_gui_get_elem(ID));
+	return phos_gui_add_child(parent, phos_gui_get_elem(ID), child_opts);
 }
 int phos_gui_remove_child(phos_gui_elem *parent, phos_gui_elem *child)
 {
@@ -1977,7 +2030,7 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 		float extra_width = outer.width - inner.width;
 		float extra_height = outer.height - inner.height;
 
-		phos_gui_set_elem_size(parent, layout->total_content_width + extra_width, layout->total_content_height + extra_height, PHOS_GUI_OPTS_REALIGN_TEXT);
+		phos_gui_set_elem_size(parent, layout->total_content_width + extra_width, layout->total_content_height + extra_height, PHOS_GUI_OPTS_NONE);
 	}
 
 	return 1;
@@ -2134,8 +2187,8 @@ void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID)
 			if(pluto_cs_clone_all_components(child, child_clone) == 0)
 				vl_log(VL_ERROR, "Failed to clone child components!\n");
 
-			// add child to target_elem
-			phos_gui_add_child(target_elem, child_clone);
+			// add child to target_elem (use same child options from cloned elem)
+			phos_gui_add_child(target_elem, child_clone, child->child_opts);
 		}
 	}
 	else
@@ -2658,9 +2711,7 @@ static void get_drag_bar_rect(phos_gui_drag_pane_component *drag_pane, Rectangle
 		return;
 	}
 
-	Vector2 drag_bar_pos = get_proposed_align_pos(drag_pane->drag_bar_size, drag_pane->drag_bar_pos, owner);
-
-	*out_rect = (Rectangle) { drag_bar_pos.x, drag_bar_pos.y, drag_pane->drag_bar_size.x, drag_pane->drag_bar_size.y };
+	*out_rect = (Rectangle) { drag_pane->drag_bar_pos.x, drag_pane->drag_bar_pos.y, drag_pane->drag_bar_size.x, drag_pane->drag_bar_size.y };
 }
 static void update_elem(phos_gui_elem *e, float dt)
 {
@@ -2717,12 +2768,10 @@ static void update_elem(phos_gui_elem *e, float dt)
 			phos_gui_elem *parent = e->parent;
 			while(parent)
 			{
-				// use clip_content_rect here instead of checking for specific components
-				if(parent->clip_content_rect)
+				// use clip_mode here instead of checking for specific components
+				if(parent->clip_mode != PHOS_GUI_CLIP_NONE)
 				{
-					Rectangle clip_bounds = phos_gui_get_elem_rect(parent, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
-
-					if(!CheckCollisionPointRec(mouse_pos, clip_bounds))
+					if(!CheckCollisionPointRec(mouse_pos, whole_content_bounds))
 					{
 						mouse_over_clip_region = false;
 						break;
@@ -2888,7 +2937,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 			curr_travel_elem = NULL;
 	}
 
-	// then no matter what, update input panes:
+	// update input panes:
 	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_SCROLL_PANE);
 	phos_gui_drag_pane_component *drag_pane = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_DRAG_PANE);
 
@@ -2981,9 +3030,14 @@ static void update_elem(phos_gui_elem *e, float dt)
 				{
 					// if mouse down and over the bar, it becomes grabbed
 					drag_pane->grabbed = true;
+					drag_pane->drag_delta = mouse_delta;
 
 					// add to elem pos based on mouse delta
 					phos_gui_move_elem_xy(e, mouse_delta.x, mouse_delta.y, drag_pane->drag_opts);
+
+					// move drag bar based on mouse delta
+					drag_pane->drag_bar_pos.x += mouse_delta.x;
+					drag_pane->drag_bar_pos.y += mouse_delta.y;	
 				}
 			}
 			else
@@ -2995,9 +3049,14 @@ static void update_elem(phos_gui_elem *e, float dt)
 				{
 					// if mouse down and over the elem, it becomes grabbed
 					drag_pane->grabbed = true;
+					drag_pane->drag_delta = mouse_delta;
 
 					// add to elem pos based on mouse delta
 					phos_gui_move_elem_xy(e, mouse_delta.x, mouse_delta.y, drag_pane->drag_opts);
+
+					// move drag bar based on mouse delta
+					drag_pane->drag_bar_pos.x += mouse_delta.x;
+					drag_pane->drag_bar_pos.y += mouse_delta.y;
 				}
 			}
 		}
@@ -3448,21 +3507,40 @@ static void render_elem(const phos_gui_elem *const e)
 		DrawRectangleRec(thumb, thumb_color);
 	}
 
+	// render child elements:
 	render_children(e, child_clip_bounds);
 }
 static void render_children(const phos_gui_elem *const e, phos_gui_elem_bounding_box bounds)
 {
 	// start a new clip around children based on bounding box given
-	bool clip = false;
+	bool parent_clip = false;
 	if(bounds != PHOS_GUI_ELEM_BOUNDS_NONE)
-		// 'clip_content_rect' must be true, and the clip rect must have been created
-		clip = e->clip_content_rect && phos_gui_new_clip_r(phos_gui_get_elem_rect(e, bounds));
+		// elem must have clipping enabled and the clip rect must have been created
+		parent_clip = e->clip_mode != PHOS_GUI_CLIP_NONE && phos_gui_new_clip_r(phos_gui_get_elem_rect(e, bounds));
 
 	for(size_t i = 0; i < e->num_children; ++i)
-		render_elem(e->children[i]);
+	{
+		const phos_gui_elem *const child = e->children[i];
+
+		// handle non-inherited clip regions:
+		if(parent_clip && child->clip_mode == PHOS_GUI_CLIP_NONE)
+		{
+			// temporarily remove parent clip
+			phos_gui_end_clip();
+
+			// render child with no clip:
+			render_elem(child);
+
+			// restore parent clip
+			parent_clip = phos_gui_new_clip_r(phos_gui_get_elem_rect(e, bounds));
+		}
+		else
+			// automatically inherit parent clip
+			render_elem(child);
+	}
 
 	// end clip if necessary
-	if(clip)
+	if(parent_clip)
 		phos_gui_end_clip();
 }
 void phos_gui_render()
