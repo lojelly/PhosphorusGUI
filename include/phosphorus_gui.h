@@ -55,7 +55,7 @@
 /**
   The max length of a text component's string.
 */
-#define PHOS_GUI_MAX_TEXT_LEN 128
+#define PHOS_GUI_MAX_TEXT_LEN 256
 
 /**
   The default font size for a text component.
@@ -512,15 +512,24 @@ enum
 	*/
 	PHOS_GUI_OPTS_FIT_TEXT = 1u << 2,
 	/**
+	  Indicates that when resizing an element, its text component
+	  (if it has one) should be realigned.
+
+	  @important By default, text components already realign
+	  themselves in most cases. But for explicity you can use
+	  this option.
+	*/
+	PHOS_GUI_OPTS_REALIGN_TEXT = 1u << 3,
+	/**
 	  Indicates that when moving an element, collisions between the
 	  element and other elements should be resolved.
 	*/
-	PHOS_GUI_OPTS_CHECK_ELEM_COLLISIONS = 1u << 3,
+	PHOS_GUI_OPTS_CHECK_ELEM_COLLISIONS = 1u << 4,
 	/**
 	  Indicates that when moving an element, collisions between the
 	  element and the window's edges should be resolved.
 	*/
-	PHOS_GUI_OPTS_CHECK_WINDOW_COLLISIONS = 1u << 4,
+	PHOS_GUI_OPTS_CHECK_WINDOW_COLLISIONS = 1u << 5,
 	/**
 	  Indicates the child should be resized to fit the
 	  parent's size.
@@ -528,7 +537,7 @@ enum
 	  @note This option is immediate and only affects
 	  the child specifically targeted with this option.
 	*/
-	PHOS_GUI_OPTS_CHILD_MAXIMIZED = 1u << 5,
+	PHOS_GUI_OPTS_CHILD_MAXIMIZED = 1u << 6,
 	/**
 	  Indicates the child's position should be interpreted
 	  as relative to the parent's position.
@@ -536,7 +545,7 @@ enum
 	  @note This option is immediate and only affects
 	  the child specifically targeted with this option.
 	*/
-	PHOS_GUI_OPTS_CHILD_HAS_RELATIVE_POS = 1u << 6,
+	PHOS_GUI_OPTS_CHILD_HAS_RELATIVE_POS = 1u << 7,
 };
 
 /**
@@ -757,6 +766,30 @@ typedef struct phos_gui_mouse_listener_component
 } phos_gui_mouse_listener_component;
 
 /**
+  Provides scrolling information on an object
+  of any type.
+*/
+typedef struct phos_gui_scroll_info
+{
+	/**
+	  Scroll amount on the x-axis.
+	*/
+	float x;
+	/**
+	  Max amount of scroll on the x-axis.
+	*/
+	float max_x;
+	/**
+	  Scroll amount on the y-axis.
+	*/
+	float y;
+	/**
+	  Max amount of scroll on the y-axis.
+	*/
+	float max_y;
+} phos_gui_scroll_info;
+
+/**
   In some PhosphorusGUI functions, a string
   is required for alignments, rendering, etc.
   For those functions, it needs to know the target
@@ -802,6 +835,11 @@ typedef struct phos_gui_text_component
 	char str[PHOS_GUI_MAX_TEXT_LEN + 1];
 
 	/**
+	  Scrolling data for this text component.
+	*/
+	phos_gui_scroll_info scroll;
+
+	/**
 	  This text component's font.
 
 	  @important If you load the font yourself,
@@ -818,12 +856,37 @@ typedef struct phos_gui_text_component
 	*/
 	size_t max_len;
 	/**
+	  The max number of chars that can be typed into a single line on the
+	  text component.
+
+	  As the user types into the text component, if the current line
+	  exceeds this value, the text automatically wraps to the next line.
+	  Set this value to PHOS_GUI_MAX_TEXT_LEN to stop the automatic
+	  wrapping.
+
+	  @note This value should be less than or equal to 'max_len.'
+	  Additionally, PhosphorusGUI only uses this value
+	  when 'enter_inserts_new_line' is true. It is equal
+	  to PHOS_GUI_MAX_TEXT_LEN by default.
+	*/
+	size_t max_line_len;
+	/**
+	  The current number of chars in this text component's current line.
+
+	  The current line is the one the user is typing into.
+	*/
+	size_t curr_line_len;
+	/**
 	  The current number of chars that have been typed into this text component.
 
 	  @note This value should be less than or equal to PHOS_GUI_MAX_TEXT_LEN or
 	  the text component's 'max_len' field.
 	*/
 	size_t len;
+	/**
+	  The number of lines entered into the text.
+	*/
+	size_t num_lines;
 
 	/**
 	  The position of the cursor in this text component. This position is
@@ -840,27 +903,24 @@ typedef struct phos_gui_text_component
 	  This text component's font size.
 	*/
 	float font_size;
-	
-	/**
-	  How much the text has been scrolled horizontally.
-
-	  When the user types enough characters and they
-	  reach the right side of the text's visual
-	  bounds, the text will start to scroll. This value
-	  represents how much it has been scrolled so far.
-	*/
-	float scroll;
-	/**
-	  The max amount of pixels to be scrolled.
-
-	  @see scroll
-	*/
-	float max_scroll;
 
 	/**
 	  The alignment the text component used last.
 	*/
 	phos_gui_alignment alignment;
+	/**
+	  As the user edits the text, these options
+	  are executed.
+
+	  This is equal to PHOS_GUI_OPTS_NONE by default.
+
+	  @important For the most part, PhosphorusGUI
+	  automatically realigns text components, except
+	  for when a text component is edited. You must
+	  explicitly apply the PHOS_GUI_OPTS_REALIGN_TEXT
+	  option here if desired.
+	*/
+	phos_gui_opts edit_opts;
 
 	/**
 	  The color of the text component's main contents ('str').
@@ -906,6 +966,12 @@ typedef struct phos_gui_text_component
 	  Whether or not special characters are accepted in this text's input.
 	*/
 	bool accept_specials;
+	/**
+	  Whether or not the ENTER key inserts a new line into the text.
+
+	  By default, this is false.
+	*/
+	bool enter_inserts_new_line;
 } phos_gui_text_component;
 
 /**
@@ -950,6 +1016,15 @@ typedef enum phos_gui_layout_flow
 /**
   A phos_gui_layout_component provides an element
   with a specific layout and formatting technique.
+
+  @important When adding a layout component to an element,
+  it is very important to remember that layout components
+  operate on ALL children inside the element. If you are
+  working with an element and its layout, and you want to
+  have a child in the element not be included in the layout,
+  you must either place all layout children in a subcontainer,
+  or the other element you do not want to format should be a
+  separate element in the GUI.
 */
 typedef struct phos_gui_layout_component
 {
@@ -1013,17 +1088,21 @@ typedef struct phos_gui_layout_component
   in the element's children being clipped if not in the
   visible region. The way the pane is scrolled can also
   be customized.
+
+  @important When adding a scroll pane component to an element,
+  it is very important to remember that scroll panes operate
+  on ALL children inside the element. If you want to make an
+  element scrollable but that element contains other children
+  you do not want to include in the scroll pane, you must
+  either place all children in a subcontainer, or the
+  non-scrollable elements must be separate elements in the GUI.
 */
 typedef struct phos_gui_scroll_pane_component
 {
 	/**
-	  The amount of pixels that have been scrolled.
+	  Scroll data for the scroll pane.
 	*/
-	float scroll;
-	/**
-	  The max amount of pixels that can be scrolled.
-	*/
-	float max_scroll;
+	phos_gui_scroll_info scroll;
 
 	/**
 	  Determines how many pixels are in one scroll tick.
@@ -1892,11 +1971,6 @@ PHOS_GUI_API int phos_gui_remove_child_id(phos_gui_elem *parent, const char *ID)
 
   @important The parent element must have a layout component.
 
-  @note If the parent element also has a scroll pane component, and
-  its 'render_scroll_bar' field is true, this function automatically
-  adds spacing so that the scroll bar is not colliding with any of the
-  child elememnts in the layout.
-
   @return 1 on success, 0 on failure.
 
   @see phos_gui_layout_component
@@ -1962,9 +2036,13 @@ PHOS_GUI_API void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID
 /**
   Initializes Raylib for PhosphorusGUI.
 
+  @note You can customize the initial window state
+  and config with the 'flags' argument. Refer to Raylib's
+  FLAG_... values.
+
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_init_window(const char *title, int width, int height);
+PHOS_GUI_API int phos_gui_init_window(const char *title, int width, int height, unsigned int flags);
 /**
   Sets the global window scale in PhosphorusGUI.
 
@@ -1977,22 +2055,6 @@ PHOS_GUI_API int phos_gui_init_window(const char *title, int width, int height);
   @note This function does not affect the window.
 */
 PHOS_GUI_API void phos_gui_set_window_scale(float x, float y);
-/**
-  Sets the global window size in PhosphoursGUI.
-
-  This function only lets PhosphorusGUI know
-  about your window's size so it can use
-  correct calculations throughout the program.
-
-  @note If you are using a render texture that creates a virtual window size,
-  pass in the size of the render texture instead.
-
-  @important You must call this function after initializing Raylib! Note that
-  phos_gui_init_window(...), automatically does this for you.
-
-  @see phos_gui_init_window(const char*, int, int)
-*/
-PHOS_GUI_API void phos_gui_set_window_size(float w, float h);
 
 /**
   Obtains the current mouse position. This function
