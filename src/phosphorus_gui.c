@@ -129,6 +129,9 @@ static Font *default_font = NULL;
 static size_t num_clips = 0;
 static Rectangle clips[MAX_CLIPS];
 
+// current mouse target
+static phos_gui_elem *mouse_target = NULL;
+
 #define assert_obj_ptr(obj, ptr, ...) \
 	do { \
 		if(!(obj)->ptr) \
@@ -201,7 +204,7 @@ static void init_text_component(void *text_component)
 	text->color = PHOS_GUI_BLACK;
 	text->key_typed = KEY_NULL;
 	text->char_typed = '\0';
-	text->editable = true;
+	text->editable = false;
 	text->edited = false;
 	text->accept_letters = true;
 	text->accept_nums = true;
@@ -383,6 +386,13 @@ void phos_gui_shutdown()
 
 	init = false;
 	vl_log(VL_SUCCESS, "PhosphorusGUI shut down!\n");
+}
+void phos_gui_exit(int exit_code)
+{
+	pluto_cs_shutdown();
+	phos_gui_shutdown();
+	CloseWindow();
+	exit(exit_code);
 }
 
 static void auto_gen_id(const char *ID, char *target, size_t target_size, const char *prefix, size_t *generator)
@@ -1580,7 +1590,7 @@ void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_e
 	elem->left_padding = elem->top_padding = elem->right_padding = elem->bottom_padding = 0.0f;
 	elem->alignment = PHOS_GUI_ALIGN_INNER_CENTER;
 	elem->disabled = false;
-	elem->clip_mode = PHOS_GUI_CLIP_NONE;
+	elem->clip_mode = PHOS_GUI_CLIP_ACTIVE;
 }
 
 void phos_gui_gen_bg_colors(phos_gui_mouse_listener_component *mouse_listener, float hover_color_factor, float press_color_factor, float focus_color_factor)
@@ -2248,6 +2258,10 @@ bool phos_gui_is_mouse_over_rect(Rectangle r)
 	// is mouse pos within the rectangle?
 	return CheckCollisionPointRec(mouse_pos, r);
 }
+phos_gui_elem *phos_gui_get_mouse_target()
+{
+	return mouse_target;
+}
 
 int phos_gui_add_event_listener(phos_gui *gui, phos_gui_event_listener listener)
 {
@@ -2713,6 +2727,82 @@ static void get_drag_bar_rect(phos_gui_drag_pane_component *drag_pane, Rectangle
 
 	*out_rect = (Rectangle) { drag_pane->drag_bar_pos.x, drag_pane->drag_bar_pos.y, drag_pane->drag_bar_size.x, drag_pane->drag_bar_size.y };
 }
+// see if any children are clipped, which affects how the mouse pos interacts with the elem:
+static bool elem_in_parent_clip(phos_gui_elem *e, Vector2 mouse_pos)
+{
+	phos_gui_elem *child = e;
+	phos_gui_elem *parent = e->parent;
+
+	while(parent)
+	{
+		// for child elems, PHOS_GUI_CLIP_ACTIVE means it inherits parent clip, so both must be active
+		if(child->clip_mode == PHOS_GUI_CLIP_ACTIVE && parent->clip_mode == PHOS_GUI_CLIP_ACTIVE)
+		{
+			Rectangle clip_rect = phos_gui_get_elem_rect(parent, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+
+			// if mouse not in clip region, mouse cannot interact with any elems
+			if(!CheckCollisionPointRec(mouse_pos, clip_rect))
+				return false;
+		}
+		else
+			// if no clip, then check for mouse over parent's real bounds instead
+			if(!CheckCollisionPointRec(mouse_pos, phos_gui_get_elem_rect(parent, PHOS_GUI_ELEM_BOUNDS_REAL)))
+				return false;
+
+		// go to next parent and child relationship
+		child = parent;
+		parent = parent->parent;
+	}
+
+	// return true by default, as the while loop already guarantees the mouse has to be in the clip region
+	return true;
+}
+// checks mouse collision with elem and children:
+static phos_gui_elem *get_elem_mouse_target(phos_gui_elem *e, Vector2 mouse_pos)
+{
+	if(e->disabled)
+		return NULL;
+
+	if(e -> type == PHOS_GUI_TYPE_INVALID || e->type == PHOS_GUI_TYPE_BLANK)
+		return NULL;
+
+	// see if mouse is within the elem's bounds
+	if(!CheckCollisionPointRec(mouse_pos, phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_REAL)))
+		return NULL;
+
+	// then see if mouse is within the parent's clip region
+	if(!elem_in_parent_clip(e, mouse_pos))
+		return NULL;
+
+	// check children in reverse order:
+	for(int i = e->num_children - 1; i >= 0; --i)
+	{
+		phos_gui_elem *target = get_elem_mouse_target(e->children[i], mouse_pos);
+
+		// if the child was the mouse target, return the child instead
+		if(target)
+			return target;
+	}
+
+	// no child hit, return parent elem
+	return e;
+}
+// checks mouse collision with all GUI elems and children:
+static phos_gui_elem *get_gui_mouse_target(phos_gui *gui, Vector2 mouse_pos)
+{
+	// iterate over all elems in the GUI
+	for(int i = gui->num_elems - 1; i >= 0; --i)
+	{
+		phos_gui_elem *target = get_elem_mouse_target(gui->elems[i], mouse_pos);
+		
+		// if target found, return it
+		if(target)
+			return target;
+	}
+
+	// no mouse target
+	return NULL;
+}
 static void update_elem(phos_gui_elem *e, float dt)
 {
 	// skip disabled elems
@@ -2734,6 +2824,8 @@ static void update_elem(phos_gui_elem *e, float dt)
 	float mouse_wheel_move = GetMouseWheelMove();
 	bool mouse_clicked = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
 	bool mouse_down = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+	// see if mouse over element (if the current elem is the mouse target, that guarantees that the mouse is over the elem
+	bool mouse_over_elem = e == mouse_target;
 
 	// if mouse is not in window, manually clear out mouse delta to stop all dragging logic from occurring
 	if(mouse_pos.x <= 0.0f || mouse_pos.y <= 0.0f || mouse_pos.x >= win_size_w || mouse_pos.y >= win_size_h)
@@ -2756,65 +2848,38 @@ static void update_elem(phos_gui_elem *e, float dt)
 		mouse_listener->pressed = false;
 		mouse_listener->clicked = false;
 
-		// see if mouse over element:
-		bool mouse_over_elem = CheckCollisionPointRec(mouse_pos, real_bounds);
-
 		if(mouse_over_elem)
 		{
-			// see if mouse is over the element's clip region
-			bool mouse_over_clip_region = true;
-
-			// walk element-parent tree and check all clip regions:
-			phos_gui_elem *parent = e->parent;
-			while(parent)
-			{
-				// use clip_mode here instead of checking for specific components
-				if(parent->clip_mode != PHOS_GUI_CLIP_NONE)
-				{
-					if(!CheckCollisionPointRec(mouse_pos, whole_content_bounds))
-					{
-						mouse_over_clip_region = false;
-						break;
-					}
-				}
-
-				// go to next parent in the tree
-				parent = parent->parent;
-			}
-
 			// if mouse is over elem and all clip regions, handle elem-mouse logic:
-			if(mouse_over_clip_region)
-			{
-				mouse_listener->hovered = true;
+			mouse_listener->hovered = true;
 
-				// default mouse listener logic:
-				if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_DEFAULT)
+			// default mouse listener logic:
+			if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_DEFAULT)
+			{
+				if(mouse_clicked)
 				{
-					if(mouse_clicked)
-					{
-						mouse_listener->clicked = true;
-						mouse_listener->has_focus = true;
-					}
-					else if(mouse_down)
-					{
-						mouse_listener->pressed = true;
-						mouse_listener->has_focus = true;
-					}
+					mouse_listener->clicked = true;
+					mouse_listener->has_focus = true;
 				}
-				// toggle-style mouse listener:
-				else if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_TOGGLED)
+				else if(mouse_down)
 				{
-					if(mouse_clicked)
-					{
-						mouse_listener->toggled = true;
-						mouse_listener->toggled_on = !mouse_listener->toggled_on;
-						mouse_listener->has_focus = true;
-					}
-					else if(mouse_down)
-					{
-						mouse_listener->pressed = true;
-						mouse_listener->has_focus = true;
-					}
+					mouse_listener->pressed = true;
+					mouse_listener->has_focus = true;
+				}
+			}
+			// toggle-style mouse listener:
+			else if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_TOGGLED)
+			{
+				if(mouse_clicked)
+				{
+					mouse_listener->toggled = true;
+					mouse_listener->toggled_on = !mouse_listener->toggled_on;
+					mouse_listener->has_focus = true;
+				}
+				else if(mouse_down)
+				{
+					mouse_listener->pressed = true;
+					mouse_listener->has_focus = true;
 				}
 			}
 		}
@@ -3020,13 +3085,17 @@ static void update_elem(phos_gui_elem *e, float dt)
 			Rectangle drag_bar_rect;
 			get_drag_bar_rect(drag_pane, &drag_bar_rect);
 
+			// see if mouse target was already taken:
+			bool mouse_target_exists = (mouse_target != NULL && mouse_target != e);
+
 			// determine how to interpret mouse state
 			if(drag_pane->use_drag_bar)
 			{
 				// check for mouse over drag bar
 				bool mouse_over_bar = phos_gui_is_mouse_over_rect(drag_bar_rect);
 
-				if(mouse_over_bar || drag_pane->grabbed)
+				// if mouse over bar was already over an elem, do not drag:
+				if(!mouse_target_exists && (mouse_over_bar || drag_pane->grabbed))
 				{
 					// if mouse down and over the bar, it becomes grabbed
 					drag_pane->grabbed = true;
@@ -3043,9 +3112,10 @@ static void update_elem(phos_gui_elem *e, float dt)
 			else
 			{
 				// check for mouse over free content rect
-				bool mouse_over_elem = phos_gui_is_mouse_over_rect(usable_content_bounds);
+				bool mouse_over_free_content = phos_gui_is_mouse_over_rect(usable_content_bounds);
 
-				if(mouse_over_elem || drag_pane->grabbed)
+				// to grab the whole element, the mouse has to be over the free content rect but not over another elem
+				if(!mouse_target_exists && (mouse_over_free_content || drag_pane->grabbed))
 				{
 					// if mouse down and over the elem, it becomes grabbed
 					drag_pane->grabbed = true;
@@ -3130,6 +3200,9 @@ void phos_gui_update(float dt)
 		// signal that the focus_on_start elem was resolved
 		resolve_focus_on_start_elem = false;
 	}
+
+	// find mouse target
+	mouse_target = get_gui_mouse_target(curr_gui, phos_gui_get_mouse_pos());
 
 	// update elems:
 	for(size_t i = 0; i < curr_gui->num_elems; ++i)

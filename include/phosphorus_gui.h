@@ -30,21 +30,6 @@
 	} while(0)
 
 /**
-  Quickly exits the program early if an error has occurred.
-
-  @important Only use this macro in the main function. The macro
-  also expects all systems to be properly initialized.
-*/
-#define phos_gui_exit(exit_code) \
-	do { \
-		phos_gui_shutdown(); \
-		pluto_cs_shutdown(); \
-		CloseWindow(); \
-		return (exit_code); \
-	} while(0)
-
-
-/**
   The max number of elements within a single
   phos_gui instance.
 */
@@ -897,6 +882,8 @@ typedef struct phos_gui_text_component
 
 	/**
 	  Whether or not the user can edit this text component.
+
+	  This is false by default.
 	*/
 	bool editable;
 	/**
@@ -1284,6 +1271,8 @@ typedef struct phos_gui_elem
 	phos_gui_opts child_opts;
 	/**
 	  Provides ehe element with clipping options.
+
+	  By default, this is set to PHOS_GUI_CLIP_ACTIVE.
 	*/
 	phos_gui_clip_mode clip_mode;
 
@@ -1521,6 +1510,14 @@ PHOS_GUI_API int phos_gui_init(void);
   Frees all resources used by the PhosphorusGUI library.
 */
 PHOS_GUI_API void phos_gui_shutdown(void);
+/**
+  Automatically closes and disposes of system resources
+  and exits the program with the given exit code.
+
+  @important Only call this function once PlutoniumCS,
+  PhosphorusGUI, and Raylib have all been initialized!
+*/
+PHOS_GUI_API void phos_gui_exit(int exit_code);
 
 /**
   Sets the current phos_gui to use for updating
@@ -2013,6 +2010,14 @@ PHOS_GUI_API Vector2 phos_gui_get_mouse_pos(void);
   defined by a rectangle.
 */
 PHOS_GUI_API bool phos_gui_is_mouse_over_rect(Rectangle r);
+/**
+  Returns the element that is currently being interacted
+  with by the mouse.
+
+  @note PhosphorusGUI uses a method that returns the top-most
+  element that interacts with the mouse.
+*/
+PHOS_GUI_API phos_gui_elem *phos_gui_get_mouse_target(void);
 
 /**
   Adds an event listener to the current phos_gui.
