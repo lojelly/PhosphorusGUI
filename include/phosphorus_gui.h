@@ -101,7 +101,7 @@
 /**
   The default width/height of a drag bar on a phos_gui_drag_pane_component.
 */
-#define PHOS_GUI_DRAG_BAR_DEFAULT_LENGTH 25.0f
+#define PHOS_GUI_DRAG_BAR_DEFAULT_SPAN 35.0f
 
 /**
   The window's origin.
@@ -787,6 +787,19 @@ typedef struct phos_gui_scroll_info
 	  Max amount of scroll on the y-axis.
 	*/
 	float max_y;
+
+	/**
+	  Whether or not vertical scrolling is supported.
+
+	  This is true by default.
+	*/
+	bool vertical_scrolling_active;
+	/**
+	  Whether or not horizontal scrolling is supported.
+
+	  This is true by default.
+	*/
+	bool horizontal_scrolling_active;
 } phos_gui_scroll_info;
 
 /**
@@ -824,7 +837,12 @@ typedef enum phos_gui_target_text_string
 /**
   A phos_gui_text_component represents a piece of
   text within an element.
+
+  @note When adding a text component to an element,
+  you also need to add a phos_gui_scroll_pane_component
+  to the element for the text component to work properly.
 */
+// TODO update docs here based on actual text-scroll_pane relationship
 typedef struct phos_gui_text_component
 {
 	/**
@@ -833,11 +851,6 @@ typedef struct phos_gui_text_component
 	  This buffer allocates (PHOS_GUI_MAX_TEXT_LEN + 1) bytes.
 	*/
 	char str[PHOS_GUI_MAX_TEXT_LEN + 1];
-
-	/**
-	  Scrolling data for this text component.
-	*/
-	phos_gui_scroll_info scroll;
 
 	/**
 	  This text component's font.
@@ -1083,6 +1096,48 @@ typedef struct phos_gui_layout_component
 } phos_gui_layout_component;
 
 /**
+  A phos_gui_scroll_bar is used in the phos_gui_scroll_pane_component
+  to provide additional scrolling capabilities.
+
+  @see phos_gui_scroll_pane_component
+*/
+typedef struct phos_gui_scroll_bar
+{
+	/**
+	  The width/height of the scroll bar.
+	*/
+	float span;
+	/**
+	  The background color of the entire bar.
+	*/
+	Color bg_color;
+	/**
+	  The color of the scroll thumb.
+	*/
+	Color thumb_color;
+	/**
+	  The color of the scroll thumb when the user is
+	  interacting with it.
+	*/
+	Color thumb_focus_color;
+	/**
+	  Whether or not the scroll thumb has focus.
+	*/
+	bool thumb_has_focus;
+	/**
+	  Whether or not the user has the scroll
+	  thumb grabbed.
+	*/
+	bool thumb_grabbed;
+	/**
+	  Whether or not this bar is rendered in the scroll pane.
+
+	  This is true by default.
+	*/
+	bool rendered;
+} phos_gui_scroll_bar;
+
+/**
   A phos_gui_scroll_pane_component provides an element
   with the ability to be scrolled. Scroll panes result
   in the element's children being clipped if not in the
@@ -1105,9 +1160,18 @@ typedef struct phos_gui_scroll_pane_component
 	phos_gui_scroll_info scroll;
 
 	/**
+	  The vertical scroll bar for the scroll pane.
+	*/
+	phos_gui_scroll_bar v_bar;
+	/**
+	  The horizontal scroll bar for the scroll pane.
+	*/
+	phos_gui_scroll_bar h_bar;
+
+	/**
 	  Determines how many pixels are in one scroll tick.
 
-	  By default, this is equal to 1, for 1 pixel per tick.
+	  By default, this is equal to 2.0f, for 2 pixels per tick.
 
 	  @note This should remain positive, but making it negative
 	  inverts the scrolling direction.
@@ -1115,48 +1179,10 @@ typedef struct phos_gui_scroll_pane_component
 	float px_per_tick;
 
 	/**
-	  The width of the scroll bar.
-	  By default, this is equal to 12.0f.
+	  Whether or not mouse wheel input will modify the scroll
+	  pane.
 	*/
-	float scroll_bar_width;
-
-	/**
-	  The color of the scroll bar's background.
-
-	  This is PHOS_GUI_LIGHT_GRAY by default.
-	*/
-	Color scroll_bar_bg_color;
-	/**
-	  The color of the scroll thumb.
-
-	  This is PHOS_GUI_GRAY by default.
-	*/
-	Color scroll_thumb_color;
-	/**
-	  The color of the scroll thumb when the mouse
-	  is currently interacting with it in any way.
-
-	  This color is used when 'has_focus' is true.
-
-	  This is PHOS_GUI_DARK_GRAY by default.
-	*/
-	Color scroll_thumb_focus_color;
-
-	/**
-	  Indicates whether or not the scroll pane's scroll bar
-	  should be rendered. By default, this is set to true.
-	*/
-	bool render_scroll_bar;
-
-	/**
-	  Whether or not the user was interacting with the scroll
-	  thumb this frame.
-	*/
-	bool thumb_has_focus;
-	/**
-	  Whether or not the user is currently holding onto the thumb.
-	*/
-	bool thumb_grabbed;
+	bool use_mouse_wheel_input;
 } phos_gui_scroll_pane_component;
 
 /**
@@ -1203,7 +1229,7 @@ typedef struct phos_gui_drag_pane_component
 	  the size of the drag bar. By default, the drag
 	  bar's width is equal to the width of the
 	  drag pane's owner, and the drag bar's height is
-	  equal to PHOS_GUI_DRAG_BAR_DEFAULT_LENGTH, or 25.
+	  equal to PHOS_GUI_DRAG_BAR_DEFAULT_SPAN, or 35.
 	*/
 	Vector2 drag_bar_size;
 	/**
@@ -1354,6 +1380,15 @@ typedef struct phos_gui_elem
 	  By default, this is set to PHOS_GUI_CLIP_ACTIVE.
 	*/
 	phos_gui_clip_mode clip_mode;
+	/**
+	  When an element is tested for mouse input,
+	  this rectangle determines where on the element
+	  the mouse becomes hovered over the element,
+	  and can interact with the element.
+
+	  This is equal to PHOS_GUI_ELEM_BOUNDS_REAL by default.
+	*/
+	phos_gui_elem_bounding_box input_test_bounds;
 
 	/**
 	  The element's background color.
