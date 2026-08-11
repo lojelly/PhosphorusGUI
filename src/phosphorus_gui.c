@@ -519,13 +519,13 @@ void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vector2 size)
 		return;
 	}
 
-	Vector2 elem_size = elem->size;
+	Vector2 elem_size = phos_gui_get_rect_size(elem->bounds);
 
 	Vector2 container_center = { origin.x + size.x / 2.0f, origin.y + size.y / 2.0f };
 	
 	Vector2 elem_centered = { container_center.x - elem_size.x / 2.0f, container_center.y - elem_size.y / 2.0f };
 
-	phos_gui_set_elem_bounds(elem, elem_centered.x, elem_centered.y, elem->size.x, elem->size.y, PHOS_GUI_OPTS_NONE);
+	phos_gui_set_elem_bounds(elem, elem_centered.x, elem_centered.y, elem->bounds.width, elem->bounds.height, PHOS_GUI_OPTS_NONE);
 }
 
 static bool check_elem_collision(phos_gui_elem *elem1, phos_gui_elem *elem2, phos_gui_elem_bounding_box bounds)
@@ -546,11 +546,11 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 	}
 
 	// get curr elem pos
-	Vector2 old_pos = elem->pos;
+	Vector2 old_pos = phos_gui_get_rect_pos(elem->bounds);
 
 	// then move elem
-	elem->pos.x += x;
-	elem->pos.y += y;
+	elem->bounds.x += x;
+	elem->bounds.y += y;
 
 	// see if element falls within any kind of clip region
 	bool in_clip_region = false;
@@ -571,8 +571,8 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 	if(!in_clip_region && opts & PHOS_GUI_OPTS_CHECK_WINDOW_COLLISIONS)
 	{
 		// first, check for window edge collisions
-		if(elem->pos.x <= 0.0f || elem->pos.y <= 0.0f ||
-				elem->pos.x + elem->size.x >= GetRenderWidth() || elem->pos.y + elem->size.y >= GetRenderHeight())
+		if(elem->bounds.x <= 0.0f || elem->bounds.y <= 0.0f ||
+				elem->bounds.x + elem->bounds.width >= GetRenderWidth() || elem->bounds.y + elem->bounds.height >= GetRenderHeight())
 		{
 			collision = true;
 		}
@@ -600,7 +600,10 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 
 	// if any collision occurred, reset elem pos to old pos:
 	if(collision)
-		elem->pos = old_pos;
+	{
+		elem->bounds.x = old_pos.x;
+		elem->bounds.y = old_pos.y;
+	}
 
 	// check for PHOS_GUI_OPTS_PASS_DOWN and if applied, check collisions on the child elements as well
 	if(!collision && opts & PHOS_GUI_OPTS_PASS_DOWN)
@@ -741,8 +744,8 @@ static Vector2 get_proposed_align_pos(Vector2 target_object_size, phos_gui_align
 static void resize_single_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
 {
 	// first see what new elem size would be
-	float new_w = elem->size.x + w;
-	float new_h = elem->size.y + h;
+	float new_w = elem->bounds.width + w;
+	float new_h = elem->bounds.height + h;
 
 	// see if size is now negative
 	if(new_w <= 0.0f || new_h <= 0.0f)
@@ -752,7 +755,8 @@ static void resize_single_elem_wh(phos_gui_elem *elem, float w, float h, phos_gu
 	}
 
 	// apply new size
-	elem->size = (Vector2) { new_w, new_h };
+	elem->bounds.width = new_w;
+	elem->bounds.height = new_h;
 
 	phos_gui_text_component *elem_tx = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
 	if(elem_tx)
@@ -808,8 +812,8 @@ Vector2 phos_gui_get_elem_center(phos_gui_elem *elem)
 	}
 
 	// add half the elem size
-	v.x += elem->size.x / 2.0f;
-	v.y += elem->size.y / 2.0f;
+	v.x += elem->bounds.width / 2.0f;
+	v.y += elem->bounds.height / 2.0f;
 
 	return v;
 }
@@ -861,10 +865,10 @@ Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem, phos_gui_elem_
 	}
 
 	// start out with the 'real' bounds of the element
-	r.x = elem->pos.x;
-	r.y = elem->pos.y;
-	r.width = elem->size.x;
-	r.height = elem->size.y;
+	r.x = elem->bounds.x;
+	r.y = elem->bounds.y;
+	r.width = elem->bounds.width;
+	r.height = elem->bounds.height;
 
 	switch(bounds)
 	{
@@ -940,8 +944,8 @@ Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem, phos_gui_elem_
 		case PHOS_GUI_ELEM_BOUNDS_TOTAL:
 			r.x -= elem->left_margin;
 			r.y -= elem->top_margin;
-			r.width = elem->size.x + elem->left_margin + elem->right_margin;
-			r.height = elem->size.y + elem->top_margin + elem->bottom_margin;
+			r.width = elem->bounds.width + elem->left_margin + elem->right_margin;
+			r.height = elem->bounds.height + elem->top_margin + elem->bottom_margin;
 			break;
 		default:
 			vl_log(VL_ERROR, "Invalid element bounding box requested: %d!\n", bounds);
@@ -1270,8 +1274,8 @@ void phos_gui_set_elem_pos(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 	}
 
 	// find difference between current pos and new pos
-	float x_diff = x - elem->pos.x;
-	float y_diff = y - elem->pos.y;
+	float x_diff = x - elem->bounds.x;
+	float y_diff = y - elem->bounds.y;
 
 	// move based on difference
 	phos_gui_move_elem_xy(elem, x_diff, y_diff, opts);
@@ -1285,8 +1289,8 @@ void phos_gui_set_elem_size(phos_gui_elem *elem, float w, float h, phos_gui_opts
 	}
 
 	// find difference between current size and new size
-	float x_diff = w - elem->size.x;
-	float y_diff = h - elem->size.y;
+	float x_diff = w - elem->bounds.width;
+	float y_diff = h - elem->bounds.height;
 
 	// resize elem and fix text
 	phos_gui_resize_elem_wh(elem, x_diff, y_diff, opts);
@@ -1449,7 +1453,7 @@ Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_g
 	Vector2 text_bounds = resolve_elem_text_bounds(text_component, target_str);
 
 	v = get_proposed_align_pos(text_bounds, alignment, owner);
-	text_component->offset = Vector2Subtract(v, owner->pos);
+	text_component->offset = Vector2Subtract(v, phos_gui_get_rect_pos(owner->bounds));
 	text_component->alignment = alignment;
 
 	return v;
@@ -1526,7 +1530,7 @@ Vector2 phos_gui_align_elem_with_window(phos_gui_elem *target_elem, phos_gui_ali
 	// create temp elem representing the window
 	phos_gui_elem temp = {0};
 	phos_gui_set_elem_bounds(&temp, 0, 0, GetRenderWidth(), GetRenderHeight(), opts);
-	v = get_proposed_align_pos(temp.size, target_elem->alignment, &temp);
+	v = get_proposed_align_pos(phos_gui_get_rect_size(temp.bounds), target_elem->alignment, &temp);
 	phos_gui_set_elem_pos(target_elem, v.x, v.y, opts);
 
 	return v;
@@ -1693,10 +1697,9 @@ void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_e
 
 	// TODO finish default values for every field in 'phos_gui_elem'
 
+	elem->bounds = (Rectangle) { x, y, w, h };
 	elem->type = type;
 	elem->render_mode = render_mode;
-	elem->pos = (Vector2) { x, y };
-	elem->size = (Vector2) { w, h };
 	elem->left_padding = elem->top_padding = elem->right_padding = elem->bottom_padding = 0.0f;
 	elem->alignment = PHOS_GUI_ALIGN_INNER_CENTER;
 	elem->disabled = false;
@@ -1945,7 +1948,7 @@ int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child, phos_gui_opt
 	// handle child opts:
 	if(child_opts & PHOS_GUI_OPTS_CHILD_MAXIMIZED)
 	{
-		phos_gui_resize_elem_wh(child, parent->size.x, parent->size.y, child_opts);
+		phos_gui_resize_elem_wh(child, parent->bounds.width, parent->bounds.height, child_opts);
 
 		// remove maximized option
 		child_opts &= ~PHOS_GUI_OPTS_CHILD_MAXIMIZED;
@@ -1953,8 +1956,8 @@ int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child, phos_gui_opt
 	if(child_opts & PHOS_GUI_OPTS_CHILD_HAS_RELATIVE_POS)
 	{
 		// calculate child's real pos
-		float child_x = child->pos.x + parent->pos.x;
-		float child_y = child->pos.y + parent->pos.y;
+		float child_x = child->bounds.x + parent->bounds.x;
+		float child_y = child->bounds.y + parent->bounds.y;
 		phos_gui_set_elem_pos(child, child_x, child_y, child_opts);
 
 		// remove relative pos option
@@ -2086,9 +2089,9 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 		else
 		{
 			// retain child height
-			child_h = child->size.y;
+			child_h = child->bounds.height;
 			cell_h = child_h + child->top_margin + child->bottom_margin;
-			child_w = child->size.x + child->left_margin + child->right_margin;
+			child_w = child->bounds.width + child->left_margin + child->right_margin;
 
 			// but if necessary, force child to fit horizontally (ex. used when scroll bars are rendered)
 			// TODO is this still needed?
@@ -2843,8 +2846,8 @@ static float get_max_scroll_x(const phos_gui_elem *const e)
 	{
 		const phos_gui_elem *const child = e->children[i];
 
-		float left = child->pos.x - child->left_margin;
-		float right = child->pos.x + child->size.x + child->right_margin;
+		float left = child->bounds.x - child->left_margin;
+		float right = child->bounds.x + child->bounds.width + child->right_margin;
 
 		if(left < min_x)
 			min_x = left;
@@ -2867,8 +2870,8 @@ static float get_max_scroll_y(const phos_gui_elem *const e)
 	{
 		const phos_gui_elem *const child = e->children[i];
 
-		float top = child->pos.y - child->top_margin;
-		float bottom = child->pos.y + child->size.y + child->bottom_margin;
+		float top = child->bounds.y - child->top_margin;
+		float bottom = child->bounds.y + child->bounds.height + child->bottom_margin;
 
 		if(top < min_y)
 			min_y = top;

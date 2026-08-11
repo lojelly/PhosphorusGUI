@@ -1306,6 +1306,13 @@ typedef struct phos_gui_elem
 	char ID[PHOS_GUI_MAX_ID_LEN + 1];
 
 	/**
+	  This element's position and size before
+	  any additional calculations or formatting
+	  options.
+	*/
+	Rectangle bounds;
+
+	/**
 	  The phos_gui instance this element belongs to.
 	*/
 	struct phos_gui *gui;
@@ -1332,15 +1339,6 @@ typedef struct phos_gui_elem
 	  PhosphorusGUI will handle it all for you.
 	*/
 	Texture2D *texture;
-
-	/**
-	  The element's position.
-	*/
-	Vector2 pos;
-	/**
-	  The element's size.
-	*/
-	Vector2 size;
 
 	/**
 	  This element's number of children.
