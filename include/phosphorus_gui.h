@@ -110,14 +110,14 @@
 /**
   The window's current size.
 */
-#define PHOS_GUI_WINDOW_SIZE (Vector2) { GetScreenWidth(), GetScreenHeight() }
+#define PHOS_GUI_WINDOW_SIZE (Vector2) { GetRenderWidth(), GetRenderHeight() }
 /**
   A Vector2 representing the window's origin and size.
 
-  @note This macro uses GetScreenWidth() and GetScreenHeight()
+  @note This macro uses GetRenderWidth() and GetRenderHeight()
   for the window size.
 */
-#define PHOS_GUI_WINDOW_RECT (Rectangle) { 0.0f, 0.0f, GetScreenWidth(), GetScreenHeight() }
+#define PHOS_GUI_WINDOW_RECT (Rectangle) { 0.0f, 0.0f, GetRenderWidth(), GetRenderHeight() }
 /**
   The width of the mouse cursor in pixels.
 */
@@ -130,105 +130,209 @@
 // colors:
 
 /**
+  The default alpha value for all tint colors in PhosphorusGUI.
+*/
+#define PHOS_GUI_TINT_STRENGTH 50
+/**
   PhoshporusGUI's custom dark gray color.
 */
 #define PHOS_GUI_DARK_GRAY (Color) { 35, 35, 35, 255 }
+/**
+  Tint version of PHOS_GUI_DARK_GRAY.
+*/
+#define PHOS_GUI_DARK_GRAY_TINT (Color) { 35, 35, 35, PHOS_GUI_TINT_STRENGTH }
 /**
   PhosphorusGUI's custom light gray color.
 */
 #define PHOS_GUI_LIGHT_GRAY (Color) { 200, 200, 200, 255 }
 /**
+  Tint version of PHOS_GUI_LIGHT_GRAY.
+*/
+#define PHOS_GUI_LIGHT_GRAY_TINT (Color) { 200, 200, 200, PHOS_GUI_TINT_STRENGTH }
+/**
   PhosphorusGUI's custom gray color.
 */
 #define PHOS_GUI_GRAY (Color) { 125, 125, 125, 255 }
+/**
+  Tint version of PHOS_GUI_GRAY.
+*/
+#define PHOS_GUI_GRAY_TINT (Color) { 125, 125, 125, PHOS_GUI_TINT_STRENGTH }
 /**
   PhosphorusGUI's custom black color.
 */
 #define PHOS_GUI_BLACK (Color) { 15, 15, 15, 255 }
 /**
+  Tint version of PHOS_GUI_BLACK.
+*/
+#define PHOS_GUI_BLACK_TINT (Color) { 15, 15, 15, PHOS_GUI_TINT_STRENGTH }
+/**
   PhosphorusGUI's custom brown color.
 */
 #define PHOS_GUI_BROWN (Color) { 100, 50, 0, 255 }
+/**
+  Tint version of PHOS_GUI_BROWN.
+*/
+#define PHOS_GUI_BROWN_TINT (Color) { 100, 50, 0, PHOS_GUI_TINT_STRENGTH }
 /**
   PhosphorusGUI's custom red color.
 */
 #define PHOS_GUI_RED (Color) { 255, 0, 0, 255 }
 /**
+  Tint version of PHOS_GUI_RED.
+*/
+#define PHOS_GUI_RED_TINT (Color) { 255, 0, 0, PHOS_GUI_TINT_STRENGTH }
+/**
   PhosphorusGUI's custom neon red color.
 */
 #define PHOS_GUI_NEON_RED (Color) { 255, 0, 50, 255 }
+/**
+  Tint version of PHOS_GUI_NEON_RED.
+*/
+#define PHOS_GUI_NEON_RED_TINT (Color) { 255, 0, 50, PHOS_GUI_TINT_STRENGTH }
 /**
   PhosphorusGUI's custom green color.
 */
 #define PHOS_GUI_GREEN (Color) { 0, 255, 0, 255 }
 /**
+  Tint version of PHOS_GUI_GREEN.
+*/
+#define PHOS_GUI_GREEN_TINT (Color) { 0, 255, 0, PHOS_GUI_TINT_STRENGTH }
+/**
   PhosphorusGUI's custom neon green color.
 */
 #define PHOS_GUI_NEON_GREEN (Color) { 0, 255, 50, 255 }
+/**
+  Tint version of PHOS_GUI_NEON_GREEN.
+*/
+#define PHOS_GUI_NEON_GREEN_TINT (Color) { 0, 255, 50, PHOS_GUI_TINT_STRENGTH }
 /**
   PhosphorusGUI's custom blue color.
 */
 #define PHOS_GUI_BLUE (Color) { 0, 0, 255, 255 }
 /**
+  Tint version of PHOS_GUI_BLUE.
+*/
+#define PHOS_GUI_BLUE_TINT (Color) { 0, 0, 255, PHOS_GUI_TINT_STRENGTH }
+/**
   PhosphorusGUI's custom neon blue color.
 */
 #define PHOS_GUI_NEON_BLUE (Color) { 0, 50, 255, 255 }
+/**
+  Tint version of PHOS_GUI_NEON_BLUE.
+*/
+#define PHOS_GUI_NEON_BLUE_TINT (Color) { 0, 50, 255, PHOS_GUI_TINT_STRENGTH }
 /**
   PhosphorusGUI's custom yellow color.
 */
 #define PHOS_GUI_YELLOW (Color) { 255, 255, 0, 255 }
 /**
+  Tint version of PHOS_GUI_YELLOW.
+*/
+#define PHOS_GUI_YELLOW_TINT (Color) { 255, 255, 0, PHOS_GUI_TINT_STRENGTH }
+/**
   PhosphorusGUI's custom neon yellow color.
 */
 #define PHOS_GUI_NEON_YELLOW (Color) { 255, 255, 50, 255 }
+/**
+  Tint version of PHOS_GUI_NEON_YELLOW.
+*/
+#define PHOS_GUI_NEON_YELLOW_TINT (Color) { 255, 255, 50, PHOS_GUI_TINT_STRENGTH }
 /**
   PhosphorusGUI's custom violet color.
 */
 #define PHOS_GUI_VIOLET (Color) { 125, 0, 255, 255 }
 /**
+  Tint version of PHOS_GUI_VIOLET.
+*/
+#define PHOS_GUI_VIOLET_TINT (Color) { 125, 0, 255, PHOS_GUI_TINT_STRENGTH }
+/**
   PhosphorusGUI's custom neon violet color.
 */
 #define PHOS_GUI_NEON_VIOLET (Color) { 125, 50, 255, 255 }
+/**
+  Tint version of PHOS_GUI_NEON_VIOLET.
+*/
+#define PHOS_GUI_NEON_VIOLET_TINT (Color) { 125, 50, 255, PHOS_GUI_TINT_STRENGTH }
 /**
   PhosphorusGUI's custom orange color.
 */
 #define PHOS_GUI_ORANGE (Color) { 255, 125, 0, 255 }
 /**
+  Tint version of PHOS_GUI_ORANGE.
+*/
+#define PHOS_GUI_ORANGE_TINT (Color) { 255, 125, 0, PHOS_GUI_TINT_STRENGTH }
+/**
   PhosphorusGUI's custom neon orange color.
 */
 #define PHOS_GUI_NEON_ORANGE (Color) { 255, 75, 0, 255 }
+/**
+  Tint version of PHOS_GUI_NEON_ORANGE.
+*/
+#define PHOS_GUI_NEON_ORANGE_TINT (Color) { 255, 75, 0, PHOS_GUI_TINT_STRENGTH }
 /**
   PhosphorusGUI's custom mint color.
 */
 #define PHOS_GUI_MINT (Color) { 0, 255, 125, 255 }
 /**
+  Tint version of PHOS_GUI_MINT.
+*/
+#define PHOS_GUI_MINT_TINT (Color) { 0, 255, 125, PHOS_GUI_TINT_STRENGTH }
+/**
   PhosphorusGUI's custom neon mint color.
 */
 #define PHOS_GUI_NEON_MINT (Color) { 100, 255, 125, 255 }
+/**
+  Tint version of PHOS_GUI_NEON_MINT.
+*/
+#define PHOS_GUI_NEON_MINT_TINT (Color) { 100, 255, 125, PHOS_GUI_TINT_STRENGTH }
 /**
   PhosphorusGUI's custom cyan color.
 */
 #define PHOS_GUI_CYAN (Color) { 0, 255, 255, 255 }
 /**
+  Tint version of PHOS_GUI_CYAN.
+*/
+#define PHOS_GUI_CYAN_TINT (Color) { 0, 255, 255, PHOS_GUI_TINT_STRENGTH }
+/**
   PhosphorusGUI's custom neon cyan color.
 */
 #define PHOS_GUI_NEON_CYAN (Color) { 100, 255, 255, 255 }
+/**
+  Tint version of PHOS_GUI_NEON_CYAN.
+*/
+#define PHOS_GUI_NEON_CYAN_TINT (Color) { 100, 255, 255, PHOS_GUI_TINT_STRENGTH }
 /**
   PhosphorusGUI's custom pink color.
 */
 #define PHOS_GUI_PINK (Color) { 255, 100, 200, 255 }
 /**
+  Tint version of PHOS_GUI_PINK.
+*/
+#define PHOS_GUI_PINK_TINT (Color) { 255, 100, 200, PHOS_GUI_TINT_STRENGTH }
+/**
   PhosphorusGUI's custom neon pink color.
 */
 #define PHOS_GUI_NEON_PINK (Color) { 255, 25, 200, 255 }
+/**
+  Tint version of PHOS_GUI_NEON_PINK.
+*/
+#define PHOS_GUI_NEON_PINK_TINT (Color) { 255, 25, 200, PHOS_GUI_TINT_STRENGTH }
 /**
   PhosphorusGUI's custom magenta color.
 */
 #define PHOS_GUI_MAGENTA (Color) { 255, 50, 150, 255 }
 /**
+  Tint version of PHOS_GUI_MAGENTA.
+*/
+#define PHOS_GUI_MAGENTA_TINT (Color) { 255, 50, 150, PHOS_GUI_TINT_STRENGTH }
+/**
   PhosphorusGUI's custom neon magenta color.
 */
 #define PHOS_GUI_NEON_MAGENTA (Color) { 255, 0, 100, 255 }
+/**
+  Tint version of PHOS_GUI_NEON_MAGENTA.
+*/
+#define PHOS_GUI_NEON_MAGENTA_TINT (Color) { 255, 0, 100, PHOS_GUI_TINT_STRENGTH }
 
 /**
   The different types of elements.
@@ -1281,6 +1385,28 @@ typedef struct phos_gui_drag_pane_component
 } phos_gui_drag_pane_component;
 
 /**
+  Represents an actual bounding box for an element.
+*/
+typedef struct phos_gui_elem_rect
+{
+	/**
+	  The actual rectangle for the element.
+	*/
+	Rectangle rect;
+	/**
+	  Determines whether or not this rectangle
+	  should be recalculated for caching.
+
+	  @important PhosphorusGUI automatically
+	  sets this field when necessary, so do
+	  not modify this field. If you explicitly
+	  want to request for the library to recalculate
+	  the rectangle, use phos_gui_prepare_rects_for_calculating(phos_gui_elem*).
+	*/
+	bool should_calculate;
+} phos_gui_elem_rect;
+
+/**
   A phos_gui_elem represents a single UI element
   within a phos_gui.
 */
@@ -1305,6 +1431,33 @@ typedef struct phos_gui_elem
 	*/
 	char ID[PHOS_GUI_MAX_ID_LEN + 1];
 
+	/**
+	  This element's total bounds.
+
+	  An element's total bounds is the total amount
+	  of space it takes up on screen, taking the
+	  element's margins into account.
+	*/
+	phos_gui_elem_rect total_bounds;
+	/**
+	  This element's total content bounds.
+
+	  An element's total content bounds is the inner
+	  area on an element, but it only takes padding
+	  and outline thickness into account.
+	*/
+	phos_gui_elem_rect content_total_bounds;
+	/**
+	  This element's free content bounds.
+
+	  An element's free content bounds is the second
+	  inner area on an element. After padding and outline
+	  thickness, the free content bounds rect also
+	  adds offsets derived from decorations on the element
+	  such as scroll or drag bars. This area is also where
+	  children on the element are stored.
+	*/
+	phos_gui_elem_rect content_free_bounds;
 	/**
 	  This element's position and size before
 	  any additional calculations or formatting
@@ -1720,13 +1873,10 @@ PHOS_GUI_API Vector2 phos_gui_get_elem_center(phos_gui_elem *elem);
   have been set.
 */
 PHOS_GUI_API Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem);
-
 /**
-  Returns the requested bounds of an element.
-
-  @see phos_gui_elem_bounding_box
+  Returns the requested rectangle for an element.
 */
-PHOS_GUI_API Rectangle phos_gui_get_elem_rect(const phos_gui_elem *const elem, phos_gui_elem_bounding_box bounds);
+PHOS_GUI_API Rectangle phos_gui_get_elem_rect(phos_gui_elem *elem, phos_gui_elem_bounding_box bounds);
 
 /**
   Returns the bounds of a text component.
@@ -1835,7 +1985,7 @@ PHOS_GUI_API Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_comp
   The element's 'alignment' field is automatically assigned to the value given.
   @param reference_elem The element 'target_elem' is being aligned with.
 */
-PHOS_GUI_API Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment alignment, const phos_gui_elem *const reference_elem, phos_gui_opts opts);
+PHOS_GUI_API Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment alignment, phos_gui_elem *reference_elem, phos_gui_opts opts);
 /**
   Calculates the position of 'target_elem' if it were aligned with the window.
 
@@ -1852,7 +2002,7 @@ PHOS_GUI_API void phos_gui_fill_window_with_elem(phos_gui_elem *elem, phos_gui_o
 /**
   Fills an element's bounding box with another element.
 */
-PHOS_GUI_API void phos_gui_fill_elem_with_elem(phos_gui_elem *target_elem, const phos_gui_elem *const reference_elem, phos_gui_elem_bounding_box bounds, phos_gui_opts opts);
+PHOS_GUI_API void phos_gui_fill_elem_with_elem(phos_gui_elem *target_elem, phos_gui_elem_bounding_box bounds, phos_gui_elem *reference_elem, phos_gui_opts opts);
 
 /**
   Makes the owner of the text component fit the text's bounds.
@@ -2161,8 +2311,29 @@ PHOS_GUI_API void phos_gui_update(float dt);
   If there is no GUI set, the function does send
   a delayed warning message just in case, but other
   than that, nothing happens.
+
+  @note If a custom tint has been set for the screen,
+  this function automatically renders it.
 */
 PHOS_GUI_API void phos_gui_render(void);
+/**
+  Sets a custom screen tint for the window.
+
+  If a screen tint is applied, PhosphorusGUI
+  renders it over the current phos_gui.
+
+  To remove a screen tint, pass in BLANK.
+
+  @note For most tints, the alpha value of the color
+  should be less than 255, otherwise, the screen tint
+  will cover up everything in the GUI.
+*/
+PHOS_GUI_API void phos_gui_apply_screen_tint(Color color);
+/**
+  Obtains the current screen tint or BLANK if no screen
+  tint has been applied.
+*/
+PHOS_GUI_API Color phos_gui_get_screen_tint(void);
 
 /**
   Adds a new clip region to the list of active
