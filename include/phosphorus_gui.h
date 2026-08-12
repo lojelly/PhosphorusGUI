@@ -1,5 +1,9 @@
 #pragma once
 
+#include <string.h>
+#include <stdint.h>
+#include "raylib.h"
+
 #ifdef _WIN32
 	#ifdef PHOS_GUI_DLL
 		#ifdef PHOS_GUI_EXPORTS
@@ -14,19 +18,13 @@
 	#define PHOS_GUI_API
 #endif
 
-
-#include <string.h>
-#include <stdint.h>
-#include "raylib.h"
-
-
 /**
   Writes into a string buffer on an object with a valid
   char buffer (ex: char ID[...]).
 */
-#define phos_gui_write_str(dest, src) \
+#define phos_gui_write_str(dest, ...) \
 	do { \
-		snprintf((dest), sizeof((dest)), (src)); \
+		snprintf((dest), sizeof((dest)), __VA_ARGS__); \
 	} while(0)
 
 /**
@@ -1022,7 +1020,9 @@ typedef struct phos_gui_text_component
 	float font_size;
 
 	/**
-	  The alignment the text component used last.
+	  The alignment the text component is using.
+
+	  By default, this is equal to PHOS_GUI_ALIGN_INNER_CENTER.
 	*/
 	phos_gui_alignment alignment;
 	/**
@@ -1522,7 +1522,7 @@ typedef struct phos_gui_elem
 	/**
 	  Provides ehe element with clipping options.
 
-	  By default, this is set to PHOS_GUI_CLIP_ACTIVE.
+	  By default, this is set to PHOS_GUI_CLIP_NONE.
 	*/
 	phos_gui_clip_mode clip_mode;
 	/**
@@ -1616,6 +1616,21 @@ typedef struct phos_gui_elem
 	  This is false by default.
 	*/
 	bool disabled;
+
+	/**
+	  Indicates whether or not PhosphorusGUI automatically
+	  renders this element in the program loop.
+
+	  If you want to render an element on your own anywhere in the
+	  program loop, set this to false. Otherwise, set it to true.
+
+	  By default, this is set to true.
+
+	  @note If you have an element with this set to false, and are
+	  manually handling its rendering, you can use phos_gui_render_elem(phos_gui_elem*)
+	  to render it when you need to.
+	*/
+	bool auto_render;
 } phos_gui_elem;
 
 /**
@@ -2031,7 +2046,7 @@ PHOS_GUI_API void phos_gui_make_elem_fit_text(const phos_gui_text_component *con
   Sets some basic element attributes
   and puts the element in a valid state.
 */
-PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h);
+PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h);
 
 /**
   Generates the background colors on a mouse listener component using brightness factors.
@@ -2059,23 +2074,20 @@ PHOS_GUI_API void phos_gui_gen_outline_colors(phos_gui_mouse_listener_component 
   @note This function only adds the given element to the given phos_gui.
   To add the element and its children, use phos_gui_add_all_elems(...)
 
-  @param gui The phos_gui instance to add an element to.
   @param elem The element to add to the phos_gui.
+  @param gui The phos_gui instance to add an element to.
 
   @see phos_gui_add_all_elems(phos_gui*, phos_gui_elem*)
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_add_elem_to_gui(phos_gui *gui, phos_gui_elem *elem);
+PHOS_GUI_API int phos_gui_add_elem_to_gui(phos_gui_elem *elem, phos_gui *gui);
 /**
-  Adds a UI element to the given phos_gui instance,
-  as well as gives the element an ID.
+  Adds the UI element with the given ID to the given phos_gui instance.
 
-  @see phos_gui_add_elem(phos_gui*, phos_gui_elem*)
-
-  @return 1 on success, 0 on failure.
+  @see phos_gui_add_elem_to_gui(phos_gui_elem*, phos_gui*)
 */
-PHOS_GUI_API int phos_gui_add_elem_to_gui_id(phos_gui *gui, phos_gui_elem *elem, const char *ID);
+PHOS_GUI_API int phos_gui_add_elem_to_gui_id(const char *ID, phos_gui *gui);
 /**
   Adds a UI element along with all of its children
   to a phos_gui instance.
@@ -2084,19 +2096,19 @@ PHOS_GUI_API int phos_gui_add_elem_to_gui_id(phos_gui *gui, phos_gui_elem *elem,
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_add_all_elems_to_gui(phos_gui *gui, phos_gui_elem *elem);
+PHOS_GUI_API int phos_gui_add_all_elems_to_gui(phos_gui_elem *elem, phos_gui *gui);
 /**
   Removes a UI element from a phos_gui.
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_remove_elem_from_gui(phos_gui *gui, phos_gui_elem *elem);
+PHOS_GUI_API int phos_gui_remove_elem_from_gui(phos_gui_elem *elem, phos_gui *gui);
 /**
-  Removes a UI element from a phos_gui using an ID.
+  Removes the UI element with the given ID from a phos_gui.
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_remove_elem_from_gui_id(phos_gui *gui, const char *ID);
+PHOS_GUI_API int phos_gui_remove_elem_from_gui_id(const char *ID, phos_gui *gui);
 /**
   Adds a UI element as a child to another UI element.
 
@@ -2116,7 +2128,7 @@ PHOS_GUI_API int phos_gui_remove_elem_from_gui_id(phos_gui *gui, const char *ID)
 
   @see phos_gui_child_opts
 */
-PHOS_GUI_API int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child, phos_gui_opts child_opts);
+PHOS_GUI_API int phos_gui_add_child_to_elem(phos_gui_elem *child, phos_gui_elem *parent, phos_gui_opts child_opts);
 /**
   Adds a UI element as a child to another UI element
   using the child's ID.
@@ -2127,9 +2139,9 @@ PHOS_GUI_API int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child,
 
   @return 1 on success, 0 on failure.
 
-  @see phos_gui_add_child(phos_gui_elem*, phos_gui_elem*, phos_gui_child_opts)
+  @see phos_gui_add_child_to_elem(phos_gui_elem*, phos_gui_elem*, phos_gui_child_opts)
 */
-PHOS_GUI_API int phos_gui_add_child_id(phos_gui_elem *parent, const char *ID, phos_gui_opts child_opts);
+PHOS_GUI_API int phos_gui_add_child_to_elem_id(const char *ID, phos_gui_elem *parent, phos_gui_opts child_opts);
 /**
   Removes a child element from a parent element.
 
@@ -2311,6 +2323,12 @@ PHOS_GUI_API void phos_gui_update(float dt);
 */
 PHOS_GUI_API void phos_gui_render(void);
 /**
+  Renders the given element. If the element
+  has any children, its children are
+  automatically rendered.
+*/
+PHOS_GUI_API void phos_gui_render_elem(phos_gui_elem *elem);
+/**
   Sets a custom screen tint for the window.
 
   If a screen tint is applied, PhosphorusGUI
@@ -2328,6 +2346,14 @@ PHOS_GUI_API void phos_gui_apply_screen_tint(Color color);
   tint has been applied.
 */
 PHOS_GUI_API Color phos_gui_get_screen_tint(void);
+/**
+  Sets the background color of the window.
+*/
+PHOS_GUI_API void phos_gui_set_window_bg_color(Color color);
+/**
+  Obtains the current background color of the window.
+*/
+PHOS_GUI_API Color phos_gui_get_window_bg_color(void);
 
 /**
   Adds a new clip region to the list of active

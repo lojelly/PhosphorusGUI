@@ -16,7 +16,7 @@
 
 #define ROUND_RECT_SEGMENTS 32
 
-#define TEXT_PADDING 6.0f
+#define TEXT_PADDING 2.0f
 
 #define MAX_CLIPS 16
 
@@ -137,8 +137,8 @@ static Rectangle clips[MAX_CLIPS];
 // current mouse target
 static phos_gui_elem *mouse_target = NULL;
 
-static bool render_tint = false;
 static Color screen_tint = BLANK;
+static Color window_bg_color = WHITE;
 
 #define assert_obj_ptr(obj, ptr, ...) \
 	do { \
@@ -1040,11 +1040,14 @@ static Vector2 get_text_draw_pos(const phos_gui_text_component *const text, cons
 	// add text offset
 	Vector2 text_pos = Vector2Add(phos_gui_get_rect_pos(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE)), text->offset);
 
-	// calculate where to draw the text based on scrolling
-	if(scroll_pane->scroll.horizontal_scrolling_active)
-		text_pos.x -= scroll_pane->scroll.x;
-	if(scroll_pane->scroll.vertical_scrolling_active)
-		text_pos.y -= scroll_pane->scroll.y;
+	// calculate where to draw the text based on scrolling (only if scroll pane is not null)
+	if(scroll_pane)
+	{
+		if(scroll_pane->scroll.horizontal_scrolling_active)
+			text_pos.x -= scroll_pane->scroll.x;
+		if(scroll_pane->scroll.vertical_scrolling_active)
+			text_pos.y -= scroll_pane->scroll.y;
+	}
 
 	return text_pos;
 }
@@ -1225,11 +1228,9 @@ static void update_text_scrolling(phos_gui_text_component *text)
 
 	// get scroll pane on owner
 	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_SCROLL_PANE);
-	if(!scroll_pane) // TODO text can exist without scroll pane?
-	{
-		vl_delay_log(VL_WARNING, 5.0f, "Failed to update text scrolling. Text component's owner requires a phos_gui_scroll_pane_component: '%s'!\n", e->ID);
+	// if the elem does not own a scroll pane, then the text cannot be scrolled
+	if(!scroll_pane)
 		return;
-	}
 
 	if(strlen(text->str) == 0)
 	{
@@ -1801,7 +1802,7 @@ void phos_gui_make_elem_fit_text(const phos_gui_text_component *const text_compo
 		phos_gui_make_elem_fit_text(elem->parent, text_component, target_str);*/
 }
 
-void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h)
+void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h)
 {
 	if(!elem)
 	{
@@ -1810,6 +1811,9 @@ void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_e
 	}
 
 	// TODO finish default values for every field in 'phos_gui_elem'
+
+	// write elem ID first
+	phos_gui_write_str(elem->ID, "%s", ID);
 
 	Rectangle bounds = elem->bounds = (Rectangle) { x, y, w, h };
 	elem->total_bounds.rect = bounds;
@@ -1820,9 +1824,10 @@ void phos_gui_init_elem(phos_gui_elem *elem, phos_gui_elem_type type, phos_gui_e
 	elem->left_padding = elem->top_padding = elem->right_padding = elem->bottom_padding = 0.0f;
 	elem->left_margin = elem->top_margin = elem->right_margin = elem->bottom_margin = 0.0f;
 	elem->alignment = PHOS_GUI_ALIGN_INNER_CENTER;
-	elem->clip_mode = PHOS_GUI_CLIP_ACTIVE;
+	elem->clip_mode = PHOS_GUI_CLIP_NONE;
 	elem->input_test_bounds = PHOS_GUI_ELEM_BOUNDS_REAL;
 	elem->disabled = false;
+	elem->auto_render = true;
 
 	prepare_elem_rects_for_caching(elem);
 }
@@ -1917,7 +1922,7 @@ static int register_elem(phos_gui_elem *elem)
 	return 1;
 }
 
-int phos_gui_add_elem_to_gui(phos_gui *gui, phos_gui_elem *elem)
+int phos_gui_add_elem_to_gui(phos_gui_elem *elem, phos_gui *gui)
 {
 	if(!gui || !elem)
 	{
@@ -1947,26 +1952,11 @@ int phos_gui_add_elem_to_gui(phos_gui *gui, phos_gui_elem *elem)
 
 	return 1;
 }
-int phos_gui_add_elem_to_gui_id(phos_gui *gui, phos_gui_elem *elem, const char *ID)
+int phos_gui_add_elem_to_gui_id(const char *ID, phos_gui* gui)
 {
-	if(!gui || !elem || !ID)
-	{
-		vl_log(VL_ERROR, "Failed to add the element to the given phos_gui. Make sure 'gui', 'elem' and 'ID' are not NULL!\n");
-		return 0;
-	}
-	if(strlen(ID) == 0)
-	{
-		vl_log(VL_ERROR, "Element ID cannot be empty!\n");
-		return 0;
-	}
-
-	// copy ID into element's ID
-	snprintf(elem->ID, sizeof(elem->ID), "%s", ID);
-
-	// add normally
-	return phos_gui_add_elem_to_gui(gui, elem);
+	return phos_gui_add_elem_to_gui(phos_gui_get_elem(ID), gui);
 }
-int phos_gui_add_all_elems_to_gui(phos_gui *gui, phos_gui_elem *elem)
+int phos_gui_add_all_elems_to_gui(phos_gui_elem *elem, phos_gui *gui)
 {
 	if(!gui || !elem)
 	{
@@ -1975,15 +1965,15 @@ int phos_gui_add_all_elems_to_gui(phos_gui *gui, phos_gui_elem *elem)
 	}
 
 	// add the elem first
-	phos_gui_add_elem_to_gui(gui, elem);
+	phos_gui_add_elem_to_gui(elem, gui);
 
 	// add children next
 	for(size_t i = 0; i < elem->num_children; ++i)
-		phos_gui_add_elem_to_gui(gui, elem->children[i]);
+		phos_gui_add_elem_to_gui(elem->children[i], gui);
 
 	return 1;
 }
-int phos_gui_remove_elem_from_gui(phos_gui *gui, phos_gui_elem *elem)
+int phos_gui_remove_elem_from_gui(phos_gui_elem *elem, phos_gui *gui)
 {
 	if(!gui)
 	{
@@ -2030,11 +2020,11 @@ int phos_gui_remove_elem_from_gui(phos_gui *gui, phos_gui_elem *elem)
 	vl_log(VL_ERROR, "Failed to remove this element ('%s') from the given phos_gui ('%s')!\n", elem->ID, gui->ID);
 	return 0;
 }
-int phos_gui_remove_elem_from_gui_id(phos_gui *gui, const char *ID)
+int phos_gui_remove_elem_from_gui_id(const char *ID, phos_gui *gui)
 {
-	return phos_gui_remove_elem_from_gui(gui, phos_gui_get_elem(ID));
+	return phos_gui_remove_elem_from_gui(phos_gui_get_elem(ID), gui);
 }
-int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child, phos_gui_opts child_opts)
+int phos_gui_add_child_to_elem(phos_gui_elem *child, phos_gui_elem *parent, phos_gui_opts child_opts)
 {
 	if(!parent || !child)
 	{
@@ -2094,9 +2084,9 @@ int phos_gui_add_child(phos_gui_elem *parent, phos_gui_elem *child, phos_gui_opt
 
 	return 1;
 }
-int phos_gui_add_child_id(phos_gui_elem *parent, const char *ID, phos_gui_opts child_opts)
+int phos_gui_add_child_to_elem_id(const char *ID, phos_gui_elem *parent, phos_gui_opts child_opts)
 {
-	return phos_gui_add_child(parent, phos_gui_get_elem(ID), child_opts);
+	return phos_gui_add_child_to_elem(phos_gui_get_elem(ID), parent, child_opts);
 }
 int phos_gui_remove_child(phos_gui_elem *parent, phos_gui_elem *child)
 {
@@ -2437,7 +2427,7 @@ void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID)
 				vl_log(VL_ERROR, "Failed to clone child components!\n");
 
 			// add child to target_elem (use same child options from cloned elem)
-			phos_gui_add_child(target_elem, child_clone, child->child_opts);
+			phos_gui_add_child_to_elem(child_clone, target_elem, child->child_opts);
 		}
 	}
 	else
@@ -3229,10 +3219,6 @@ static bool elem_in_parent_clip(phos_gui_elem *e, Vector2 mouse_pos)
 			if(!CheckCollisionPointRec(mouse_pos, clip_rect))
 				return false;
 		}
-		else
-			// if no clip, then check for mouse over parent's real bounds instead
-			if(!CheckCollisionPointRec(mouse_pos, parent->bounds))
-				return false;
 
 		// go to next parent and child relationship
 		child = parent;
@@ -3245,14 +3231,10 @@ static bool elem_in_parent_clip(phos_gui_elem *e, Vector2 mouse_pos)
 // checks mouse collision with elem and children:
 static phos_gui_elem *get_elem_mouse_target(phos_gui_elem *e, Vector2 mouse_pos)
 {
+	// check for elems that can't accept input, except for PHOS_GUI_TYPE_BLANK
 	if(e->disabled)
 		return NULL;
-
-	if(e -> type == PHOS_GUI_TYPE_INVALID || e->type == PHOS_GUI_TYPE_BLANK)
-		return NULL;
-
-	// see if mouse is within the elem's input bounds
-	if(!CheckCollisionPointRec(mouse_pos, e->input_test_bounds == PHOS_GUI_ELEM_BOUNDS_REAL ? e->bounds : get_calculated_elem_rect(e, e->input_test_bounds)))
+	if(e -> type == PHOS_GUI_TYPE_INVALID)
 		return NULL;
 
 	// then see if mouse is within the parent's clip region
@@ -3268,6 +3250,16 @@ static phos_gui_elem *get_elem_mouse_target(phos_gui_elem *e, Vector2 mouse_pos)
 		if(target)
 			return target;
 	}
+
+	// after checking children, if no target still found, check given elem state again
+	if(e->type == PHOS_GUI_TYPE_BLANK) // check for PHOS_GUI_TYPE_BLANK here so that the children list is processed above
+		return NULL;
+
+	// check whether the elem is clickable
+	Rectangle input_rect = e->input_test_bounds == PHOS_GUI_ELEM_BOUNDS_REAL ? e->bounds : get_calculated_elem_rect(e, e->input_test_bounds);
+
+	if(!CheckCollisionPointRec(mouse_pos, input_rect))
+		return NULL;
 
 	// no child hit, return parent elem
 	return e;
@@ -3316,7 +3308,9 @@ static void insert_char_text(phos_gui_text_component *text, char c, phos_gui_scr
 	// if the char inserted is '\n', reset scroll x on text component
 	if(c == '\n')
 	{
-		scroll_pane->scroll.x = 0.0f;
+		// only update scroll pane if it's not null
+		if(scroll_pane)
+			scroll_pane->scroll.x = 0.0f;
 		text->curr_line_len = 0;
 		text->num_lines++;
 	}
@@ -3436,7 +3430,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 	// update text components:
 	phos_gui_text_component *text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXT);
 	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_SCROLL_PANE);
-	if(text && scroll_pane) // TODO text can exist without scroll pane?
+	if(text)
 	{
 		// reset 'edited' field
 		text->edited = false;
@@ -3707,7 +3701,7 @@ void phos_gui_launch()
 		phos_gui_update(dt);
 
 		BeginDrawing();
-		ClearBackground(PHOS_GUI_BLACK);
+		ClearBackground(window_bg_color);
 
 		phos_gui_render();
 
@@ -3919,6 +3913,10 @@ static Color resolve_elem_outline_color(const phos_gui_elem *const e)
 static void render_children(phos_gui_elem *e, phos_gui_elem_bounding_box bounds);
 static void render_elem(phos_gui_elem *e)
 {
+	// if elem should not be auto-rendered, skip it
+	if(!e->auto_render)
+		return;
+
 	// cannot render invalid elements
 	if(e->type == PHOS_GUI_TYPE_INVALID)
 	{
@@ -4007,7 +4005,7 @@ static void render_elem(phos_gui_elem *e)
 
 	// render text component of element (if valid):
 	const phos_gui_text_component *const text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXT);
-	if(text && scroll_pane) // TODO text can exist without scroll pane?
+	if(text)
 	{
 		// get placeholder data as well (will be NULL if no placeholder text extension found)
 		const phos_gui_placeholder_text_extension *const placeholder_text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
@@ -4200,6 +4198,16 @@ void phos_gui_render()
 	if(!ColorIsEqual(screen_tint, BLANK))
 		DrawRectangleRec(PHOS_GUI_WINDOW_RECT, screen_tint);
 }
+void phos_gui_render_elem(phos_gui_elem *elem)
+{
+	if(!elem)
+	{
+		vl_delay_log(VL_ERROR, 3.0f, "Cannot render NULL element!\n");
+		return;
+	}
+
+	render_elem(elem);
+}
 void phos_gui_apply_screen_tint(Color color)
 {
 	screen_tint = color;
@@ -4207,6 +4215,14 @@ void phos_gui_apply_screen_tint(Color color)
 Color phos_gui_get_screen_tint()
 {
 	return screen_tint;
+}
+void phos_gui_set_window_bg_color(Color color)
+{
+	window_bg_color = color;
+}
+Color phos_gui_get_window_bg_color()
+{
+	return window_bg_color;
 }
 
 int phos_gui_new_clip(int x, int y, int width, int height)
