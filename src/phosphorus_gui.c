@@ -364,7 +364,7 @@ static Rectangle get_calculated_elem_rect(phos_gui_elem *elem, phos_gui_elem_bou
 					if(drag_pane->use_drag_bar)
 					{
 						// resize and shift content rect based on drag bar pos and orientation:
-						switch(drag_pane->drag_bar_orienation)
+						switch(drag_pane->drag_bar_orientation)
 						{
 							case PHOS_GUI_DRAG_BAR_HORIZONTAL_TOP:
 								elem->content_free_bounds.rect.y += drag_pane->drag_bar_size.y;
@@ -381,7 +381,7 @@ static Rectangle get_calculated_elem_rect(phos_gui_elem *elem, phos_gui_elem_bou
 								elem->content_free_bounds.rect.height -= drag_pane->drag_bar_size.y;
 								break;
 							default:
-								vl_log(VL_ERROR, "Invalid drag bar orientation: %d!\n", drag_pane->drag_bar_orienation);
+								vl_log(VL_ERROR, "Invalid drag bar orientation: %d!\n", drag_pane->drag_bar_orientation);
 								break;
 						}
 					}
@@ -460,6 +460,7 @@ static void init_scroll_pane_component(void *scroll_pane_component)
 	scroll_pane->v_bar = DEFAULT_SCROLL_BAR;
 	scroll_pane->h_bar = DEFAULT_SCROLL_BAR;
 	scroll_pane->px_per_tick = 2.0f;
+	scroll_pane->use_mouse_wheel_input = true;
 
 	// re-calculate elem rects instantly
 	force_calculate_elem_rects(owner);
@@ -484,13 +485,8 @@ static void init_drag_pane_component(void *drag_pane_component)
 	force_calculate_elem_rects(owner);
 	Rectangle owner_total_content = get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
 
-	// TODO
-	/*float owner_total_content_width = get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL).width;
-	Rectangle owner_free_content = get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);*/
-
-	// drag bar matches usable content width of owner, and a height of 25 pixels
 	drag_pane->drag_bar_size = (Vector2) { owner_total_content.width, PHOS_GUI_DRAG_BAR_DEFAULT_SPAN };
-	drag_pane->drag_bar_pos = (Vector2) { owner_total_content.x, owner_total_content.y };
+	drag_pane->drag_bar_orientation = PHOS_GUI_DRAG_BAR_HORIZONTAL_TOP;
 	drag_pane->drag_bar_color = PHOS_GUI_LIGHT_GRAY;
 	drag_pane->drag_opts = PHOS_GUI_OPTS_NONE;
 	drag_pane->use_drag_bar = false;
@@ -1034,10 +1030,44 @@ Rectangle phos_gui_get_elem_rect(phos_gui_elem *elem, phos_gui_elem_bounding_box
 	return get_calculated_elem_rect(elem, bounds);
 }
 
+static Vector2 get_text_draw_pos(const phos_gui_text_component *const text, const phos_gui_scroll_pane_component *const scroll_pane)
+{
+	// get initial pos of text and owner:
+	phos_gui_elem *owner = pluto_cs_get_owner(text);
+	if(!owner)
+		return Vector2Zero();
+
+	// add text offset
+	Vector2 text_pos = Vector2Add(phos_gui_get_rect_pos(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE)), text->offset);
+
+	// calculate where to draw the text based on scrolling
+	if(scroll_pane->scroll.horizontal_scrolling_active)
+		text_pos.x -= scroll_pane->scroll.x;
+	if(scroll_pane->scroll.vertical_scrolling_active)
+		text_pos.y -= scroll_pane->scroll.y;
+
+	return text_pos;
+}
 void phos_gui_get_text_bounds(const phos_gui_text_component *const text_component, Rectangle *out_main_bounds, Rectangle *out_placeholder_bounds)
 {
 	if(!out_main_bounds && !out_placeholder_bounds)
 		return;
+
+	// get owner of text component
+	const phos_gui_elem *const elem = pluto_cs_get_owner(text_component);
+	if(!elem)
+	{
+		vl_delay_log(VL_ERROR, 2.0f, "Text component is missing an owner! Cannot obtain bounds.\n");
+		return;
+	}
+
+	// get scroll pane component on owner
+	const phos_gui_scroll_pane_component *const scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
+	if(!scroll_pane)
+	{
+		vl_delay_log(VL_ERROR, 2.0f, "The text component on this element '%s' must be paired with a scroll pane component to work properly!\n", elem->ID);
+		return;
+	}
 
 	Rectangle main_bounds = {0};
 	Rectangle placeholder_bounds = {0};
@@ -1054,13 +1084,7 @@ void phos_gui_get_text_bounds(const phos_gui_text_component *const text_componen
 		return;
 	}
 
-	// get text component owner
-	const phos_gui_elem *const elem = pluto_cs_get_owner(text_component);
-	if(!elem)
-	{
-		vl_delay_log(VL_ERROR, 1.0f, "The text component's owner is invalid, cannot obtain text bounds for the text component!\n");
-		return;
-	}
+	// point to the destination string, starting out with main string on the text component
 	const char *main_str = text_component->str;
 
 	// ensure font is valid
@@ -1101,8 +1125,11 @@ void phos_gui_get_text_bounds(const phos_gui_text_component *const text_componen
 
 		main_bounds.width = text_size.x;
 		main_bounds.height = text_size.y;
-		main_bounds.x = text_component->offset.x;
-		main_bounds.y = text_component->offset.y;
+
+		// get text draw pos:
+		Vector2 text_pos = get_text_draw_pos(text_component, scroll_pane);
+		main_bounds.x = text_pos.x;
+		main_bounds.y = text_pos.y;
 
 		*out_main_bounds = main_bounds;
 	}
@@ -1121,8 +1148,11 @@ void phos_gui_get_text_bounds(const phos_gui_text_component *const text_componen
 
 		placeholder_bounds.width = text_size.x;
 		placeholder_bounds.height = text_size.y;
-		placeholder_bounds.x = text_component->offset.x;
-		placeholder_bounds.y = text_component->offset.y;
+
+		// get text draw pos:
+		Vector2 text_pos = get_text_draw_pos(text_component, scroll_pane);
+		placeholder_bounds.x = text_pos.x;
+		placeholder_bounds.y = text_pos.y;
 
 		*out_placeholder_bounds = placeholder_bounds;
 	}
@@ -1142,24 +1172,6 @@ void phos_gui_get_text_bounds_v(const phos_gui_text_component *const text_compon
 		*out_placeholder_bounds = phos_gui_get_rect_size(placeholder_r);
 }
 
-static Vector2 get_text_draw_pos(const phos_gui_text_component *const text, const phos_gui_scroll_pane_component *const scroll_pane)
-{
-	// get initial pos of text and owner:
-	const phos_gui_elem *const owner = pluto_cs_get_owner(text);
-	if(!owner)
-		return Vector2Zero();
-
-	// add text offset
-	Vector2 text_pos = Vector2Add(phos_gui_get_rect_pos(owner->content_free_bounds.rect), text->offset);
-
-	// calculate where to draw the text based on scrolling
-	if(scroll_pane->scroll.horizontal_scrolling_active)
-		text_pos.x -= scroll_pane->scroll.x;
-	if(scroll_pane->scroll.vertical_scrolling_active)
-		text_pos.y -= scroll_pane->scroll.y;
-
-	return text_pos;
-}
 static Vector2 get_cursor_draw_pos(const phos_gui_text_component *const text, const phos_gui_scroll_pane_component *const scroll_pane)
 {
 	// get initial pos of text and owner:
@@ -1221,13 +1233,12 @@ static void update_text_scrolling(phos_gui_text_component *text)
 
 	if(strlen(text->str) == 0)
 	{
-		scroll_pane->scroll = DEFAULT_SCROLL_INFO;
 		vl_delay_log(VL_WARNING, 5.0f, "Failed to update text scrolling. Text component must contain string data to calculate!\n");
 		return;
 	}
 
 	// text always resides in free content space:
-	Rectangle free_content_bounds = e->content_free_bounds.rect;
+	Rectangle free_content_bounds = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
 	// get bounds of text
 	Rectangle text_bounds;
@@ -1263,6 +1274,7 @@ static void update_text_scrolling(phos_gui_text_component *text)
 	// caret logic:
 	if(strlen(text->str) > 0)
 	{
+		// copy typed string into temp buffer
 		char buf[PHOS_GUI_MAX_TEXT_LEN + 1];
 		memcpy(buf, text->str, text->cursor_pos);
 		buf[text->cursor_pos] = '\0';
@@ -1630,6 +1642,7 @@ Vector2 phos_gui_align_elem_with_window(phos_gui_elem *target_elem, phos_gui_ali
 	// create temp elem representing the window
 	phos_gui_elem temp = {0};
 	phos_gui_set_elem_bounds(&temp, 0, 0, GetRenderWidth(), GetRenderHeight(), opts);
+	force_calculate_elem_rects(&temp); // force temp elem to have synced bounds
 	v = get_proposed_align_pos(phos_gui_get_rect_size(temp.bounds), target_elem->alignment, &temp);
 	phos_gui_set_elem_pos(target_elem, v.x, v.y, opts);
 
@@ -3167,7 +3180,37 @@ static void get_drag_bar_rect(phos_gui_drag_pane_component *drag_pane, Rectangle
 		return;
 	}
 
-	*out_rect = (Rectangle) { drag_pane->drag_bar_pos.x, drag_pane->drag_bar_pos.y, drag_pane->drag_bar_size.x, drag_pane->drag_bar_size.y };
+	// get total content bounds of elem
+	Rectangle total_content_bounds = get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+
+	Rectangle drag_bar_rect = {0};
+	drag_bar_rect.width = drag_pane->drag_bar_size.x;
+	drag_bar_rect.height = drag_pane->drag_bar_size.y;
+
+	switch(drag_pane->drag_bar_orientation)
+	{
+		case PHOS_GUI_DRAG_BAR_HORIZONTAL_TOP:
+			drag_bar_rect.x = total_content_bounds.x;
+			drag_bar_rect.y = total_content_bounds.y;
+			break;
+		case PHOS_GUI_DRAG_BAR_VERTICAL_LEFT:
+			drag_bar_rect.x = total_content_bounds.x;
+			drag_bar_rect.y = total_content_bounds.y;
+			break;
+		case PHOS_GUI_DRAG_BAR_VERTICAL_RIGHT:
+			drag_bar_rect.x = total_content_bounds.x + total_content_bounds.width - drag_bar_rect.width;
+			drag_bar_rect.y = total_content_bounds.y;
+			break;
+		case PHOS_GUI_DRAG_BAR_HORIZONTAL_BOTTOM:
+			drag_bar_rect.x = total_content_bounds.x;
+			drag_bar_rect.y = total_content_bounds.y + total_content_bounds.height - drag_bar_rect.height;
+			break;
+		default:
+			vl_delay_log(VL_ERROR, 2.0f, "Invalid drag bar orientation: %d!\n", drag_pane->drag_bar_orientation);
+			break;
+	}
+
+	*out_rect = drag_bar_rect;
 }
 // see if any children are clipped, which affects how the mouse pos interacts with the elem:
 static bool elem_in_parent_clip(phos_gui_elem *e, Vector2 mouse_pos)
@@ -3541,7 +3584,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 			}
 		}
 		// user is using mouse wheel instead: (requires 'use_mouse_wheel_input' to be true)
-		else if(phos_gui_is_mouse_over_rect(e->content_total_bounds.rect) && scroll_pane->use_mouse_wheel_input)
+		else if(phos_gui_is_mouse_over_rect(get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL)) && scroll_pane->use_mouse_wheel_input)
 		{
 			// user is trying to scroll using mouse wheel:
 
@@ -3613,8 +3656,8 @@ static void update_elem(phos_gui_elem *e, float dt)
 					phos_gui_move_elem_xy(e, mouse_delta.x, mouse_delta.y, drag_pane->drag_opts);
 
 					// move drag bar based on mouse delta
-					drag_pane->drag_bar_pos.x += mouse_delta.x;
-					drag_pane->drag_bar_pos.y += mouse_delta.y;	
+					/*drag_pane->drag_bar_pos.x += mouse_delta.x;
+					drag_pane->drag_bar_pos.y += mouse_delta.y;	*/
 				}
 			}
 			else
@@ -3633,8 +3676,8 @@ static void update_elem(phos_gui_elem *e, float dt)
 					phos_gui_move_elem_xy(e, mouse_delta.x, mouse_delta.y, drag_pane->drag_opts);
 
 					// move drag bar based on mouse delta
-					drag_pane->drag_bar_pos.x += mouse_delta.x;
-					drag_pane->drag_bar_pos.y += mouse_delta.y;
+					/*drag_pane->drag_bar_pos.x += mouse_delta.x;
+					drag_pane->drag_bar_pos.y += mouse_delta.y;*/
 				}
 			}
 		}

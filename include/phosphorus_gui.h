@@ -1208,7 +1208,7 @@ typedef struct phos_gui_layout_component
 typedef struct phos_gui_scroll_bar
 {
 	/**
-	  The width/height of the scroll bar.
+	  The width/height of the scroll bar based on its orientation.
 	*/
 	float span;
 	/**
@@ -1284,7 +1284,7 @@ typedef struct phos_gui_scroll_pane_component
 
 	/**
 	  Whether or not mouse wheel input will modify the scroll
-	  pane.
+	  pane. This is true by default.
 	*/
 	bool use_mouse_wheel_input;
 } phos_gui_scroll_pane_component;
@@ -1338,15 +1338,9 @@ typedef struct phos_gui_drag_pane_component
 	Vector2 drag_bar_size;
 	/**
 	  If the drag pane uses a drag bar, this determines
-	  where the drag bar is located. The default location
-	  of the drag bar is the top edge of the element.
-	*/
-	Vector2 drag_bar_pos;
-	/**
-	  If the drag pane uses a drag bar, this determines
 	  the drag bar's orientation.
 	*/
-	phos_gui_drag_bar_orientation drag_bar_orienation;
+	phos_gui_drag_bar_orientation drag_bar_orientation;
 	/**
 	  If the drag pane uses a drag bar, this color
 	  determines the color of the drag bar. The drag
