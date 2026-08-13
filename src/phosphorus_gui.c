@@ -940,7 +940,7 @@ static void resize_single_elem_wh(phos_gui_elem *elem, float w, float h, phos_gu
 			phos_gui_make_text_fit_elem(elem_tx, PHOS_GUI_TARGET_AUTO_TEXT);
 
 		// then realign text no matter what
-		phos_gui_align_elem_text(elem_tx, PHOS_GUI_TARGET_AUTO_TEXT, elem_tx->alignment);
+		phos_gui_realign_elem_text(elem_tx);
 	}
 }
 void phos_gui_resize_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
@@ -968,7 +968,7 @@ void phos_gui_resize_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opt
 			// but always realign text
 			phos_gui_text_component *child_text = pluto_cs_get_component(child, PHOS_GUI_COMPONENT_TEXT);
 			if(child_text)
-				phos_gui_align_elem_text(child_text, PHOS_GUI_TARGET_AUTO_TEXT, child_text->alignment);
+				phos_gui_realign_elem_text(child_text);
 		}
 	}
 }
@@ -1485,7 +1485,7 @@ void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gu
 	if(opts & PHOS_GUI_OPTS_FIT_TEXT)
 		phos_gui_make_text_fit_elem(text_component, target_str);
 	// realign text no matter what
-	phos_gui_align_elem_text(text_component, target_str, text_component->alignment);
+	phos_gui_realign_elem_text(text_component);
 }
 
 /*
@@ -1570,6 +1570,16 @@ Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_g
 	text_component->alignment = alignment;
 
 	return v;
+}
+Vector2 phos_gui_realign_elem_text(phos_gui_text_component *text_component)
+{
+	if(!text_component)
+	{
+		vl_delay_log(VL_ERROR, 2.0f, "Cannot realign NULL text component!\n");
+		return Vector2Zero();
+	}
+	
+	return phos_gui_align_elem_text(text_component, PHOS_GUI_TARGET_AUTO_TEXT, text_component->alignment);
 }
 Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment alignment, phos_gui_elem *reference_elem, phos_gui_opts opts)
 {
@@ -1806,11 +1816,9 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot setup a NULL element!\n");
+		vl_log(VL_ERROR, "Cannot initialize a NULL element!\n");
 		return;
 	}
-
-	// TODO finish default values for every field in 'phos_gui_elem'
 
 	// write elem ID first
 	phos_gui_write_str(elem->ID, "%s", ID);
@@ -1819,17 +1827,85 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 	elem->total_bounds.rect = bounds;
 	elem->content_total_bounds.rect = bounds;
 	elem->content_free_bounds.rect = bounds;
+	elem->gui = NULL;
+	elem->parent = NULL;
+	elem->texture = NULL;
+	elem->num_children = 0;
 	elem->type = type;
+	elem->shape = PHOS_GUI_SHAPE_RECT;
 	elem->render_mode = render_mode;
-	elem->left_padding = elem->top_padding = elem->right_padding = elem->bottom_padding = 0.0f;
-	elem->left_margin = elem->top_margin = elem->right_margin = elem->bottom_margin = 0.0f;
 	elem->alignment = PHOS_GUI_ALIGN_INNER_CENTER;
+	elem->child_opts = PHOS_GUI_OPTS_NONE;
 	elem->clip_mode = PHOS_GUI_CLIP_NONE;
 	elem->input_test_bounds = PHOS_GUI_ELEM_BOUNDS_REAL;
+	elem->bg_color = WHITE;
+	elem->outline_color = PHOS_GUI_BLACK;
+	elem->disabled_color = PHOS_GUI_LIGHT_GRAY;
+	elem->outline_thickness = 1.0f;
+	elem->corner_radius = 0.0f;
+	elem->left_padding = elem->top_padding = elem->right_padding = elem->bottom_padding = 0.0f;
+	elem->left_margin = elem->top_margin = elem->right_margin = elem->bottom_margin = 0.0f;
 	elem->disabled = false;
 	elem->auto_render = true;
 
 	prepare_elem_rects_for_caching(elem);
+}
+static void apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
+{
+	// elem-specific attributes:
+
+	elem->bg_color = theme.bg_color;
+	elem->outline_color = theme.outline_color;
+	elem->outline_thickness = theme.outline_thickness;
+
+	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+	if(mouse_listener)
+	{
+		mouse_listener->bg_hover_color = theme.bg_hover_color;
+		mouse_listener->bg_press_color = theme.bg_press_color;
+		mouse_listener->bg_focus_color = theme.bg_focus_color;
+		mouse_listener->outline_hover_color = theme.outline_hover_color;
+		mouse_listener->outline_press_color = theme.outline_press_color;
+		mouse_listener->outline_focus_color = theme.outline_focus_color;
+	}
+
+	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	if(text)
+		text->color = theme.text_color;
+
+
+	// force recalculation of elem rects because outline thickness changed:
+	force_calculate_elem_rects(elem);
+
+
+	// other attributes:
+
+	phos_gui_set_window_bg_color(theme.window_bg_color);
+}
+void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot initialize a NULL element!\n");
+		return;
+	}
+
+	// init element's basic attributes first
+	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_INTERACTIVE, PHOS_GUI_RENDER_FILL_OUTLINE, x, y, w, h);
+
+	// create text component
+	phos_gui_text_component *text_component = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	if(!text_component)
+		phos_gui_exit(EXIT_FAILURE);
+	phos_gui_set_text_contents(text_component, PHOS_GUI_TARGET_MAIN_TEXT, text, PHOS_GUI_OPTS_NONE);
+
+	// create mouse listener component
+	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+	if(!mouse_listener)
+		phos_gui_exit(EXIT_FAILURE);
+
+	// apply default theme to button
+	apply_theme_to_elem(elem, phos_gui_get_default_theme());
 }
 
 void phos_gui_gen_bg_colors(phos_gui_mouse_listener_component *mouse_listener, float hover_color_factor, float press_color_factor, float focus_color_factor)
@@ -1955,23 +2031,6 @@ int phos_gui_add_elem_to_gui(phos_gui_elem *elem, phos_gui *gui)
 int phos_gui_add_elem_to_gui_id(const char *ID, phos_gui* gui)
 {
 	return phos_gui_add_elem_to_gui(phos_gui_get_elem(ID), gui);
-}
-int phos_gui_add_all_elems_to_gui(phos_gui_elem *elem, phos_gui *gui)
-{
-	if(!gui || !elem)
-	{
-		vl_log(VL_ERROR, "Failed to add all elements to the given phos_gui. Make sure 'gui' and 'elem' are not NULL!\n");
-		return 0;
-	}
-
-	// add the elem first
-	phos_gui_add_elem_to_gui(elem, gui);
-
-	// add children next
-	for(size_t i = 0; i < elem->num_children; ++i)
-		phos_gui_add_elem_to_gui(elem->children[i], gui);
-
-	return 1;
 }
 int phos_gui_remove_elem_from_gui(phos_gui_elem *elem, phos_gui *gui)
 {
@@ -2145,7 +2204,8 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 		return 0;
 	}
 
-	// obtain parent rects
+	// obtain parent rects (force calculation first)
+	force_calculate_elem_rects(parent);
 	const Rectangle parent_content_area = get_calculated_elem_rect(parent, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 	float parent_x = parent_content_area.x;
 	float parent_y = parent_content_area.y;
@@ -2598,7 +2658,7 @@ static void backspace(phos_gui_text_component *t)
 		if(t->edit_opts & PHOS_GUI_OPTS_FIT_TEXT)
 			phos_gui_make_text_fit_elem(t, PHOS_GUI_TARGET_AUTO_TEXT);
 		if(t->edit_opts & PHOS_GUI_OPTS_REALIGN_TEXT)
-			phos_gui_align_elem_text(t, PHOS_GUI_TARGET_AUTO_TEXT, t->alignment);
+			phos_gui_realign_elem_text(t);
 	}
 }
 static void delete(phos_gui_text_component *t)
@@ -2631,7 +2691,7 @@ static void delete(phos_gui_text_component *t)
 		if(t->edit_opts & PHOS_GUI_OPTS_FIT_TEXT)
 			phos_gui_make_text_fit_elem(t, PHOS_GUI_TARGET_AUTO_TEXT);
 		if(t->edit_opts & PHOS_GUI_OPTS_REALIGN_TEXT)
-			phos_gui_align_elem_text(t, PHOS_GUI_TARGET_AUTO_TEXT, t->alignment);
+			phos_gui_realign_elem_text(t);
 	}
 }
 static void move_cursor_left(phos_gui_text_component *t)
@@ -3302,7 +3362,7 @@ static void insert_char_text(phos_gui_text_component *text, char c, phos_gui_scr
 		if(text->edit_opts & PHOS_GUI_OPTS_FIT_TEXT)
 			phos_gui_make_text_fit_elem(text, PHOS_GUI_TARGET_AUTO_TEXT);
 		if(text->edit_opts & PHOS_GUI_OPTS_REALIGN_TEXT)
-			phos_gui_align_elem_text(text, PHOS_GUI_TARGET_AUTO_TEXT, text->alignment);
+			phos_gui_realign_elem_text(text);
 	}
 
 	// if the char inserted is '\n', reset scroll x on text component
@@ -3326,9 +3386,9 @@ static void update_elem(phos_gui_elem *e, float dt)
 		vl_delay_log(VL_ERROR, 5.0f, "Cannot update element with invalid type: '%s'!\n", e->ID);
 		return;
 	}
-	// skip basic elements as well
+	// skip basic elements as well by going to update_children tag
 	else if(e->type == PHOS_GUI_TYPE_BLANK)
-		return;
+		goto update_children;
 
 	// obtain all input state here:
 	Vector2 mouse_pos = phos_gui_get_mouse_pos();
@@ -3681,6 +3741,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 	}
 
 	// update child elements
+	update_children:
 	for(size_t i = 0; i < e->num_children; ++i)
 		update_elem(e->children[i], dt);
 }
@@ -3923,9 +3984,9 @@ static void render_elem(phos_gui_elem *e)
 		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element with invalid type: '%s'!\n", e->ID);
 		return;
 	}
-	// skip elements with no render mode
+	// skip elements with no render mode by going to render_children tag
 	else if(e->render_mode == PHOS_GUI_RENDER_BLANK)
-		return;
+		goto render_children;
 
 	// get color of elem
 	const Color primary_color = resolve_elem_bg_color(e);
@@ -4138,6 +4199,7 @@ static void render_elem(phos_gui_elem *e)
 	}
 
 	// render child elements:
+	render_children:
 	render_children(e, child_clip_bounds);
 }
 static void render_children(phos_gui_elem *e, phos_gui_elem_bounding_box bounds)
@@ -4208,6 +4270,59 @@ void phos_gui_render_elem(phos_gui_elem *elem)
 
 	render_elem(elem);
 }
+phos_gui_theme phos_gui_get_default_theme()
+{
+	phos_gui_theme theme = {0};
+
+	theme.bg_color = PHOS_GUI_GRAY;
+	theme.outline_color = PHOS_GUI_DARK_GRAY;
+	theme.bg_hover_color = ColorBrightness(theme.bg_color, -0.1f);
+	theme.bg_press_color = ColorBrightness(theme.bg_color, -0.2f);
+	theme.bg_focus_color = theme.bg_color;
+	theme.outline_hover_color = theme.outline_color;
+	theme.outline_press_color = theme.outline_color;
+	theme.outline_focus_color = theme.outline_color;
+	theme.text_color = PHOS_GUI_BLACK;
+	theme.window_bg_color = WHITE;
+	theme.outline_thickness = 5.0f;
+
+	return theme;
+}
+phos_gui_theme phos_gui_create_theme(Color base_color)
+{
+	phos_gui_theme theme = {0};
+
+	theme.bg_color = base_color;
+	theme.outline_color = ColorBrightness(base_color, -0.5f);
+	theme.bg_hover_color = ColorBrightness(theme.bg_color, -0.1f);
+	theme.bg_press_color = ColorBrightness(theme.bg_color, -0.2f);
+	theme.bg_focus_color = theme.bg_color;
+	theme.outline_hover_color = theme.outline_color;
+	theme.outline_press_color = theme.outline_color;
+	theme.outline_focus_color = theme.outline_color;
+	theme.text_color = ColorBrightness(base_color, -0.75f);
+	theme.window_bg_color = ColorContrast(base_color, -0.5f);
+	theme.outline_thickness = 5.0f;
+
+	return theme;
+}
+void phos_gui_apply_theme(phos_gui *gui, phos_gui_theme theme)
+{
+	for(size_t i = 0; i < gui->num_elems; ++i)
+	{
+		// apply theme to parent elem
+		phos_gui_elem *elem = gui->elems[i];
+		apply_theme_to_elem(elem, theme);
+
+		// then apply theme to all children
+		for(size_t j = 0; j < elem->num_children; ++j)
+		{
+			phos_gui_elem *child = elem->children[j];
+
+			apply_theme_to_elem(child, theme);
+		}
+	}
+}
 void phos_gui_apply_screen_tint(Color color)
 {
 	screen_tint = color;
@@ -4218,6 +4333,8 @@ Color phos_gui_get_screen_tint()
 }
 void phos_gui_set_window_bg_color(Color color)
 {
+	if(ColorIsEqual(color, BLANK))
+		color = WHITE;
 	window_bg_color = color;
 }
 Color phos_gui_get_window_bg_color()

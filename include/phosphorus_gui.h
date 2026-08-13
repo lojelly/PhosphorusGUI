@@ -132,205 +132,268 @@
 */
 #define PHOS_GUI_TINT_STRENGTH 50
 /**
-  PhoshporusGUI's custom dark gray color.
+  The default brightness increase/decrease factor for
+  PhosphorusGUI's built-in colors.
 */
-#define PHOS_GUI_DARK_GRAY (Color) { 35, 35, 35, 255 }
+#define PHOS_GUI_BRIGHTNESS_FACTOR 0.5f
 /**
-  Tint version of PHOS_GUI_DARK_GRAY.
+  The default contrast increase/decrease factor for
+  PhosphorusGUI's built-in colors.
 */
-#define PHOS_GUI_DARK_GRAY_TINT (Color) { 35, 35, 35, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_CONTRAST_FACTOR 0.5f
 /**
-  PhosphorusGUI's custom light gray color.
+  Mixes two colors.
 */
-#define PHOS_GUI_LIGHT_GRAY (Color) { 200, 200, 200, 255 }
+#define PHOS_GUI_COLOR_MIX(c1, c2) ColorLerp(c1, c2, 0.5f)
+
 /**
-  Tint version of PHOS_GUI_LIGHT_GRAY.
+  Black.
 */
-#define PHOS_GUI_LIGHT_GRAY_TINT (Color) { 200, 200, 200, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_BLACK (Color) { 15, 15, 15, 255 }
+
 /**
-  PhosphorusGUI's custom gray color.
+  Gray.
 */
 #define PHOS_GUI_GRAY (Color) { 125, 125, 125, 255 }
 /**
-  Tint version of PHOS_GUI_GRAY.
+  Light gray.
 */
-#define PHOS_GUI_GRAY_TINT (Color) { 125, 125, 125, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_LIGHT_GRAY ColorBrightness(PHOS_GUI_GRAY, PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  PhosphorusGUI's custom black color.
+  Dark gray.
 */
-#define PHOS_GUI_BLACK (Color) { 15, 15, 15, 255 }
+#define PHOS_GUI_DARK_GRAY ColorBrightness(PHOS_GUI_GRAY, -PHOS_GUI_BRIGHTNESS_FACTOR)
+
 /**
-  Tint version of PHOS_GUI_BLACK.
-*/
-#define PHOS_GUI_BLACK_TINT (Color) { 15, 15, 15, PHOS_GUI_TINT_STRENGTH }
-/**
-  PhosphorusGUI's custom brown color.
-*/
-#define PHOS_GUI_BROWN (Color) { 100, 50, 0, 255 }
-/**
-  Tint version of PHOS_GUI_BROWN.
-*/
-#define PHOS_GUI_BROWN_TINT (Color) { 100, 50, 0, PHOS_GUI_TINT_STRENGTH }
-/**
-  PhosphorusGUI's custom red color.
+  Red.
 */
 #define PHOS_GUI_RED (Color) { 255, 0, 0, 255 }
 /**
-  Tint version of PHOS_GUI_RED.
+  Light red.
 */
-#define PHOS_GUI_RED_TINT (Color) { 255, 0, 0, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_LIGHT_RED ColorBrightness(PHOS_GUI_RED, PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  PhosphorusGUI's custom neon red color.
+  Dark red.
 */
-#define PHOS_GUI_NEON_RED (Color) { 255, 0, 50, 255 }
+#define PHOS_GUI_DARK_RED ColorBrightness(PHOS_GUI_RED, -PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  Tint version of PHOS_GUI_NEON_RED.
+  Bright red.
 */
-#define PHOS_GUI_NEON_RED_TINT (Color) { 255, 0, 50, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_BRIGHT_RED ColorContrast(PHOS_GUI_RED, PHOS_GUI_CONTRAST_FACTOR)
 /**
-  PhosphorusGUI's custom green color.
+  Dim red.
+*/
+#define PHOS_GUI_DIM_RED ColorContrast(PHOS_GUI_RED, -PHOS_GUI_CONTRAST_FACTOR)
+
+/**
+  Green.
 */
 #define PHOS_GUI_GREEN (Color) { 0, 255, 0, 255 }
 /**
-  Tint version of PHOS_GUI_GREEN.
+  Light green.
 */
-#define PHOS_GUI_GREEN_TINT (Color) { 0, 255, 0, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_LIGHT_GREEN ColorBrightness(PHOS_GUI_GREEN, PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  PhosphorusGUI's custom neon green color.
+  Dark green.
 */
-#define PHOS_GUI_NEON_GREEN (Color) { 0, 255, 50, 255 }
+#define PHOS_GUI_DARK_GREEN ColorBrightness(PHOS_GUI_GREEN, -PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  Tint version of PHOS_GUI_NEON_GREEN.
+  Bright green.
 */
-#define PHOS_GUI_NEON_GREEN_TINT (Color) { 0, 255, 50, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_BRIGHT_GREEN ColorContrast(PHOS_GUI_GREEN, PHOS_GUI_CONTRAST_FACTOR)
 /**
-  PhosphorusGUI's custom blue color.
+  Dim green.
+*/
+#define PHOS_GUI_DIM_GREEN ColorContrast(PHOS_GUI_GREEN, -PHOS_GUI_CONTRAST_FACTOR)
+
+/**
+  Blue.
 */
 #define PHOS_GUI_BLUE (Color) { 0, 0, 255, 255 }
 /**
-  Tint version of PHOS_GUI_BLUE.
+  Light blue.
 */
-#define PHOS_GUI_BLUE_TINT (Color) { 0, 0, 255, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_LIGHT_BLUE ColorBrightness(PHOS_GUI_BLUE, PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  PhosphorusGUI's custom neon blue color.
+  Dark blue.
 */
-#define PHOS_GUI_NEON_BLUE (Color) { 0, 50, 255, 255 }
+#define PHOS_GUI_DARK_BLUE ColorBrightness(PHOS_GUI_BLUE, -PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  Tint version of PHOS_GUI_NEON_BLUE.
+  Bright blue.
 */
-#define PHOS_GUI_NEON_BLUE_TINT (Color) { 0, 50, 255, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_BRIGHT_BLUE ColorContrast(PHOS_GUI_BLUE, PHOS_GUI_CONTRAST_FACTOR)
 /**
-  PhosphorusGUI's custom yellow color.
+  Dim blue.
 */
-#define PHOS_GUI_YELLOW (Color) { 255, 255, 0, 255 }
+#define PHOS_GUI_DIM_BLUE ColorContrast(PHOS_GUI_BLUE, -PHOS_GUI_CONTRAST_FACTOR)
+
 /**
-  Tint version of PHOS_GUI_YELLOW.
-*/
-#define PHOS_GUI_YELLOW_TINT (Color) { 255, 255, 0, PHOS_GUI_TINT_STRENGTH }
-/**
-  PhosphorusGUI's custom neon yellow color.
-*/
-#define PHOS_GUI_NEON_YELLOW (Color) { 255, 255, 50, 255 }
-/**
-  Tint version of PHOS_GUI_NEON_YELLOW.
-*/
-#define PHOS_GUI_NEON_YELLOW_TINT (Color) { 255, 255, 50, PHOS_GUI_TINT_STRENGTH }
-/**
-  PhosphorusGUI's custom violet color.
-*/
-#define PHOS_GUI_VIOLET (Color) { 125, 0, 255, 255 }
-/**
-  Tint version of PHOS_GUI_VIOLET.
-*/
-#define PHOS_GUI_VIOLET_TINT (Color) { 125, 0, 255, PHOS_GUI_TINT_STRENGTH }
-/**
-  PhosphorusGUI's custom neon violet color.
-*/
-#define PHOS_GUI_NEON_VIOLET (Color) { 125, 50, 255, 255 }
-/**
-  Tint version of PHOS_GUI_NEON_VIOLET.
-*/
-#define PHOS_GUI_NEON_VIOLET_TINT (Color) { 125, 50, 255, PHOS_GUI_TINT_STRENGTH }
-/**
-  PhosphorusGUI's custom orange color.
+  Orange.
 */
 #define PHOS_GUI_ORANGE (Color) { 255, 125, 0, 255 }
 /**
-  Tint version of PHOS_GUI_ORANGE.
+  Light orange.
 */
-#define PHOS_GUI_ORANGE_TINT (Color) { 255, 125, 0, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_LIGHT_ORANGE ColorBrightness(PHOS_GUI_ORANGE, PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  PhosphorusGUI's custom neon orange color.
+  Dark orange (brown).
 */
-#define PHOS_GUI_NEON_ORANGE (Color) { 255, 75, 0, 255 }
+#define PHOS_GUI_DARK_ORANGE ColorBrightness(PHOS_GUI_ORANGE, -PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  Tint version of PHOS_GUI_NEON_ORANGE.
+  Bright orange.
 */
-#define PHOS_GUI_NEON_ORANGE_TINT (Color) { 255, 75, 0, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_BRIGHT_ORANGE ColorContrast(PHOS_GUI_ORANGE, PHOS_GUI_CONTRAST_FACTOR)
 /**
-  PhosphorusGUI's custom mint color.
+  Dim orange.
 */
-#define PHOS_GUI_MINT (Color) { 0, 255, 125, 255 }
+#define PHOS_GUI_DIM_ORANGE ColorContrast(PHOS_GUI_ORANGE, -PHOS_GUI_CONTRAST_FACTOR)
+
 /**
-  Tint version of PHOS_GUI_MINT.
+  Yellow.
 */
-#define PHOS_GUI_MINT_TINT (Color) { 0, 255, 125, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_YELLOW (Color) { 255, 255, 0, 255 }
 /**
-  PhosphorusGUI's custom neon mint color.
+  Light yellow.
 */
-#define PHOS_GUI_NEON_MINT (Color) { 100, 255, 125, 255 }
+#define PHOS_GUI_LIGHT_YELLOW ColorBrightness(PHOS_GUI_YELLOW, PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  Tint version of PHOS_GUI_NEON_MINT.
+  Dark yellow.
 */
-#define PHOS_GUI_NEON_MINT_TINT (Color) { 100, 255, 125, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_DARK_YELLOW ColorBrightness(PHOS_GUI_YELLOW, -PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  PhosphorusGUI's custom cyan color.
+  Bright yellow.
+*/
+#define PHOS_GUI_BRIGHT_YELLOW ColorContrast(PHOS_GUI_YELLOW, PHOS_GUI_CONTRAST_FACTOR)
+/**
+  Dim yellow.
+*/
+#define PHOS_GUI_DIM_YELLOW ColorContrast(PHOS_GUI_YELLOW, -PHOS_GUI_CONTRAST_FACTOR)
+
+/**
+  Violet.
+*/
+#define PHOS_GUI_VIOLET (Color) { 140, 0, 255, 255 }
+/**
+  Light violet.
+*/
+#define PHOS_GUI_LIGHT_VIOLET ColorBrightness(PHOS_GUI_VIOLET, PHOS_GUI_BRIGHTNESS_FACTOR)
+/**
+  Dark violet.
+*/
+#define PHOS_GUI_DARK_VIOLET ColorBrightness(PHOS_GUI_VIOLET, -PHOS_GUI_BRIGHTNESS_FACTOR)
+/**
+  Bright violet.
+*/
+#define PHOS_GUI_BRIGHT_VIOLET ColorContrast(PHOS_GUI_VIOLET, PHOS_GUI_CONTRAST_FACTOR)
+/**
+  Dim violet.
+*/
+#define PHOS_GUI_DIM_VIOLET ColorContrast(PHOS_GUI_VIOLET, -PHOS_GUI_CONTRAST_FACTOR)
+
+/**
+  Indigo.
+*/
+#define PHOS_GUI_INDIGO (Color) { 75, 0, 175, 255 }
+/**
+  Light indigo.
+*/
+#define PHOS_GUI_LIGHT_INDIGO ColorBrightness(PHOS_GUI_INDIGO, PHOS_GUI_BRIGHTNESS_FACTOR)
+/**
+  Dark indigo.
+*/
+#define PHOS_GUI_DARK_INDIGO ColorBrightness(PHOS_GUI_INDIGO, -PHOS_GUI_BRIGHTNESS_FACTOR)
+/**
+  Bright indigo.
+*/
+#define PHOS_GUI_BRIGHT_INDIGO ColorContrast(PHOS_GUI_INDIGO, PHOS_GUI_CONTRAST_FACTOR)
+/**
+  Dim indigo.
+*/
+#define PHOS_GUI_DIM_INDIGO ColorContrast(PHOS_GUI_INDIGO, -PHOS_GUI_CONTRAST_FACTOR)
+
+/**
+  Cyan.
 */
 #define PHOS_GUI_CYAN (Color) { 0, 255, 255, 255 }
 /**
-  Tint version of PHOS_GUI_CYAN.
+  Light cyan.
 */
-#define PHOS_GUI_CYAN_TINT (Color) { 0, 255, 255, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_LIGHT_CYAN ColorBrightness(PHOS_GUI_CYAN, PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  PhosphorusGUI's custom neon cyan color.
+  Dark cyan.
 */
-#define PHOS_GUI_NEON_CYAN (Color) { 100, 255, 255, 255 }
+#define PHOS_GUI_DARK_CYAN ColorBrightness(PHOS_GUI_CYAN, -PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  Tint version of PHOS_GUI_NEON_CYAN.
+  Bright cyan.
 */
-#define PHOS_GUI_NEON_CYAN_TINT (Color) { 100, 255, 255, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_BRIGHT_CYAN ColorContrast(PHOS_GUI_CYAN, PHOS_GUI_CONTRAST_FACTOR)
 /**
-  PhosphorusGUI's custom pink color.
+  Dim cyan.
+*/
+#define PHOS_GUI_DIM_CYAN ColorContrast(PHOS_GUI_CYAN, -PHOS_GUI_CONTRAST_FACTOR)
+
+/**
+  Mint.
+*/
+#define PHOS_GUI_MINT (Color) { 115, 255, 145, 255 }
+/**
+  Light mint.
+*/
+#define PHOS_GUI_LIGHT_MINT ColorBrightness(PHOS_GUI_MINT, PHOS_GUI_BRIGHTNESS_FACTOR)
+/**
+  Dark mint.
+*/
+#define PHOS_GUI_DARK_MINT ColorBrightness(PHOS_GUI_MINT, -PHOS_GUI_BRIGHTNESS_FACTOR)
+/**
+  Bright mint.
+*/
+#define PHOS_GUI_BRIGHT_MINT ColorContrast(PHOS_GUI_MINT, PHOS_GUI_CONTRAST_FACTOR)
+/**
+  Dim mint.
+*/
+#define PHOS_GUI_DIM_MINT ColorContrast(PHOS_GUI_MINT, -PHOS_GUI_CONTRAST_FACTOR)
+
+/**
+  Pink.
 */
 #define PHOS_GUI_PINK (Color) { 255, 100, 200, 255 }
 /**
-  Tint version of PHOS_GUI_PINK.
+  Light pink.
 */
-#define PHOS_GUI_PINK_TINT (Color) { 255, 100, 200, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_LIGHT_PINK ColorBrightness(PHOS_GUI_PINK, PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  PhosphorusGUI's custom neon pink color.
+  Dark pink.
 */
-#define PHOS_GUI_NEON_PINK (Color) { 255, 25, 200, 255 }
+#define PHOS_GUI_DARK_PINK ColorBrightness(PHOS_GUI_PINK, -PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  Tint version of PHOS_GUI_NEON_PINK.
+  Bright pink.
 */
-#define PHOS_GUI_NEON_PINK_TINT (Color) { 255, 25, 200, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_BRIGHT_PINK ColorContrast(PHOS_GUI_PINK, PHOS_GUI_CONTRAST_FACTOR)
 /**
-  PhosphorusGUI's custom magenta color.
+  Dim pink.
 */
-#define PHOS_GUI_MAGENTA (Color) { 255, 50, 150, 255 }
+#define PHOS_GUI_DIM_PINK ColorContrast(PHOS_GUI_PINK, -PHOS_GUI_CONTRAST_FACTOR)
+
 /**
-  Tint version of PHOS_GUI_MAGENTA.
+  Magenta.
 */
-#define PHOS_GUI_MAGENTA_TINT (Color) { 255, 50, 150, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_MAGENTA (Color) { 255, 0, 255, 255 }
 /**
-  PhosphorusGUI's custom neon magenta color.
+  Light magenta.
 */
-#define PHOS_GUI_NEON_MAGENTA (Color) { 255, 0, 100, 255 }
+#define PHOS_GUI_LIGHT_MAGENTA ColorBrightness(PHOS_GUI_MAGENTA, PHOS_GUI_BRIGHTNESS_FACTOR)
 /**
-  Tint version of PHOS_GUI_NEON_MAGENTA.
+  Dark magenta.
 */
-#define PHOS_GUI_NEON_MAGENTA_TINT (Color) { 255, 0, 100, PHOS_GUI_TINT_STRENGTH }
+#define PHOS_GUI_DARK_MAGENTA ColorBrightness(PHOS_GUI_MAGENTA, -PHOS_GUI_BRIGHTNESS_FACTOR)
+/**
+  Bright magenta;
+*/
+#define PHOS_GUI_BRIGHT_MAGENTA ColorContrast(PHOS_GUI_MAGENTA, PHOS_GUI_CONTRAST_FACTOR)
+/**
+  Dim magenta.
+*/
+#define PHOS_GUI_DIM_MAGENTA ColorContrast(PHOS_GUI_MAGENTA, -PHOS_GUI_CONTRAST_FACTOR)
 
 /**
   The different types of elements.
@@ -1016,6 +1079,9 @@ typedef struct phos_gui_text_component
 
 	/**
 	  This text component's font size.
+
+	  The default font size for all text components
+	  is equal to PHOS_GUI_FONT_SIZE_DEFAULT (32.0f).
 	*/
 	float font_size;
 
@@ -1722,6 +1788,77 @@ typedef struct phos_gui_event_listener
 } phos_gui_event_listener;
 
 /**
+  A phos_gui_theme represents a custom and global set of
+  styles for elements in a phos_gui.
+
+  To apply a theme to a phos_gui, you have to create the
+  theme first, then use phos_gui_apply_theme(phos_gui*, phos_gui_theme)
+  to use it.
+
+  PhosphorusGUI does supply a default theme that you can obtain
+  with phos_gui_get_default_theme().
+*/
+typedef struct phos_gui_theme
+{
+	/**
+	  Global background color for all elements in the theme.
+	*/
+	Color bg_color;
+	/**
+	  Global outline color for all elements in the theme.
+	*/
+	Color outline_color;
+	/**
+	  Global background hover color for all elements in the theme.
+
+	  @note Only applies to elements with mouse listener components.
+	*/
+	Color bg_hover_color;
+	/**
+	  Global background press color for all elements in the theme.
+
+	  @note Only applies to elements with mouse listener components.
+	*/
+	Color bg_press_color;
+	/**
+	  Global background focus color for all elements in the theme.
+
+	  @note Only applies to elements with mouse listener components.
+	*/
+	Color bg_focus_color;
+	/**
+	  Global outline hover color for all elements in the theme.
+
+	  @note Only applies to elements with mouse listener components.
+	*/
+	Color outline_hover_color;
+	/**
+	  Global outline press color for all elements in the theme.
+
+	  @note Only applies to elements with mouse listener components.
+	*/
+	Color outline_press_color;
+	/**
+	  Global outline focus color for all elements in the theme.
+
+	  @note Only applies to elements with mouse listener components.
+	*/
+	Color outline_focus_color;
+	/**
+	  Global text color.
+	*/
+	Color text_color;
+	/**
+	  Global background color for the window.
+	*/
+	Color window_bg_color;
+	/**
+	  Global outline thickness in the theme.
+	*/
+	float outline_thickness;
+} phos_gui_theme;
+
+/**
   A phos_gui is used to store and organize UI elements.
 
   It represents the scene, or the context, in which the
@@ -1985,6 +2122,12 @@ PHOS_GUI_API void phos_gui_set_text_contents(phos_gui_text_component *text_compo
 */
 PHOS_GUI_API Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, phos_gui_alignment alignment);
 /**
+  Realigns text using the same alignment originally used to align it.
+
+  @see phos_gui_align_elem_text(phos_gui_text_component*, phos_gui_target_text_string, phos_gui_alignment)
+*/
+PHOS_GUI_API Vector2 phos_gui_realign_elem_text(phos_gui_text_component *text_component);
+/**
   Calculates the position of 'target_elem' if it were aligned with 'reference_elem'
   using the given alignment, and then uses the calculated position to properly
   move 'target_elem.'
@@ -2047,6 +2190,17 @@ PHOS_GUI_API void phos_gui_make_elem_fit_text(const phos_gui_text_component *con
   and puts the element in a valid state.
 */
 PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h);
+/**
+  Initializes an element and turns it into a button element.
+
+  By default, button elements come with mouse listener components
+  and text components. The text component is initialized with the
+  'text' string given.
+
+  Additionally, button elements automatically use the default
+  theme for its colors and attributes.
+*/
+PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text);
 
 /**
   Generates the background colors on a mouse listener component using brightness factors.
@@ -2071,13 +2225,8 @@ PHOS_GUI_API void phos_gui_gen_outline_colors(phos_gui_mouse_listener_component 
   This automatically registers the element, and performs
   any other necessary actions to ensure the program works correctly.
 
-  @note This function only adds the given element to the given phos_gui.
-  To add the element and its children, use phos_gui_add_all_elems(...)
-
   @param elem The element to add to the phos_gui.
   @param gui The phos_gui instance to add an element to.
-
-  @see phos_gui_add_all_elems(phos_gui*, phos_gui_elem*)
 
   @return 1 on success, 0 on failure.
 */
@@ -2088,15 +2237,6 @@ PHOS_GUI_API int phos_gui_add_elem_to_gui(phos_gui_elem *elem, phos_gui *gui);
   @see phos_gui_add_elem_to_gui(phos_gui_elem*, phos_gui*)
 */
 PHOS_GUI_API int phos_gui_add_elem_to_gui_id(const char *ID, phos_gui *gui);
-/**
-  Adds a UI element along with all of its children
-  to a phos_gui instance.
-
-  @see phos_gui_add_elem(phos_gui*, phos_gui_elem*)
-
-  @return 1 on success, 0 on failure.
-*/
-PHOS_GUI_API int phos_gui_add_all_elems_to_gui(phos_gui_elem *elem, phos_gui *gui);
 /**
   Removes a UI element from a phos_gui.
 
@@ -2329,6 +2469,23 @@ PHOS_GUI_API void phos_gui_render(void);
 */
 PHOS_GUI_API void phos_gui_render_elem(phos_gui_elem *elem);
 /**
+  Obtains the default theme for PhosphorusGUI.
+*/
+PHOS_GUI_API phos_gui_theme phos_gui_get_default_theme(void);
+/**
+  Creates a theme based on a starting color.
+*/
+PHOS_GUI_API phos_gui_theme phos_gui_create_theme(Color base_color);
+/**
+  Sets a custom theme for the given phos_gui.
+
+  @note Make sure you call this function after
+  all elements have been added to the phos_gui.
+  It only applies the theme to the current elements
+  in the phos_gui.
+*/
+PHOS_GUI_API void phos_gui_apply_theme(phos_gui *gui, phos_gui_theme theme);
+/**
   Sets a custom screen tint for the window.
 
   If a screen tint is applied, PhosphorusGUI
@@ -2348,6 +2505,9 @@ PHOS_GUI_API void phos_gui_apply_screen_tint(Color color);
 PHOS_GUI_API Color phos_gui_get_screen_tint(void);
 /**
   Sets the background color of the window.
+
+  @note If BLANK is passed in, the function defaults to
+  WHITE for the window's background color.
 */
 PHOS_GUI_API void phos_gui_set_window_bg_color(Color color);
 /**
