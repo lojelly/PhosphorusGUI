@@ -97,11 +97,6 @@
 #define PHOS_GUI_FONT_SIZE_LARGEST PHOS_GUI_FONT_SIZE_XGIGANTIC
 
 /**
-  The default width/height of a drag bar on a phos_gui_drag_pane_component.
-*/
-#define PHOS_GUI_DRAG_BAR_DEFAULT_SPAN 35.0f
-
-/**
   The window's origin.
 */
 #define PHOS_GUI_WINDOW_ORIGIN (Vector2) { 0.0f, 0.0f }
@@ -984,23 +979,6 @@ enum
 };
 
 /**
-  The different clip modes for elements.
-*/
-typedef enum phos_gui_clip_mode
-{
-	/**
-	  Indicates there is no clip region
-	  for the element.
-	*/
-	PHOS_GUI_CLIP_NONE,
-	/**
-	  Indicates the element has an active
-	  clip region.
-	*/
-	PHOS_GUI_CLIP_ACTIVE,
-} phos_gui_clip_mode;
-
-/**
   The available component types.
 */
 typedef enum phos_gui_component_type
@@ -1199,43 +1177,6 @@ typedef struct phos_gui_mouse_listener_component
 	*/
 	bool focus_on_start;
 } phos_gui_mouse_listener_component;
-
-/**
-  Provides scrolling information on an object
-  of any type.
-*/
-typedef struct phos_gui_scroll_info
-{
-	/**
-	  Scroll amount on the x-axis.
-	*/
-	float x;
-	/**
-	  Max amount of scroll on the x-axis.
-	*/
-	float max_x;
-	/**
-	  Scroll amount on the y-axis.
-	*/
-	float y;
-	/**
-	  Max amount of scroll on the y-axis.
-	*/
-	float max_y;
-
-	/**
-	  Whether or not vertical scrolling is supported.
-
-	  This is true by default.
-	*/
-	bool vertical_scrolling_active;
-	/**
-	  Whether or not horizontal scrolling is supported.
-
-	  This is true by default.
-	*/
-	bool horizontal_scrolling_active;
-} phos_gui_scroll_info;
 
 /**
   In some PhosphorusGUI functions, a string
@@ -1595,11 +1536,6 @@ typedef struct phos_gui_scroll_bar
 typedef struct phos_gui_scroll_pane_component
 {
 	/**
-	  Scroll data for the scroll pane.
-	*/
-	phos_gui_scroll_info scroll;
-
-	/**
 	  The vertical scroll bar for the scroll pane.
 	*/
 	phos_gui_scroll_bar v_bar;
@@ -1609,9 +1545,10 @@ typedef struct phos_gui_scroll_pane_component
 	phos_gui_scroll_bar h_bar;
 
 	/**
-	  Determines how many pixels are in one scroll tick.
+	  Determines how many pixels are in one scroll tick
+	  when using the mouse wheel to scroll.
 
-	  By default, this is equal to 2.0f, for 2 pixels per tick.
+	  By default, this is equal to 10.0f, for 10 pixels per tick.
 
 	  @note This should remain positive, but making it negative
 	  inverts the scrolling direction.
@@ -1619,10 +1556,39 @@ typedef struct phos_gui_scroll_pane_component
 	float px_per_tick;
 
 	/**
+	  Scroll amount on the x-axis.
+	*/
+	float scroll_x;
+	/**
+	  Max amount of scroll on the x-axis.
+	*/
+	float max_scroll_x;
+	/**
+	  Scroll amount on the y-axis.
+	*/
+	float scroll_y;
+	/**
+	  Max amount of scroll on the y-axis.
+	*/
+	float max_scroll_y;
+
+	/**
 	  Whether or not mouse wheel input will modify the scroll
 	  pane. This is true by default.
 	*/
 	bool use_mouse_wheel_input;
+	/**
+	  Whether or not vertical scrolling is supported.
+
+	  This is true by default.
+	*/
+	bool vertical_scrolling_active;
+	/**
+	  Whether or not horizontal scrolling is supported.
+
+	  This is true by default.
+	*/
+	bool horizontal_scrolling_active;
 } phos_gui_scroll_pane_component;
 
 /**
@@ -1666,14 +1632,6 @@ typedef struct phos_gui_drag_pane_component
 	Vector2 drag_delta;
 	/**
 	  If the drag pane uses a drag bar, this determines
-	  the size of the drag bar. By default, the drag
-	  bar's width is equal to the width of the
-	  drag pane's owner, and the drag bar's height is
-	  equal to PHOS_GUI_DRAG_BAR_DEFAULT_SPAN, or 35.
-	*/
-	Vector2 drag_bar_size;
-	/**
-	  If the drag pane uses a drag bar, this determines
 	  the drag bar's orientation.
 	*/
 	phos_gui_drag_bar_orientation drag_bar_orientation;
@@ -1694,6 +1652,13 @@ typedef struct phos_gui_drag_pane_component
 	  @see phos_gui_opts
 	*/
 	phos_gui_opts drag_opts;
+
+	/**
+	  The width/height of the drag bar based on its orientation.
+
+	  This is 35.0f by default.
+	*/
+	float span;
 
 	/**
 	  Determines how the user drags the element.
@@ -1856,12 +1821,6 @@ typedef struct phos_gui_elem
 	*/
 	phos_gui_opts child_opts;
 	/**
-	  Provides ehe element with clipping options.
-
-	  By default, this is set to PHOS_GUI_CLIP_NONE.
-	*/
-	phos_gui_clip_mode clip_mode;
-	/**
 	  When an element is tested for mouse input,
 	  this rectangle determines where on the element
 	  the mouse becomes hovered over the element,
@@ -1967,6 +1926,14 @@ typedef struct phos_gui_elem
 	  to render it when you need to.
 	*/
 	bool auto_render;
+
+	/**
+	  Indicates whether or not this element should be clipped
+	  when rendered.
+
+	  This is false by default.
+	*/
+	bool clipped;
 } phos_gui_elem;
 
 /**
@@ -2355,6 +2322,22 @@ PHOS_GUI_API void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y
   Sets the bounds of an element using a Rectangle.
 */
 PHOS_GUI_API void phos_gui_set_elem_bounds_r(phos_gui_elem *elem, Rectangle r, phos_gui_opts opts);
+/**
+  Sets the padding values on an element.
+*/
+PHOS_GUI_API void phos_gui_set_elem_paddings(phos_gui_elem *elem, float left, float top, float right, float bottom);
+/**
+  Sets the padding values on an element all to the same value.
+*/
+PHOS_GUI_API void phos_gui_set_elem_padding(phos_gui_elem *elem, float padding);
+/**
+  Sets the margins on an element.
+*/
+PHOS_GUI_API void phos_gui_set_elem_margins(phos_gui_elem *elem, float left, float top, float right, float bottom);
+/**
+  Sets the margin values on an element all to the same value.
+*/
+PHOS_GUI_API void phos_gui_set_elem_margin(phos_gui_elem *elem, float margin);
 
 /**
   Sets the contents of the given element's text component.

@@ -22,10 +22,10 @@
 
 #define MIN_SCROLL_BAR_WIDTH 25.0f
 #define MIN_SCROLL_BAR_HEIGHT 25.0f
-#define SCROLL_THUMB_DRAG_FACTOR 0.25f
 
-#define DEFAULT_SCROLL_INFO (phos_gui_scroll_info) { .vertical_scrolling_active = true, .horizontal_scrolling_active = true }
 #define DEFAULT_SCROLL_BAR (phos_gui_scroll_bar) { .span = 12.0f, .bg_color = PHOS_GUI_COLOR_LIGHT_GRAY, .thumb_color = PHOS_GUI_COLOR_GRAY, .thumb_focus_color = PHOS_GUI_COLOR_DARK_GRAY, .thumb_has_focus = false, .thumb_grabbed = false, .rendered = true }
+
+#define PX_PER_MOUSE_MOVE_TICK 2.0f
 
 // array of element pointers
 typedef struct elem_arr
@@ -333,9 +333,9 @@ static Rectangle get_calculated_elem_rect(phos_gui_elem *elem, phos_gui_elem_bou
 				phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 				if((scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE)))
 				{
-					if(scroll_pane->scroll.vertical_scrolling_active && scroll_pane->v_bar.rendered)
+					if(scroll_pane->vertical_scrolling_active && scroll_pane->v_bar.rendered)
 						elem->content_free_bounds.rect.width -= scroll_pane->v_bar.span;
-					if(scroll_pane->scroll.horizontal_scrolling_active && scroll_pane->h_bar.rendered)
+					if(scroll_pane->horizontal_scrolling_active && scroll_pane->h_bar.rendered)
 						elem->content_free_bounds.rect.height -= scroll_pane->h_bar.span;
 				}
 				else
@@ -350,9 +350,9 @@ static Rectangle get_calculated_elem_rect(phos_gui_elem *elem, phos_gui_elem_bou
 
 					if(scroll_pane)
 					{
-						if(scroll_pane->scroll.vertical_scrolling_active && scroll_pane->v_bar.rendered)
+						if(scroll_pane->vertical_scrolling_active && scroll_pane->v_bar.rendered)
 							elem->content_free_bounds.rect.width -= scroll_pane->v_bar.span;
-						if(scroll_pane->scroll.horizontal_scrolling_active && scroll_pane->h_bar.rendered)
+						if(scroll_pane->horizontal_scrolling_active && scroll_pane->h_bar.rendered)
 							elem->content_free_bounds.rect.height -= scroll_pane->h_bar.span;
 					}
 				}
@@ -368,18 +368,18 @@ static Rectangle get_calculated_elem_rect(phos_gui_elem *elem, phos_gui_elem_bou
 						switch(drag_pane->drag_bar_orientation)
 						{
 							case PHOS_GUI_DRAG_BAR_HORIZONTAL_TOP:
-								elem->content_free_bounds.rect.y += drag_pane->drag_bar_size.y;
-								elem->content_free_bounds.rect.height -= drag_pane->drag_bar_size.y;
+								elem->content_free_bounds.rect.y += drag_pane->span;
+								elem->content_free_bounds.rect.height -= drag_pane->span;
 								break;
 							case PHOS_GUI_DRAG_BAR_VERTICAL_LEFT:
-								elem->content_free_bounds.rect.x += drag_pane->drag_bar_size.x;
-								elem->content_free_bounds.rect.width -= drag_pane->drag_bar_size.x;
+								elem->content_free_bounds.rect.x += drag_pane->span;
+								elem->content_free_bounds.rect.width -= drag_pane->span;
 								break;
 							case PHOS_GUI_DRAG_BAR_VERTICAL_RIGHT:
-								elem->content_free_bounds.rect.width -= drag_pane->drag_bar_size.x;
+								elem->content_free_bounds.rect.width -= drag_pane->span;
 								break;
 							case PHOS_GUI_DRAG_BAR_HORIZONTAL_BOTTOM:
-								elem->content_free_bounds.rect.height -= drag_pane->drag_bar_size.y;
+								elem->content_free_bounds.rect.height -= drag_pane->span;
 								break;
 							default:
 								vl_log(VL_ERROR, "Invalid drag bar orientation: %d!\n", drag_pane->drag_bar_orientation);
@@ -439,6 +439,51 @@ static void force_calculate_elem_rects(phos_gui_elem *e)
 	calculate_elem_rects(e);
 }
 
+static void apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
+{
+	// elem-specific attributes:
+
+	elem->bg_color = theme.bg_color;
+	elem->outline_color = theme.outline_color;
+	elem->outline_thickness = theme.outline_thickness;
+
+	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+	if(mouse_listener)
+	{
+		mouse_listener->bg_hover_color = theme.bg_hover_color;
+		mouse_listener->bg_press_color = theme.bg_press_color;
+		mouse_listener->bg_focus_color = theme.bg_focus_color;
+		mouse_listener->outline_hover_color = theme.outline_hover_color;
+		mouse_listener->outline_press_color = theme.outline_press_color;
+		mouse_listener->outline_focus_color = theme.outline_focus_color;
+	}
+
+	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	if(text)
+		text->color = theme.text_color;
+
+	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
+	if(scroll_pane)
+	{
+		scroll_pane->v_bar.bg_color = scroll_pane->h_bar.bg_color = ColorBrightness(theme.bg_color, -0.25f);
+		scroll_pane->v_bar.thumb_color = scroll_pane->h_bar.thumb_color = ColorBrightness(theme.bg_color, -0.6f);
+		scroll_pane->v_bar.thumb_focus_color = scroll_pane->h_bar.thumb_focus_color = ColorBrightness(theme.bg_color, 0.1f);
+	}
+
+	phos_gui_drag_pane_component *drag_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_DRAG_PANE);
+	if(drag_pane)
+		drag_pane->drag_bar_color = ColorContrast(theme.bg_color, -0.3f);
+
+
+	// force recalculation of elem rects because outline thickness changed:
+	force_calculate_elem_rects(elem);
+
+
+	// other attributes:
+
+	phos_gui_set_window_bg_color(theme.window_bg_color);
+}
+
 static void init_scroll_pane_component(void *scroll_pane_component)
 {
 	if(!scroll_pane_component)
@@ -455,16 +500,24 @@ static void init_scroll_pane_component(void *scroll_pane_component)
 	}
 
 	// enable clip region for the element
-	owner->clip_mode = PHOS_GUI_CLIP_ACTIVE;
+	owner->clipped = true;
 
-	scroll_pane->scroll = DEFAULT_SCROLL_INFO;
 	scroll_pane->v_bar = DEFAULT_SCROLL_BAR;
 	scroll_pane->h_bar = DEFAULT_SCROLL_BAR;
-	scroll_pane->px_per_tick = 2.0f;
+	scroll_pane->px_per_tick = 10.0f;
+	scroll_pane->scroll_x = 0.0f;
+	scroll_pane->max_scroll_x = 0.0f;
+	scroll_pane->scroll_y = 0.0f;
+	scroll_pane->max_scroll_y = 0.0f;
 	scroll_pane->use_mouse_wheel_input = true;
+	scroll_pane->vertical_scrolling_active = true;
+	scroll_pane->horizontal_scrolling_active = true;
 
 	// re-calculate elem rects instantly
 	force_calculate_elem_rects(owner);
+
+	// re-apply default theme to elem
+	apply_theme_to_elem(owner, phos_gui_get_default_theme());
 }
 
 static void init_drag_pane_component(void *drag_pane_component)
@@ -486,15 +539,18 @@ static void init_drag_pane_component(void *drag_pane_component)
 	force_calculate_elem_rects(owner);
 	Rectangle owner_total_content = get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
 
-	drag_pane->drag_bar_size = (Vector2) { owner_total_content.width, PHOS_GUI_DRAG_BAR_DEFAULT_SPAN };
 	drag_pane->drag_bar_orientation = PHOS_GUI_DRAG_BAR_HORIZONTAL_TOP;
 	drag_pane->drag_bar_color = PHOS_GUI_COLOR_LIGHT_GRAY;
 	drag_pane->drag_opts = PHOS_GUI_OPTS_NONE;
+	drag_pane->span = 35.0f;
 	drag_pane->use_drag_bar = false;
 	drag_pane->grabbed = false;
 
 	// re-calculate elem rects instantly
 	force_calculate_elem_rects(owner);
+
+	// re-apply default theme to elem
+	apply_theme_to_elem(owner, phos_gui_get_default_theme());
 }
 
 int phos_gui_init()
@@ -723,7 +779,8 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 	phos_gui_elem *parent = elem->parent;
 	while(parent)
 	{
-		in_clip_region = parent->clip_mode != PHOS_GUI_CLIP_NONE;
+		// a clip region is present if the child or parent are being clipped
+		in_clip_region = parent->clipped || elem->clipped;
 		if(in_clip_region)
 			break;
 		parent = parent->parent;
@@ -1018,10 +1075,10 @@ static Vector2 get_text_draw_pos(const phos_gui_text_component *const text, cons
 	// calculate where to draw the text based on scrolling (only if scroll pane is not null)
 	if(scroll_pane)
 	{
-		if(scroll_pane->scroll.horizontal_scrolling_active)
-			text_pos.x -= scroll_pane->scroll.x;
-		if(scroll_pane->scroll.vertical_scrolling_active)
-			text_pos.y -= scroll_pane->scroll.y;
+		if(scroll_pane->horizontal_scrolling_active)
+			text_pos.x -= scroll_pane->scroll_x;
+		if(scroll_pane->vertical_scrolling_active)
+			text_pos.y -= scroll_pane->scroll_y;
 	}
 
 	return text_pos;
@@ -1232,19 +1289,19 @@ static void update_text_scrolling(phos_gui_text_component *text)
 	float overflow_h = text_bounds.height - vis_height;
 
 	if(overflow_w > 0.0f)
-		scroll_pane->scroll.max_x = overflow_w;
+		scroll_pane->max_scroll_x = overflow_w;
 	else
 	{
-		scroll_pane->scroll.max_x = 0.0f;
-		scroll_pane->scroll.x = 0.0f;
+		scroll_pane->max_scroll_x = 0.0f;
+		scroll_pane->scroll_x = 0.0f;
 	}
 
 	if(overflow_h > 0.0f)
-		scroll_pane->scroll.max_y = overflow_h;
+		scroll_pane->max_scroll_y = overflow_h;
 	else
 	{
-		scroll_pane->scroll.max_y = 0.0f;
-		scroll_pane->scroll.y = 0.0f;
+		scroll_pane->max_scroll_y = 0.0f;
+		scroll_pane->scroll_y = 0.0f;
 	}
 
 	// caret logic:
@@ -1259,23 +1316,23 @@ static void update_text_scrolling(phos_gui_text_component *text)
 
 		// right-side check (include cursor width because the cursor takes up that many more pixels)
 		if(cursor_pos.x + CURSOR_WIDTH > vis_right)
-			scroll_pane->scroll.x += (cursor_pos.x + CURSOR_WIDTH) - vis_right;
+			scroll_pane->scroll_x += (cursor_pos.x + CURSOR_WIDTH) - vis_right;
 
 		// left-side check (don't include cursor width)
 		if(cursor_pos.x < vis_left)
-			scroll_pane->scroll.x -= vis_left - cursor_pos.x;
+			scroll_pane->scroll_x -= vis_left - cursor_pos.x;
 
 		// bottom-side check
 		if(cursor_pos.y + text->font_size > vis_bottom)
-			scroll_pane->scroll.y += (cursor_pos.y + text->font_size) - vis_bottom;
+			scroll_pane->scroll_y += (cursor_pos.y + text->font_size) - vis_bottom;
 
 		// top-side check
 		if(cursor_pos.y < vis_top)
-			scroll_pane->scroll.y -= vis_top - cursor_pos.y;
+			scroll_pane->scroll_y -= vis_top - cursor_pos.y;
 	}
 
-	scroll_pane->scroll.x = Clamp(scroll_pane->scroll.x, 0.0f, scroll_pane->scroll.max_x);
-	scroll_pane->scroll.y = Clamp(scroll_pane->scroll.y, 0.0f, scroll_pane->scroll.max_y);
+	scroll_pane->scroll_x = Clamp(scroll_pane->scroll_x, 0.0f, scroll_pane->max_scroll_x);
+	scroll_pane->scroll_y = Clamp(scroll_pane->scroll_y, 0.0f, scroll_pane->max_scroll_y);
 }
 
 void phos_gui_init_text(phos_gui_text_component *text, const char *str, float font_size, Color color)
@@ -1381,7 +1438,7 @@ void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, fl
 {
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot set bounds of a NULL element!\n");
+		vl_log(VL_ERROR, "Cannot set bounds on a NULL element!\n");
 		return;
 	}
 
@@ -1391,6 +1448,46 @@ void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, fl
 void phos_gui_set_elem_bounds_r(phos_gui_elem *elem, Rectangle r, phos_gui_opts opts)
 {
 	phos_gui_set_elem_bounds(elem, r.x, r.y, r.width, r.height, opts);
+}
+void phos_gui_set_elem_paddings(phos_gui_elem *elem, float left, float top, float right, float bottom)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot set padding on a NULL element!\n");
+		return;
+	}
+
+	elem->left_padding = left;
+	elem->top_padding = top;
+	elem->right_padding = right;
+	elem->bottom_padding = bottom;
+
+	// force calculation of new rects
+	force_calculate_elem_rects(elem);
+}
+void phos_gui_set_elem_padding(phos_gui_elem *elem, float padding)
+{
+	phos_gui_set_elem_paddings(elem, padding, padding, padding, padding);
+}
+void phos_gui_set_elem_margins(phos_gui_elem *elem, float left, float top, float right, float bottom)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot set margin on a NULL element!\n");
+		return;
+	}
+
+	elem->left_margin = left;
+	elem->top_margin = top;
+	elem->right_margin = right;
+	elem->bottom_margin = bottom;
+
+	// force calculation of new rects
+	force_calculate_elem_rects(elem);
+}
+void phos_gui_set_elem_margin(phos_gui_elem *elem, float margin)
+{
+	phos_gui_set_elem_margins(elem, margin, margin, margin, margin);
 }
 
 void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, const char *new_contents, phos_gui_opts opts)
@@ -1787,39 +1884,6 @@ void phos_gui_make_elem_fit_text(const phos_gui_text_component *const text_compo
 		phos_gui_make_elem_fit_text(elem->parent, text_component, target_str);*/
 }
 
-static void apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
-{
-	// elem-specific attributes:
-
-	elem->bg_color = theme.bg_color;
-	elem->outline_color = theme.outline_color;
-	elem->outline_thickness = theme.outline_thickness;
-
-	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
-	if(mouse_listener)
-	{
-		mouse_listener->bg_hover_color = theme.bg_hover_color;
-		mouse_listener->bg_press_color = theme.bg_press_color;
-		mouse_listener->bg_focus_color = theme.bg_focus_color;
-		mouse_listener->outline_hover_color = theme.outline_hover_color;
-		mouse_listener->outline_press_color = theme.outline_press_color;
-		mouse_listener->outline_focus_color = theme.outline_focus_color;
-	}
-
-	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
-	if(text)
-		text->color = theme.text_color;
-
-
-	// force recalculation of elem rects because outline thickness changed:
-	force_calculate_elem_rects(elem);
-
-
-	// other attributes:
-
-	phos_gui_set_window_bg_color(theme.window_bg_color);
-}
-
 void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h)
 {
 	if(!elem)
@@ -1844,7 +1908,6 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 	elem->render_mode = render_mode;
 	elem->alignment = PHOS_GUI_ALIGN_INNER_CENTER;
 	elem->child_opts = PHOS_GUI_OPTS_NONE;
-	elem->clip_mode = PHOS_GUI_CLIP_NONE;
 	elem->input_test_bounds = PHOS_GUI_ELEM_BOUNDS_REAL;
 	elem->bg_color = WHITE;
 	elem->outline_color = PHOS_GUI_COLOR_BLACK;
@@ -1855,6 +1918,7 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 	elem->left_margin = elem->top_margin = elem->right_margin = elem->bottom_margin = 0.0f;
 	elem->disabled = false;
 	elem->auto_render = true;
+	elem->clipped = false;
 
 	// apply default theme to element
 	apply_theme_to_elem(elem, phos_gui_get_default_theme());
@@ -2000,6 +2064,10 @@ int phos_gui_add_elem_to_gui(phos_gui_elem *elem, phos_gui *gui)
 	// ensure elem remembers its GUI
 	elem->gui = gui;
 
+	// force calculate rectangles around elem
+	force_calculate_elem_rects(elem);
+	prepare_elem_rects_for_caching(elem);
+
 	vl_log(VL_SUCCESS, "Added element '%s' to GUI '%s'!\n", elem->ID, gui->ID);
 
 	return 1;
@@ -2114,6 +2182,7 @@ int phos_gui_add_child_to_elem(phos_gui_elem *child, phos_gui_elem *parent, phos
 
 	// force calculate rectangles around child
 	force_calculate_elem_rects(child);
+	prepare_elem_rects_for_caching(child);
 
 	vl_log(VL_SUCCESS, "Element '%s' added to parent element '%s'!\n", child->ID, parent->ID);
 
@@ -3102,7 +3171,7 @@ static float get_elem_total_content_height(phos_gui_elem *e)
 static void get_scroll_bar_rects(const phos_gui_scroll_pane_component *const scroll_pane, Rectangle *out_v_bar, Rectangle *out_v_thumb, Rectangle *out_h_bar, Rectangle *out_h_thumb)
 {
 	// no scrolling enabled, return
-	if(!scroll_pane->scroll.vertical_scrolling_active && !scroll_pane->scroll.horizontal_scrolling_active)
+	if(!scroll_pane->vertical_scrolling_active && !scroll_pane->horizontal_scrolling_active)
 		return;
 
 	// get owner of scroll pane
@@ -3111,6 +3180,7 @@ static void get_scroll_bar_rects(const phos_gui_scroll_pane_component *const scr
 		return;
 
 	// get elem rects
+	force_calculate_elem_rects(elem);
 	Rectangle whole_content_bounds = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
 	Rectangle usable_content_bounds = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
@@ -3135,7 +3205,7 @@ static void get_scroll_bar_rects(const phos_gui_scroll_pane_component *const scr
 	if(total_content_height > usable_content_bounds.height)
 	{
 		float max_scroll = total_content_height - usable_content_bounds.height;
-		v_scroll_thumb_y = usable_content_bounds.y + (scroll_pane->scroll.y / max_scroll) * v_scroll_thumb_interval;
+		v_scroll_thumb_y = usable_content_bounds.y + (scroll_pane->scroll_y / max_scroll) * v_scroll_thumb_interval;
 	}
 	else
 		v_scroll_thumb_height = usable_content_bounds.height;
@@ -3149,7 +3219,7 @@ static void get_scroll_bar_rects(const phos_gui_scroll_pane_component *const scr
 	if(total_content_width > usable_content_bounds.width)
 	{
 		float max_scroll = total_content_width - usable_content_bounds.width;
-		h_scroll_thumb_x = usable_content_bounds.x + (scroll_pane->scroll.x / max_scroll) * h_scroll_thumb_interval;
+		h_scroll_thumb_x = usable_content_bounds.x + (scroll_pane->scroll_x / max_scroll) * h_scroll_thumb_interval;
 	}
 	else
 		h_scroll_thumb_width = usable_content_bounds.width;
@@ -3178,14 +3248,14 @@ static void get_scroll_bar_rects(const phos_gui_scroll_pane_component *const scr
 	h_thumb.width = h_scroll_thumb_width;
 	h_thumb.height = scroll_pane->h_bar.span;
 
-	if(scroll_pane->scroll.vertical_scrolling_active)
+	if(scroll_pane->vertical_scrolling_active)
 	{
 		if(out_v_bar)
 			*out_v_bar = v_bar;
 		if(out_v_thumb)
 			*out_v_thumb = v_thumb;
 	}
-	if(scroll_pane->scroll.horizontal_scrolling_active)
+	if(scroll_pane->horizontal_scrolling_active)
 	{
 		if(out_h_bar)
 			*out_h_bar = h_bar;
@@ -3207,29 +3277,35 @@ static void get_drag_bar_rect(phos_gui_drag_pane_component *drag_pane, Rectangle
 	}
 
 	// get total content bounds of elem
-	Rectangle total_content_bounds = get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	Rectangle whole_content_bounds = get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
 
 	Rectangle drag_bar_rect = {0};
-	drag_bar_rect.width = drag_pane->drag_bar_size.x;
-	drag_bar_rect.height = drag_pane->drag_bar_size.y;
 
 	switch(drag_pane->drag_bar_orientation)
 	{
 		case PHOS_GUI_DRAG_BAR_HORIZONTAL_TOP:
-			drag_bar_rect.x = total_content_bounds.x;
-			drag_bar_rect.y = total_content_bounds.y;
+			drag_bar_rect.x = whole_content_bounds.x;
+			drag_bar_rect.y = whole_content_bounds.y;
+			drag_bar_rect.width = whole_content_bounds.width;
+			drag_bar_rect.height = drag_pane->span;
 			break;
 		case PHOS_GUI_DRAG_BAR_VERTICAL_LEFT:
-			drag_bar_rect.x = total_content_bounds.x;
-			drag_bar_rect.y = total_content_bounds.y;
+			drag_bar_rect.x = whole_content_bounds.x;
+			drag_bar_rect.y = whole_content_bounds.y;
+			drag_bar_rect.width = drag_pane->span;
+			drag_bar_rect.height = whole_content_bounds.height;
 			break;
 		case PHOS_GUI_DRAG_BAR_VERTICAL_RIGHT:
-			drag_bar_rect.x = total_content_bounds.x + total_content_bounds.width - drag_bar_rect.width;
-			drag_bar_rect.y = total_content_bounds.y;
+			drag_bar_rect.x = whole_content_bounds.x + whole_content_bounds.width - drag_bar_rect.width;
+			drag_bar_rect.y = whole_content_bounds.y;
+			drag_bar_rect.width = drag_pane->span;
+			drag_bar_rect.height = whole_content_bounds.height;
 			break;
 		case PHOS_GUI_DRAG_BAR_HORIZONTAL_BOTTOM:
-			drag_bar_rect.x = total_content_bounds.x;
-			drag_bar_rect.y = total_content_bounds.y + total_content_bounds.height - drag_bar_rect.height;
+			drag_bar_rect.x = whole_content_bounds.x;
+			drag_bar_rect.y = whole_content_bounds.y + whole_content_bounds.height - drag_bar_rect.height;
+			drag_bar_rect.width = whole_content_bounds.width;
+			drag_bar_rect.height = drag_pane->span;
 			break;
 		default:
 			vl_delay_log(VL_ERROR, 2.0f, "Invalid drag bar orientation: %d!\n", drag_pane->drag_bar_orientation);
@@ -3246,8 +3322,8 @@ static bool elem_in_parent_clip(phos_gui_elem *e, Vector2 mouse_pos)
 
 	while(parent)
 	{
-		// for child elems, PHOS_GUI_CLIP_ACTIVE means it inherits parent clip, so both must be active
-		if(child->clip_mode == PHOS_GUI_CLIP_ACTIVE && parent->clip_mode == PHOS_GUI_CLIP_ACTIVE)
+		// child inherits parent clip region if parent is clipped:
+		if(parent->clipped)
 		{
 			Rectangle clip_rect = get_calculated_elem_rect(parent, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
@@ -3346,7 +3422,7 @@ static void insert_char_text(phos_gui_text_component *text, char c, phos_gui_scr
 	{
 		// only update scroll pane if it's not null
 		if(scroll_pane)
-			scroll_pane->scroll.x = 0.0f;
+			scroll_pane->scroll_x = 0.0f;
 		text->curr_line_len = 0;
 		text->num_lines++;
 	}
@@ -3564,13 +3640,13 @@ static void update_elem(phos_gui_elem *e, float dt)
 		// calculate max scroll unless the text component decided it already
 		if(!text)
 		{
-			scroll_pane->scroll.max_x = get_max_scroll_x(e);
-			scroll_pane->scroll.max_y = get_max_scroll_y(e);
+			scroll_pane->max_scroll_x = get_max_scroll_x(e);
+			scroll_pane->max_scroll_y = get_max_scroll_y(e);
 		}
 
 		// store current scroll value
-		float prev_scroll_x = scroll_pane->scroll.x;
-		float prev_scroll_y = scroll_pane->scroll.y;
+		float prev_scroll_x = scroll_pane->scroll_x;
+		float prev_scroll_y = scroll_pane->scroll_y;
 
 		// define rects around scroll thumbs:
 		Rectangle v_thumb, h_thumb;
@@ -3585,8 +3661,8 @@ static void update_elem(phos_gui_elem *e, float dt)
 		scroll_pane->h_bar.thumb_has_focus = false;
 
 		// see if mouse is over the thumb
-		bool mouse_over_v_thumb = scroll_pane->scroll.vertical_scrolling_active && scroll_pane->v_bar.rendered && phos_gui_is_mouse_over_rect(v_thumb);
-		bool mouse_over_h_thumb = scroll_pane->scroll.horizontal_scrolling_active && scroll_pane->h_bar.rendered && phos_gui_is_mouse_over_rect(h_thumb);
+		bool mouse_over_v_thumb = scroll_pane->vertical_scrolling_active && scroll_pane->v_bar.rendered && phos_gui_is_mouse_over_rect(v_thumb);
+		bool mouse_over_h_thumb = scroll_pane->horizontal_scrolling_active && scroll_pane->h_bar.rendered && phos_gui_is_mouse_over_rect(h_thumb);
 
 		// see if user is hovered over the thumb and not currently dragging pane
 		if(mouse_over_v_thumb && !dragging_drag_pane)
@@ -3602,14 +3678,14 @@ static void update_elem(phos_gui_elem *e, float dt)
 			if(mouse_over_v_thumb || scroll_pane->v_bar.thumb_grabbed)
 			{
 				if(mouse_delta.y != 0.0f)
-					v_ticks = -mouse_delta.y * SCROLL_THUMB_DRAG_FACTOR;
+					v_ticks = -mouse_delta.y * PX_PER_MOUSE_MOVE_TICK;
 				scroll_pane->v_bar.thumb_grabbed = true;
 			}
 
 			if(mouse_over_h_thumb || scroll_pane->h_bar.thumb_grabbed)
 			{
 				if(mouse_delta.x != 0.0f)
-					h_ticks = -mouse_delta.x * SCROLL_THUMB_DRAG_FACTOR;
+					h_ticks = -mouse_delta.x * PX_PER_MOUSE_MOVE_TICK;
 				scroll_pane->h_bar.thumb_grabbed = true;
 			}
 		}
@@ -3618,9 +3694,9 @@ static void update_elem(phos_gui_elem *e, float dt)
 		{
 			// user is trying to scroll using mouse wheel:
 
-			// ticks becomes mouse wheel movement instead
-			h_ticks = mouse_wheel_move.x;
-			v_ticks = mouse_wheel_move.y;
+			// ticks becomes mouse wheel movement instead (include px_per_tick since the mouse wheel is being used)
+			h_ticks = mouse_wheel_move.x * scroll_pane->px_per_tick;
+			v_ticks = mouse_wheel_move.y * scroll_pane->px_per_tick;
 
 			// thumb no longer grabbed
 			scroll_pane->v_bar.thumb_grabbed = false;
@@ -3634,22 +3710,22 @@ static void update_elem(phos_gui_elem *e, float dt)
 		}
 
 		// use ticks * px_per_tick to add to total scroll offset
-		scroll_pane->scroll.y -= v_ticks * scroll_pane->px_per_tick;
-		scroll_pane->scroll.x -= h_ticks * scroll_pane->px_per_tick;
+		scroll_pane->scroll_y -= v_ticks;
+		scroll_pane->scroll_x -= h_ticks;
 
 		// clamp scroll amounts
-		if(scroll_pane->scroll.x < 0.0f)
-			scroll_pane->scroll.x = 0.0f;
-		else if(scroll_pane->scroll.x > scroll_pane->scroll.max_x)
-			scroll_pane->scroll.x = scroll_pane->scroll.max_x;
+		if(scroll_pane->scroll_x < 0.0f)
+			scroll_pane->scroll_x = 0.0f;
+		else if(scroll_pane->scroll_x > scroll_pane->max_scroll_x)
+			scroll_pane->scroll_x = scroll_pane->max_scroll_x;
 
-		if(scroll_pane->scroll.y < 0.0f)
-			scroll_pane->scroll.y = 0.0f;
-		else if(scroll_pane->scroll.y > scroll_pane->scroll.max_y)
-			scroll_pane->scroll.y = scroll_pane->scroll.max_y;
+		if(scroll_pane->scroll_y < 0.0f)
+			scroll_pane->scroll_y = 0.0f;
+		else if(scroll_pane->scroll_y > scroll_pane->max_scroll_y)
+			scroll_pane->scroll_y = scroll_pane->max_scroll_y;
 
-		float delta_x = scroll_pane->scroll.x - prev_scroll_x;
-		float delta_y = scroll_pane->scroll.y - prev_scroll_y;
+		float delta_x = scroll_pane->scroll_x - prev_scroll_x;
+		float delta_y = scroll_pane->scroll_y - prev_scroll_y;
 
 		// translate children based on scroll pane translation (only if user scrolled)
 		for(size_t i = 0; i < e->num_children; ++i)
@@ -4132,9 +4208,6 @@ static void render_elem(phos_gui_elem *e)
 		}
 	}
 
-	// should there be a clip rect around the element's children?
-	phos_gui_elem_bounding_box child_clip_bounds = PHOS_GUI_ELEM_BOUNDS_NONE;
-
 	// render drag bar if necessary (use_drag_bar is true)
 	phos_gui_drag_pane_component *drag_pane = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_DRAG_PANE);
 	if(drag_pane && drag_pane->use_drag_bar)
@@ -4146,6 +4219,9 @@ static void render_elem(phos_gui_elem *e)
 		// render drag bar
 		DrawRectangleRec(drag_bar_rect, drag_pane->drag_bar_color);
 	}
+
+	// should there be a clip rect around the element's children?
+	phos_gui_elem_bounding_box child_clip_bounds = PHOS_GUI_ELEM_BOUNDS_NONE;
 
 	// render scroll bar if necessary
 	if(scroll_pane)
@@ -4162,12 +4238,12 @@ static void render_elem(phos_gui_elem *e)
 		Color h_thumb_color = scroll_pane->h_bar.thumb_has_focus || scroll_pane->h_bar.thumb_grabbed ? scroll_pane->h_bar.thumb_focus_color : scroll_pane->h_bar.thumb_color;
 
 		// if rendering scroll bar:
-		if(scroll_pane->v_bar.rendered && scroll_pane->scroll.vertical_scrolling_active)
+		if(scroll_pane->v_bar.rendered && scroll_pane->vertical_scrolling_active)
 		{
 			DrawRectangleRec(v_bar, scroll_pane->v_bar.bg_color);
 			DrawRectangleRec(v_thumb, v_thumb_color);
 		}
-		if(scroll_pane->h_bar.rendered && scroll_pane->scroll.horizontal_scrolling_active)
+		if(scroll_pane->h_bar.rendered && scroll_pane->horizontal_scrolling_active)
 		{
 			DrawRectangleRec(h_bar, scroll_pane->h_bar.bg_color);
 			DrawRectangleRec(h_thumb, h_thumb_color);
@@ -4181,21 +4257,22 @@ static void render_elem(phos_gui_elem *e)
 static void render_children(phos_gui_elem *e, phos_gui_elem_bounding_box bounds)
 {
 	// start a new clip around children based on bounding box given
-	bool parent_clip = false;
+	bool parent_clipped = false;
 	Rectangle clip_rect = {0};
 	if(bounds != PHOS_GUI_ELEM_BOUNDS_NONE)
 	{
 		// elem must have clipping enabled and the clip rect must have been created
 		clip_rect = get_calculated_elem_rect(e, bounds);
-		parent_clip = e->clip_mode != PHOS_GUI_CLIP_NONE && phos_gui_new_clip_r(clip_rect);
+		parent_clipped = e->clipped && phos_gui_new_clip_r(clip_rect);
 	}
 
 	for(size_t i = 0; i < e->num_children; ++i)
 	{
 		phos_gui_elem *child = e->children[i];
 
+		// TODO SHOULD THIS SECTION BE REMOVED?
 		// handle non-inherited clip regions:
-		if(parent_clip && child->clip_mode == PHOS_GUI_CLIP_NONE)
+		/*if(parent_clip && !child->clipped)
 		{
 			// temporarily remove parent clip
 			phos_gui_end_clip();
@@ -4206,13 +4283,14 @@ static void render_children(phos_gui_elem *e, phos_gui_elem_bounding_box bounds)
 			// restore and reuse parent clip
 			parent_clip = phos_gui_new_clip_r(clip_rect);
 		}
-		else
-			// automatically inherit parent clip
-			render_elem(child);
+		else*/
+
+		// automatically inherit parent clip
+		render_elem(child);
 	}
 
 	// end clip if necessary
-	if(parent_clip)
+	if(parent_clipped)
 		phos_gui_end_clip();
 }
 void phos_gui_render()
