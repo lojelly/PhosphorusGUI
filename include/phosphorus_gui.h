@@ -938,18 +938,6 @@ enum
 	*/
 	PHOS_GUI_OPTS_NONE = 0,
 	/**
-	  Indicates that the action the function performs on an element
-	  should be passed down to all of the elements children.
-	*/
-	PHOS_GUI_OPTS_PASS_DOWN = 1u << 0,
-	/**
-	  Indicates that the action the function performs on an element
-	  should be performed on all the element's siblings and parent,
-	  and then it walks up the element tree and performs it on
-	  all subsequent parents and children.
-	*/
-	PHOS_GUI_OPTS_PASS_UP = 1u << 1,
-	/**
 	  Indicates that when resizing an element, its text component
 	  (if it has one) should be modified to fit the new size of the
 	  element.
@@ -957,7 +945,7 @@ enum
 	  @note This only takes effect when the element becomes too small
 	  to contain its text.
 	*/
-	PHOS_GUI_OPTS_FIT_TEXT = 1u << 2,
+	PHOS_GUI_OPTS_FIT_TEXT = 1u << 0,
 	/**
 	  Indicates that when resizing an element, its text component
 	  (if it has one) should be realigned.
@@ -966,17 +954,17 @@ enum
 	  themselves in most cases. But for explicity you can use
 	  this option.
 	*/
-	PHOS_GUI_OPTS_REALIGN_TEXT = 1u << 3,
+	PHOS_GUI_OPTS_REALIGN_TEXT = 1u << 1,
 	/**
 	  Indicates that when moving an element, collisions between the
 	  element and other elements should be resolved.
 	*/
-	PHOS_GUI_OPTS_CHECK_ELEM_COLLISIONS = 1u << 4,
+	PHOS_GUI_OPTS_CHECK_ELEM_COLLISIONS = 1u << 2,
 	/**
 	  Indicates that when moving an element, collisions between the
 	  element and the window's edges should be resolved.
 	*/
-	PHOS_GUI_OPTS_CHECK_WINDOW_COLLISIONS = 1u << 5,
+	PHOS_GUI_OPTS_CHECK_WINDOW_COLLISIONS = 1u << 3,
 	/**
 	  Indicates the child should be resized to fit the
 	  parent's size.
@@ -984,7 +972,7 @@ enum
 	  @note This option is immediate and only affects
 	  the child specifically targeted with this option.
 	*/
-	PHOS_GUI_OPTS_CHILD_MAXIMIZED = 1u << 6,
+	PHOS_GUI_OPTS_CHILD_MAXIMIZED = 1u << 4,
 	/**
 	  Indicates the child's position should be interpreted
 	  as relative to the parent's position.
@@ -992,7 +980,7 @@ enum
 	  @note This option is immediate and only affects
 	  the child specifically targeted with this option.
 	*/
-	PHOS_GUI_OPTS_CHILD_HAS_RELATIVE_POS = 1u << 7,
+	PHOS_GUI_OPTS_CHILD_HAS_RELATIVE_POS = 1u << 5,
 };
 
 /**
@@ -2282,11 +2270,6 @@ PHOS_GUI_API void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, p
   @param h The amount of pixels the element's height should change.
   @param opts Any additional optional arguments you want to pass.
   To add additional arguments, use OPT1 | OPT2 | OPT3... and so on.
-  For this function, you can use PHOS_GUI_OPTS_PASS_DOWN to have the
-  element's children inherit the resizing. Use PHOS_GUI_OPTS_PASS_DOWN_FIRST
-  to only pass the resizing down to the very first child of the element. Using
-  both PHOS_GUI_OPTS_PASS_DOWN and PHOS_GUI_OPTS_PASS_DOWN_FIRST behaves the
-  same as just using PHOS_GUI_OPTS_PASS_DOWN_FIRST.
 */
 PHOS_GUI_API void phos_gui_resize_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opts opts);
 
@@ -2804,6 +2787,22 @@ PHOS_GUI_API void phos_gui_apply_theme(phos_gui *gui, phos_gui_theme theme);
   apply it later.
 */
 PHOS_GUI_API void phos_gui_set_default_theme(phos_gui_theme theme);
+/**
+  Brightens a theme by the given percentage and
+  returns the new theme created.
+
+  @note A negative factor results in darker colors,
+  whereas a positive factor results in brighter colors.
+*/
+PHOS_GUI_API phos_gui_theme phos_gui_brighten_theme(phos_gui_theme theme, float factor);
+/**
+  Changes the contrast in a theme using the given
+  percentage and returns the new theme created.
+
+  @note A negative factor results in duller colors,
+  whereas a positive factor results in more vibrant colors.
+*/
+PHOS_GUI_API phos_gui_theme phos_gui_saturate_theme(phos_gui_theme theme, float factor);
 /**
   Sets a custom screen tint for the window.
 

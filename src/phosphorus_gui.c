@@ -770,38 +770,10 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 		elem->bounds.x = old_pos.x;
 		elem->bounds.y = old_pos.y;
 	}
-
-	// check for PHOS_GUI_OPTS_PASS_DOWN and if applied, check collisions on the child elements as well
-	if(!collision && opts & PHOS_GUI_OPTS_PASS_DOWN)
+	// if no collision occurred on the parent, its children can move
+	else
 		for(size_t i = 0; i < elem->num_children; ++i)
 			phos_gui_move_elem_xy(elem->children[i], x, y, opts);
-	// check for PHOS_GUI_OPTS_PASS_UP and if applied, check collisions on the elements as well
-	else if(!collision && opts & PHOS_GUI_OPTS_PASS_UP)
-	{
-		phos_gui_elem *curr = elem;
-		phos_gui_elem *parent = elem->parent;
-		while(parent)
-		{
-			// move children
-			for(size_t i = 0; i < parent->num_children; ++i)
-			{
-				phos_gui_elem *child = parent->children[i];
-
-				// because the elem is included here, skip it since it was already affected
-				if(curr == child)
-					continue;
-
-				phos_gui_move_elem_xy(child, x, y, PHOS_GUI_OPTS_PASS_DOWN);
-			}
-
-			// move parent
-			phos_gui_move_elem_xy(parent, x, y, PHOS_GUI_OPTS_NONE);
-
-			// save current elem and go up to next parent
-			curr = parent;
-			parent = parent->parent;
-		}
-	}
 
 	// calculate all rects of elem in update loop
 	prepare_elem_rects_for_caching(elem);
@@ -965,9 +937,8 @@ void phos_gui_resize_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opt
 		{
 			phos_gui_elem *child = elem->children[i];
 
-			// only resize child if PHOS_GUI_OPTS_PASS_DOWN included
-			if(opts & PHOS_GUI_OPTS_PASS_DOWN)
-				phos_gui_resize_elem_wh(child, w, h, opts);
+			// resize child same amount of pixels as parent
+			phos_gui_resize_elem_wh(child, w, h, opts);
 
 			// but always realign text
 			phos_gui_text_component *child_text = pluto_cs_get_component(child, PHOS_GUI_COMPONENT_TEXT);
@@ -4345,9 +4316,43 @@ void phos_gui_apply_theme(phos_gui *gui, phos_gui_theme theme)
 		}
 	}
 }
-PHOS_GUI_API void phos_gui_set_default_theme(phos_gui_theme theme)
+void phos_gui_set_default_theme(phos_gui_theme theme)
 {
 	default_theme = theme;
+}
+phos_gui_theme phos_gui_brighten_theme(phos_gui_theme theme, float factor)
+{
+	phos_gui_theme new_theme = theme;
+
+	new_theme.bg_color = ColorBrightness(theme.bg_color, factor);
+	new_theme.outline_color = ColorBrightness(theme.outline_color, factor);
+	new_theme.bg_hover_color = ColorBrightness(theme.bg_hover_color, factor);
+	new_theme.bg_press_color = ColorBrightness(theme.bg_press_color, factor);
+	new_theme.bg_focus_color = ColorBrightness(theme.bg_focus_color, factor);
+	new_theme.outline_hover_color = ColorBrightness(theme.outline_hover_color, factor);
+	new_theme.outline_press_color = ColorBrightness(theme.outline_press_color, factor);
+	new_theme.outline_focus_color = ColorBrightness(theme.outline_focus_color, factor);
+	new_theme.text_color = ColorBrightness(theme.text_color, factor);
+	new_theme.window_bg_color = ColorBrightness(theme.window_bg_color, factor);
+
+	return new_theme;
+}
+phos_gui_theme phos_gui_saturate_theme(phos_gui_theme theme, float factor)
+{
+	phos_gui_theme new_theme = theme;
+
+	new_theme.bg_color = ColorContrast(theme.bg_color, factor);
+	new_theme.outline_color = ColorContrast(theme.outline_color, factor);
+	new_theme.bg_hover_color = ColorContrast(theme.bg_hover_color, factor);
+	new_theme.bg_press_color = ColorContrast(theme.bg_press_color, factor);
+	new_theme.bg_focus_color = ColorContrast(theme.bg_focus_color, factor);
+	new_theme.outline_hover_color = ColorContrast(theme.outline_hover_color, factor);
+	new_theme.outline_press_color = ColorContrast(theme.outline_press_color, factor);
+	new_theme.outline_focus_color = ColorContrast(theme.outline_focus_color, factor);
+	new_theme.text_color = ColorContrast(theme.text_color, factor);
+	new_theme.window_bg_color = ColorContrast(theme.window_bg_color, factor);
+
+	return new_theme;
 }
 void phos_gui_apply_screen_tint(Color color)
 {
