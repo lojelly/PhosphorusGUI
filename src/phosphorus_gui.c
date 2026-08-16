@@ -139,6 +139,7 @@ static phos_gui_elem *mouse_target = NULL;
 
 static Color screen_tint = BLANK;
 static Color window_bg_color = WHITE;
+static phos_gui_theme default_theme = {0};
 
 #define assert_obj_ptr(obj, ptr, ...) \
 	do { \
@@ -529,6 +530,9 @@ int phos_gui_init()
 	pluto_cs_register(PHOS_GUI_COMPONENT_LAYOUT, sizeof(phos_gui_layout_component), init_layout_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_SCROLL_PANE, sizeof(phos_gui_scroll_pane_component), init_scroll_pane_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_DRAG_PANE, sizeof(phos_gui_drag_pane_component), init_drag_pane_component, NULL);
+
+	// set default theme
+	default_theme = PHOS_GUI_THEME_MONOTONE;
 
 	init = true;
 	vl_log(VL_SUCCESS, "Initialized PhosphorusGUI!\n");
@@ -1812,6 +1816,39 @@ void phos_gui_make_elem_fit_text(const phos_gui_text_component *const text_compo
 		phos_gui_make_elem_fit_text(elem->parent, text_component, target_str);*/
 }
 
+static void apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
+{
+	// elem-specific attributes:
+
+	elem->bg_color = theme.bg_color;
+	elem->outline_color = theme.outline_color;
+	elem->outline_thickness = theme.outline_thickness;
+
+	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+	if(mouse_listener)
+	{
+		mouse_listener->bg_hover_color = theme.bg_hover_color;
+		mouse_listener->bg_press_color = theme.bg_press_color;
+		mouse_listener->bg_focus_color = theme.bg_focus_color;
+		mouse_listener->outline_hover_color = theme.outline_hover_color;
+		mouse_listener->outline_press_color = theme.outline_press_color;
+		mouse_listener->outline_focus_color = theme.outline_focus_color;
+	}
+
+	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	if(text)
+		text->color = theme.text_color;
+
+
+	// force recalculation of elem rects because outline thickness changed:
+	force_calculate_elem_rects(elem);
+
+
+	// other attributes:
+
+	phos_gui_set_window_bg_color(theme.window_bg_color);
+}
+
 void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h)
 {
 	if(!elem)
@@ -1848,39 +1885,10 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 	elem->disabled = false;
 	elem->auto_render = true;
 
+	// apply default theme to element
+	apply_theme_to_elem(elem, phos_gui_get_default_theme());
+
 	prepare_elem_rects_for_caching(elem);
-}
-static void apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
-{
-	// elem-specific attributes:
-
-	elem->bg_color = theme.bg_color;
-	elem->outline_color = theme.outline_color;
-	elem->outline_thickness = theme.outline_thickness;
-
-	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
-	if(mouse_listener)
-	{
-		mouse_listener->bg_hover_color = theme.bg_hover_color;
-		mouse_listener->bg_press_color = theme.bg_press_color;
-		mouse_listener->bg_focus_color = theme.bg_focus_color;
-		mouse_listener->outline_hover_color = theme.outline_hover_color;
-		mouse_listener->outline_press_color = theme.outline_press_color;
-		mouse_listener->outline_focus_color = theme.outline_focus_color;
-	}
-
-	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
-	if(text)
-		text->color = theme.text_color;
-
-
-	// force recalculation of elem rects because outline thickness changed:
-	force_calculate_elem_rects(elem);
-
-
-	// other attributes:
-
-	phos_gui_set_window_bg_color(theme.window_bg_color);
 }
 void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text)
 {
@@ -1903,9 +1911,6 @@ void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y,
 	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
 	if(!mouse_listener)
 		phos_gui_exit(EXIT_FAILURE);
-
-	// apply default theme to button
-	apply_theme_to_elem(elem, phos_gui_get_default_theme());
 }
 
 void phos_gui_gen_bg_colors(phos_gui_mouse_listener_component *mouse_listener, float hover_color_factor, float press_color_factor, float focus_color_factor)
@@ -4272,21 +4277,7 @@ void phos_gui_render_elem(phos_gui_elem *elem)
 }
 phos_gui_theme phos_gui_get_default_theme()
 {
-	phos_gui_theme theme = {0};
-
-	theme.bg_color = PHOS_GUI_COLOR_GRAY;
-	theme.outline_color = PHOS_GUI_COLOR_DARK_GRAY;
-	theme.bg_hover_color = ColorBrightness(theme.bg_color, -0.1f);
-	theme.bg_press_color = ColorBrightness(theme.bg_color, -0.2f);
-	theme.bg_focus_color = theme.bg_color;
-	theme.outline_hover_color = theme.outline_color;
-	theme.outline_press_color = theme.outline_color;
-	theme.outline_focus_color = theme.outline_color;
-	theme.text_color = PHOS_GUI_COLOR_BLACK;
-	theme.window_bg_color = WHITE;
-	theme.outline_thickness = 5.0f;
-
-	return theme;
+	return default_theme;
 }
 phos_gui_theme phos_gui_create_theme_basic(Color base_color)
 {
@@ -4301,7 +4292,7 @@ phos_gui_theme phos_gui_create_theme_basic(Color base_color)
 	theme.outline_press_color = theme.outline_color;
 	theme.outline_focus_color = theme.outline_color;
 	theme.text_color = ColorBrightness(base_color, -0.75f);
-	theme.window_bg_color = ColorContrast(base_color, -0.5f);
+	theme.window_bg_color = ColorBrightness(base_color, -0.9f);
 	theme.outline_thickness = 5.0f;
 
 	return theme;
@@ -4315,8 +4306,8 @@ phos_gui_theme phos_gui_create_theme_accented(Color base_color, Color accent_col
 	theme.bg_hover_color = ColorBrightness(base_color, -0.1f);
 	theme.bg_press_color = ColorBrightness(base_color, -0.2f);
 	theme.bg_focus_color = base_color;
-	theme.outline_hover_color = ColorBrightness(theme.outline_color, -0.1f);
-	theme.outline_press_color = ColorBrightness(theme.outline_color, -0.2f);
+	theme.outline_hover_color = theme.outline_color;
+	theme.outline_press_color = theme.outline_color;
 	theme.outline_focus_color = theme.outline_color;
 	theme.text_color = ColorBrightness(accent_color, -0.75f);
 	theme.window_bg_color = PHOS_GUI_COLOR_MIX(ColorContrast(accent_color, -0.65f), ColorBrightness(accent_color, -0.8f));
@@ -4353,6 +4344,10 @@ void phos_gui_apply_theme(phos_gui *gui, phos_gui_theme theme)
 			apply_theme_to_elem(child, theme);
 		}
 	}
+}
+PHOS_GUI_API void phos_gui_set_default_theme(phos_gui_theme theme)
+{
+	default_theme = theme;
 }
 void phos_gui_apply_screen_tint(Color color)
 {
