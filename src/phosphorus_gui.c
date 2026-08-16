@@ -25,7 +25,7 @@
 #define SCROLL_THUMB_DRAG_FACTOR 0.25f
 
 #define DEFAULT_SCROLL_INFO (phos_gui_scroll_info) { .vertical_scrolling_active = true, .horizontal_scrolling_active = true }
-#define DEFAULT_SCROLL_BAR (phos_gui_scroll_bar) { .span = 12.0f, .bg_color = PHOS_GUI_LIGHT_GRAY, .thumb_color = PHOS_GUI_GRAY, .thumb_focus_color = PHOS_GUI_DARK_GRAY, .thumb_has_focus = false, .thumb_grabbed = false, .rendered = true }
+#define DEFAULT_SCROLL_BAR (phos_gui_scroll_bar) { .span = 12.0f, .bg_color = PHOS_GUI_COLOR_LIGHT_GRAY, .thumb_color = PHOS_GUI_COLOR_GRAY, .thumb_focus_color = PHOS_GUI_COLOR_DARK_GRAY, .thumb_has_focus = false, .thumb_grabbed = false, .rendered = true }
 
 // array of element pointers
 typedef struct elem_arr
@@ -219,7 +219,7 @@ static void init_text_component(void *text_component)
 	text->font_size = PHOS_GUI_FONT_SIZE_DEFAULT;
 	text->alignment = PHOS_GUI_ALIGN_INNER_CENTER;
 	text->edit_opts = PHOS_GUI_OPTS_NONE;
-	text->color = PHOS_GUI_BLACK;
+	text->color = PHOS_GUI_COLOR_BLACK;
 	text->key_typed = KEY_NULL;
 	text->char_typed = '\0';
 	text->editable = false;
@@ -264,7 +264,7 @@ static void init_placeholder_text_extension(void *placeholder_text_component)
 		return;
 	}
 
-	placeholder_text->color = PHOS_GUI_GRAY;
+	placeholder_text->color = PHOS_GUI_COLOR_GRAY;
 	snprintf(placeholder_text->str, sizeof(placeholder_text->str), "");
 }
 
@@ -487,7 +487,7 @@ static void init_drag_pane_component(void *drag_pane_component)
 
 	drag_pane->drag_bar_size = (Vector2) { owner_total_content.width, PHOS_GUI_DRAG_BAR_DEFAULT_SPAN };
 	drag_pane->drag_bar_orientation = PHOS_GUI_DRAG_BAR_HORIZONTAL_TOP;
-	drag_pane->drag_bar_color = PHOS_GUI_LIGHT_GRAY;
+	drag_pane->drag_bar_color = PHOS_GUI_COLOR_LIGHT_GRAY;
 	drag_pane->drag_opts = PHOS_GUI_OPTS_NONE;
 	drag_pane->use_drag_bar = false;
 	drag_pane->grabbed = false;
@@ -1839,8 +1839,8 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 	elem->clip_mode = PHOS_GUI_CLIP_NONE;
 	elem->input_test_bounds = PHOS_GUI_ELEM_BOUNDS_REAL;
 	elem->bg_color = WHITE;
-	elem->outline_color = PHOS_GUI_BLACK;
-	elem->disabled_color = PHOS_GUI_LIGHT_GRAY;
+	elem->outline_color = PHOS_GUI_COLOR_BLACK;
+	elem->disabled_color = PHOS_GUI_COLOR_LIGHT_GRAY;
 	elem->outline_thickness = 1.0f;
 	elem->corner_radius = 0.0f;
 	elem->left_padding = elem->top_padding = elem->right_padding = elem->bottom_padding = 0.0f;
@@ -4274,35 +4274,66 @@ phos_gui_theme phos_gui_get_default_theme()
 {
 	phos_gui_theme theme = {0};
 
-	theme.bg_color = PHOS_GUI_GRAY;
-	theme.outline_color = PHOS_GUI_DARK_GRAY;
+	theme.bg_color = PHOS_GUI_COLOR_GRAY;
+	theme.outline_color = PHOS_GUI_COLOR_DARK_GRAY;
 	theme.bg_hover_color = ColorBrightness(theme.bg_color, -0.1f);
 	theme.bg_press_color = ColorBrightness(theme.bg_color, -0.2f);
 	theme.bg_focus_color = theme.bg_color;
 	theme.outline_hover_color = theme.outline_color;
 	theme.outline_press_color = theme.outline_color;
 	theme.outline_focus_color = theme.outline_color;
-	theme.text_color = PHOS_GUI_BLACK;
+	theme.text_color = PHOS_GUI_COLOR_BLACK;
 	theme.window_bg_color = WHITE;
 	theme.outline_thickness = 5.0f;
 
 	return theme;
 }
-phos_gui_theme phos_gui_create_theme(Color base_color)
+phos_gui_theme phos_gui_create_theme_basic(Color base_color)
 {
 	phos_gui_theme theme = {0};
 
 	theme.bg_color = base_color;
 	theme.outline_color = ColorBrightness(base_color, -0.5f);
-	theme.bg_hover_color = ColorBrightness(theme.bg_color, -0.1f);
-	theme.bg_press_color = ColorBrightness(theme.bg_color, -0.2f);
-	theme.bg_focus_color = theme.bg_color;
+	theme.bg_hover_color = ColorBrightness(base_color, -0.1f);
+	theme.bg_press_color = ColorBrightness(base_color, -0.2f);
+	theme.bg_focus_color = base_color;
 	theme.outline_hover_color = theme.outline_color;
 	theme.outline_press_color = theme.outline_color;
 	theme.outline_focus_color = theme.outline_color;
 	theme.text_color = ColorBrightness(base_color, -0.75f);
 	theme.window_bg_color = ColorContrast(base_color, -0.5f);
 	theme.outline_thickness = 5.0f;
+
+	return theme;
+}
+phos_gui_theme phos_gui_create_theme_accented(Color base_color, Color accent_color)
+{
+	phos_gui_theme theme = {0};
+
+	theme.bg_color = base_color;
+	theme.outline_color = accent_color;
+	theme.bg_hover_color = ColorBrightness(base_color, -0.1f);
+	theme.bg_press_color = ColorBrightness(base_color, -0.2f);
+	theme.bg_focus_color = base_color;
+	theme.outline_hover_color = ColorBrightness(theme.outline_color, -0.1f);
+	theme.outline_press_color = ColorBrightness(theme.outline_color, -0.2f);
+	theme.outline_focus_color = theme.outline_color;
+	theme.text_color = ColorBrightness(accent_color, -0.75f);
+	theme.window_bg_color = PHOS_GUI_COLOR_MIX(ColorContrast(accent_color, -0.65f), ColorBrightness(accent_color, -0.8f));
+	theme.outline_thickness = 5.0f;
+
+	return theme;
+}
+phos_gui_theme phos_gui_create_theme_full(Color base_color, Color accent_color, Color text_color, Color window_bg_color)
+{
+	phos_gui_theme theme = {0};
+
+	// first create theme using base and accent colors
+	theme = phos_gui_create_theme_accented(base_color, accent_color);
+
+	// then override specific colors given
+	theme.text_color = text_color;
+	theme.window_bg_color = window_bg_color;
 
 	return theme;
 }

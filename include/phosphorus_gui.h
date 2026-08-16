@@ -130,17 +130,22 @@
 /**
   The default alpha value for all tint colors in PhosphorusGUI.
 */
-#define PHOS_GUI_TINT_STRENGTH 50
+#define PHOS_GUI_COLOR_TINT_STRENGTH 50
 /**
   The default brightness increase/decrease factor for
   PhosphorusGUI's built-in colors.
 */
-#define PHOS_GUI_BRIGHTNESS_FACTOR 0.5f
+#define PHOS_GUI_COLOR_BRIGHTNESS_FACTOR 0.5f
 /**
-  The default contrast increase/decrease factor for
+  The default contrast increase factor for
   PhosphorusGUI's built-in colors.
 */
-#define PHOS_GUI_CONTRAST_FACTOR 0.5f
+#define PHOS_GUI_COLOR_CONTRAST_UP_FACTOR 0.4f
+/**
+  The default contrast decrease factor for PhosphorusGUI's
+  built-in colors.
+*/
+#define PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR -0.3f
 /**
   Mixes two colors.
 */
@@ -149,251 +154,466 @@
 /**
   Black.
 */
-#define PHOS_GUI_BLACK (Color) { 15, 15, 15, 255 }
+#define PHOS_GUI_COLOR_BLACK (Color) { 15, 15, 15, 255 }
 
 /**
   Gray.
 */
-#define PHOS_GUI_GRAY (Color) { 125, 125, 125, 255 }
+#define PHOS_GUI_COLOR_GRAY (Color) { 125, 125, 125, 255 }
 /**
   Light gray.
 */
-#define PHOS_GUI_LIGHT_GRAY ColorBrightness(PHOS_GUI_GRAY, PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_LIGHT_GRAY ColorBrightness(PHOS_GUI_COLOR_GRAY, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Dark gray.
 */
-#define PHOS_GUI_DARK_GRAY ColorBrightness(PHOS_GUI_GRAY, -PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_DARK_GRAY ColorBrightness(PHOS_GUI_COLOR_GRAY, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 
 /**
   Red.
 */
-#define PHOS_GUI_RED (Color) { 255, 0, 0, 255 }
+#define PHOS_GUI_COLOR_RED (Color) { 255, 0, 0, 255 }
 /**
   Light red.
 */
-#define PHOS_GUI_LIGHT_RED ColorBrightness(PHOS_GUI_RED, PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_LIGHT_RED ColorBrightness(PHOS_GUI_COLOR_RED, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Dark red.
 */
-#define PHOS_GUI_DARK_RED ColorBrightness(PHOS_GUI_RED, -PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_DARK_RED ColorBrightness(PHOS_GUI_COLOR_RED, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Bright red.
 */
-#define PHOS_GUI_BRIGHT_RED ColorContrast(PHOS_GUI_RED, PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_BRIGHT_RED ColorContrast(PHOS_GUI_COLOR_RED, PHOS_GUI_COLOR_CONTRAST_UP_FACTOR)
 /**
   Dim red.
 */
-#define PHOS_GUI_DIM_RED ColorContrast(PHOS_GUI_RED, -PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_DIM_RED ColorContrast(PHOS_GUI_COLOR_RED, PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR)
 
 /**
   Green.
 */
-#define PHOS_GUI_GREEN (Color) { 0, 255, 0, 255 }
+#define PHOS_GUI_COLOR_GREEN (Color) { 0, 255, 0, 255 }
 /**
   Light green.
 */
-#define PHOS_GUI_LIGHT_GREEN ColorBrightness(PHOS_GUI_GREEN, PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_LIGHT_GREEN ColorBrightness(PHOS_GUI_COLOR_GREEN, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Dark green.
 */
-#define PHOS_GUI_DARK_GREEN ColorBrightness(PHOS_GUI_GREEN, -PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_DARK_GREEN ColorBrightness(PHOS_GUI_COLOR_GREEN, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Bright green.
 */
-#define PHOS_GUI_BRIGHT_GREEN ColorContrast(PHOS_GUI_GREEN, PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_BRIGHT_GREEN ColorContrast(PHOS_GUI_COLOR_GREEN, PHOS_GUI_COLOR_CONTRAST_UP_FACTOR)
 /**
   Dim green.
 */
-#define PHOS_GUI_DIM_GREEN ColorContrast(PHOS_GUI_GREEN, -PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_DIM_GREEN ColorContrast(PHOS_GUI_COLOR_GREEN, PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR)
 
 /**
   Blue.
 */
-#define PHOS_GUI_BLUE (Color) { 0, 0, 255, 255 }
+#define PHOS_GUI_COLOR_BLUE (Color) { 0, 0, 255, 255 }
 /**
   Light blue.
 */
-#define PHOS_GUI_LIGHT_BLUE ColorBrightness(PHOS_GUI_BLUE, PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_LIGHT_BLUE ColorBrightness(PHOS_GUI_COLOR_BLUE, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Dark blue.
 */
-#define PHOS_GUI_DARK_BLUE ColorBrightness(PHOS_GUI_BLUE, -PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_DARK_BLUE ColorBrightness(PHOS_GUI_COLOR_BLUE, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Bright blue.
 */
-#define PHOS_GUI_BRIGHT_BLUE ColorContrast(PHOS_GUI_BLUE, PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_BRIGHT_BLUE ColorContrast(PHOS_GUI_COLOR_BLUE, PHOS_GUI_COLOR_CONTRAST_UP_FACTOR)
 /**
   Dim blue.
 */
-#define PHOS_GUI_DIM_BLUE ColorContrast(PHOS_GUI_BLUE, -PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_DIM_BLUE ColorContrast(PHOS_GUI_COLOR_BLUE, PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR)
 
 /**
   Orange.
 */
-#define PHOS_GUI_ORANGE (Color) { 255, 125, 0, 255 }
+#define PHOS_GUI_COLOR_ORANGE (Color) { 255, 125, 0, 255 }
 /**
   Light orange.
 */
-#define PHOS_GUI_LIGHT_ORANGE ColorBrightness(PHOS_GUI_ORANGE, PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_LIGHT_ORANGE ColorBrightness(PHOS_GUI_COLOR_ORANGE, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Dark orange (brown).
 */
-#define PHOS_GUI_DARK_ORANGE ColorBrightness(PHOS_GUI_ORANGE, -PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_DARK_ORANGE ColorBrightness(PHOS_GUI_COLOR_ORANGE, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Bright orange.
 */
-#define PHOS_GUI_BRIGHT_ORANGE ColorContrast(PHOS_GUI_ORANGE, PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_BRIGHT_ORANGE ColorContrast(PHOS_GUI_COLOR_ORANGE, PHOS_GUI_COLOR_CONTRAST_UP_FACTOR)
 /**
   Dim orange.
 */
-#define PHOS_GUI_DIM_ORANGE ColorContrast(PHOS_GUI_ORANGE, -PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_DIM_ORANGE ColorContrast(PHOS_GUI_COLOR_ORANGE, PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR)
 
 /**
   Yellow.
 */
-#define PHOS_GUI_YELLOW (Color) { 255, 255, 0, 255 }
+#define PHOS_GUI_COLOR_YELLOW (Color) { 255, 255, 0, 255 }
 /**
   Light yellow.
 */
-#define PHOS_GUI_LIGHT_YELLOW ColorBrightness(PHOS_GUI_YELLOW, PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_LIGHT_YELLOW ColorBrightness(PHOS_GUI_COLOR_YELLOW, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Dark yellow.
 */
-#define PHOS_GUI_DARK_YELLOW ColorBrightness(PHOS_GUI_YELLOW, -PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_DARK_YELLOW ColorBrightness(PHOS_GUI_COLOR_YELLOW, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Bright yellow.
 */
-#define PHOS_GUI_BRIGHT_YELLOW ColorContrast(PHOS_GUI_YELLOW, PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_BRIGHT_YELLOW ColorContrast(PHOS_GUI_COLOR_YELLOW, PHOS_GUI_COLOR_CONTRAST_UP_FACTOR)
 /**
   Dim yellow.
 */
-#define PHOS_GUI_DIM_YELLOW ColorContrast(PHOS_GUI_YELLOW, -PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_DIM_YELLOW ColorContrast(PHOS_GUI_COLOR_YELLOW, PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR)
 
 /**
   Violet.
 */
-#define PHOS_GUI_VIOLET (Color) { 140, 0, 255, 255 }
+#define PHOS_GUI_COLOR_VIOLET (Color) { 140, 0, 255, 255 }
 /**
   Light violet.
 */
-#define PHOS_GUI_LIGHT_VIOLET ColorBrightness(PHOS_GUI_VIOLET, PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_LIGHT_VIOLET ColorBrightness(PHOS_GUI_COLOR_VIOLET, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Dark violet.
 */
-#define PHOS_GUI_DARK_VIOLET ColorBrightness(PHOS_GUI_VIOLET, -PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_DARK_VIOLET ColorBrightness(PHOS_GUI_COLOR_VIOLET, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Bright violet.
 */
-#define PHOS_GUI_BRIGHT_VIOLET ColorContrast(PHOS_GUI_VIOLET, PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_BRIGHT_VIOLET ColorContrast(PHOS_GUI_COLOR_VIOLET, PHOS_GUI_COLOR_CONTRAST_UP_FACTOR)
 /**
   Dim violet.
 */
-#define PHOS_GUI_DIM_VIOLET ColorContrast(PHOS_GUI_VIOLET, -PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_DIM_VIOLET ColorContrast(PHOS_GUI_COLOR_VIOLET, PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR)
 
 /**
   Indigo.
 */
-#define PHOS_GUI_INDIGO (Color) { 75, 0, 175, 255 }
+#define PHOS_GUI_COLOR_INDIGO (Color) { 75, 0, 175, 255 }
 /**
   Light indigo.
 */
-#define PHOS_GUI_LIGHT_INDIGO ColorBrightness(PHOS_GUI_INDIGO, PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_LIGHT_INDIGO ColorBrightness(PHOS_GUI_COLOR_INDIGO, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Dark indigo.
 */
-#define PHOS_GUI_DARK_INDIGO ColorBrightness(PHOS_GUI_INDIGO, -PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_DARK_INDIGO ColorBrightness(PHOS_GUI_COLOR_INDIGO, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Bright indigo.
 */
-#define PHOS_GUI_BRIGHT_INDIGO ColorContrast(PHOS_GUI_INDIGO, PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_BRIGHT_INDIGO ColorContrast(PHOS_GUI_COLOR_INDIGO, PHOS_GUI_COLOR_CONTRAST_UP_FACTOR)
 /**
   Dim indigo.
 */
-#define PHOS_GUI_DIM_INDIGO ColorContrast(PHOS_GUI_INDIGO, -PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_DIM_INDIGO ColorContrast(PHOS_GUI_COLOR_INDIGO, PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR)
 
 /**
   Cyan.
 */
-#define PHOS_GUI_CYAN (Color) { 0, 255, 255, 255 }
+#define PHOS_GUI_COLOR_CYAN (Color) { 0, 255, 255, 255 }
 /**
   Light cyan.
 */
-#define PHOS_GUI_LIGHT_CYAN ColorBrightness(PHOS_GUI_CYAN, PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_LIGHT_CYAN ColorBrightness(PHOS_GUI_COLOR_CYAN, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Dark cyan.
 */
-#define PHOS_GUI_DARK_CYAN ColorBrightness(PHOS_GUI_CYAN, -PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_DARK_CYAN ColorBrightness(PHOS_GUI_COLOR_CYAN, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Bright cyan.
 */
-#define PHOS_GUI_BRIGHT_CYAN ColorContrast(PHOS_GUI_CYAN, PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_BRIGHT_CYAN ColorContrast(PHOS_GUI_COLOR_CYAN, PHOS_GUI_COLOR_CONTRAST_UP_FACTOR)
 /**
   Dim cyan.
 */
-#define PHOS_GUI_DIM_CYAN ColorContrast(PHOS_GUI_CYAN, -PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_DIM_CYAN ColorContrast(PHOS_GUI_COLOR_CYAN, PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR)
 
 /**
   Mint.
 */
-#define PHOS_GUI_MINT (Color) { 115, 255, 145, 255 }
+#define PHOS_GUI_COLOR_MINT (Color) { 115, 255, 145, 255 }
 /**
   Light mint.
 */
-#define PHOS_GUI_LIGHT_MINT ColorBrightness(PHOS_GUI_MINT, PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_LIGHT_MINT ColorBrightness(PHOS_GUI_COLOR_MINT, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Dark mint.
 */
-#define PHOS_GUI_DARK_MINT ColorBrightness(PHOS_GUI_MINT, -PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_DARK_MINT ColorBrightness(PHOS_GUI_COLOR_MINT, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Bright mint.
 */
-#define PHOS_GUI_BRIGHT_MINT ColorContrast(PHOS_GUI_MINT, PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_BRIGHT_MINT ColorContrast(PHOS_GUI_COLOR_MINT, PHOS_GUI_COLOR_CONTRAST_UP_FACTOR)
 /**
   Dim mint.
 */
-#define PHOS_GUI_DIM_MINT ColorContrast(PHOS_GUI_MINT, -PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_DIM_MINT ColorContrast(PHOS_GUI_COLOR_MINT, PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR)
 
 /**
   Pink.
 */
-#define PHOS_GUI_PINK (Color) { 255, 100, 200, 255 }
+#define PHOS_GUI_COLOR_PINK (Color) { 255, 100, 200, 255 }
 /**
   Light pink.
 */
-#define PHOS_GUI_LIGHT_PINK ColorBrightness(PHOS_GUI_PINK, PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_LIGHT_PINK ColorBrightness(PHOS_GUI_COLOR_PINK, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Dark pink.
 */
-#define PHOS_GUI_DARK_PINK ColorBrightness(PHOS_GUI_PINK, -PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_DARK_PINK ColorBrightness(PHOS_GUI_COLOR_PINK, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Bright pink.
 */
-#define PHOS_GUI_BRIGHT_PINK ColorContrast(PHOS_GUI_PINK, PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_BRIGHT_PINK ColorContrast(PHOS_GUI_COLOR_PINK, PHOS_GUI_COLOR_CONTRAST_UP_FACTOR)
 /**
   Dim pink.
 */
-#define PHOS_GUI_DIM_PINK ColorContrast(PHOS_GUI_PINK, -PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_DIM_PINK ColorContrast(PHOS_GUI_COLOR_PINK, PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR)
 
 /**
   Magenta.
 */
-#define PHOS_GUI_MAGENTA (Color) { 255, 0, 255, 255 }
+#define PHOS_GUI_COLOR_MAGENTA (Color) { 255, 0, 255, 255 }
 /**
   Light magenta.
 */
-#define PHOS_GUI_LIGHT_MAGENTA ColorBrightness(PHOS_GUI_MAGENTA, PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_LIGHT_MAGENTA ColorBrightness(PHOS_GUI_COLOR_MAGENTA, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Dark magenta.
 */
-#define PHOS_GUI_DARK_MAGENTA ColorBrightness(PHOS_GUI_MAGENTA, -PHOS_GUI_BRIGHTNESS_FACTOR)
+#define PHOS_GUI_COLOR_DARK_MAGENTA ColorBrightness(PHOS_GUI_COLOR_MAGENTA, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
 /**
   Bright magenta;
 */
-#define PHOS_GUI_BRIGHT_MAGENTA ColorContrast(PHOS_GUI_MAGENTA, PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_BRIGHT_MAGENTA ColorContrast(PHOS_GUI_COLOR_MAGENTA, PHOS_GUI_COLOR_CONTRAST_UP_FACTOR)
 /**
   Dim magenta.
 */
-#define PHOS_GUI_DIM_MAGENTA ColorContrast(PHOS_GUI_MAGENTA, -PHOS_GUI_CONTRAST_FACTOR)
+#define PHOS_GUI_COLOR_DIM_MAGENTA ColorContrast(PHOS_GUI_COLOR_MAGENTA, PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR)
+
+/**
+  Crystal.
+*/
+#define PHOS_GUI_COLOR_CRYSTAL (Color) { 255, 250, 125, 255 }
+/**
+  Light crystal.
+*/
+#define PHOS_GUI_COLOR_LIGHT_CRYSTAL ColorBrightness(PHOS_GUI_COLOR_CRYSTAL, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
+/**
+  Dark crystal.
+*/
+#define PHOS_GUI_COLOR_DARK_CRYSTAL ColorBrightness(PHOS_GUI_COLOR_CRYSTAL, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
+/**
+  Bright crystal.
+*/
+#define PHOS_GUI_COLOR_BRIGHT_CRYSTAL ColorContrast(PHOS_GUI_COLOR_CRYSTAL, PHOS_GUI_COLOR_CONTRAST_UP_FACTOR)
+/**
+  Dim crystal.
+*/
+#define PHOS_GUI_COLOR_DIM_CRYSTAL ColorContrast(PHOS_GUI_COLOR_CRYSTAL, PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR)
+
+/**
+  Sky blue.
+*/
+#define PHOS_GUI_COLOR_SKY_BLUE (Color) { 0, 175, 255, 255 }
+/**
+  Light sky blue.
+*/
+#define PHOS_GUI_COLOR_LIGHT_SKY_BLUE ColorBrightness(PHOS_GUI_COLOR_SKY_BLUE, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
+/**
+  Dark sky blue.
+*/
+#define PHOS_GUI_COLOR_DARK_SKY_BLUE ColorBrightness(PHOS_GUI_COLOR_SKY_BLUE, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
+/**
+  Bright sky blue.
+*/
+#define PHOS_GUI_COLOR_BRIGHT_SKY_BLUE ColorContrast(PHOS_GUI_COLOR_SKY_BLUE, PHOS_GUI_COLOR_CONTRAST_UP_FACTOR)
+/**
+  Dim sky blue.
+*/
+#define PHOS_GUI_COLOR_DIM_SKY_BLUE ColorContrast(PHOS_GUI_COLOR_SKY_BLUE, PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR)
+
+/**
+  Coral.
+*/
+#define PHOS_GUI_COLOR_CORAL (Color) { 255, 125, 90, 255 }
+/**
+  Light coral.
+*/
+#define PHOS_GUI_COLOR_LIGHT_CORAL ColorBrightness(PHOS_GUI_COLOR_CORAL, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
+/**
+  Dark coral.
+*/
+#define PHOS_GUI_COLOR_DARK_CORAL ColorBrightness(PHOS_GUI_COLOR_CORAL, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
+/**
+  Bright coral.
+*/
+#define PHOS_GUI_COLOR_BRIGHT_CORAL ColorContrast(PHOS_GUI_COLOR_CORAL, PHOS_GUI_COLOR_CONTRAST_UP_FACTOR)
+/**
+  Dim coral.
+*/
+#define PHOS_GUI_COLOR_DIM_CORAL ColorContrast(PHOS_GUI_COLOR_CORAL, PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR)
+
+/**
+  Amber.
+*/
+#define PHOS_GUI_COLOR_AMBER (Color) { 255, 190, 0, 255 }
+/**
+  Light amber.
+*/
+#define PHOS_GUI_COLOR_LIGHT_AMBER ColorBrightness(PHOS_GUI_COLOR_AMBER, PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
+/**
+  Dark amber.
+*/
+#define PHOS_GUI_COLOR_DARK_AMBER ColorBrightness(PHOS_GUI_COLOR_AMBER, -PHOS_GUI_COLOR_BRIGHTNESS_FACTOR)
+/**
+  Bright amber.
+*/
+#define PHOS_GUI_COLOR_BRIGHT_AMBER ColorContrast(PHOS_GUI_COLOR_AMBER, PHOS_GUI_COLOR_CONTRAST_UP_FACTOR)
+/**
+  Dim amber.
+*/
+#define PHOS_GUI_COLOR_DIM_AMBER ColorContrast(PHOS_GUI_COLOR_AMBER, PHOS_GUI_COLOR_CONTRAST_DOWN_FACTOR)
+
+// pre-built themes:
+
+/**
+  A color theme built on two colors: crystal and indigo.
+*/
+#define PHOS_GUI_THEME_INDIGO_COSMOS phos_gui_create_theme_accented(PHOS_GUI_COLOR_CRYSTAL, PHOS_GUI_COLOR_INDIGO)
+/**
+  A color theme built on two colors: sky blue and cyan.
+*/
+#define PHOS_GUI_THEME_BRIGHT_BLUE_SKY phos_gui_create_theme_accented(PHOS_GUI_COLOR_CYAN, PHOS_GUI_COLOR_SKY_BLUE)
+/**
+  A color theme built on two colors: red and yellow.
+*/
+#define PHOS_GUI_THEME_INFERNO phos_gui_create_theme_accented(PHOS_GUI_COLOR_YELLOW, PHOS_GUI_COLOR_RED)
+/**
+  A color theme built around Autumn colors.
+*/
+#define PHOS_GUI_THEME_AUTUMN (phos_gui_theme) { \
+	.bg_color = PHOS_GUI_COLOR_ORANGE, \
+	.outline_color = ColorBrightness(PHOS_GUI_COLOR_RED, -0.2f), \
+	.bg_hover_color = ColorBrightness(PHOS_GUI_COLOR_ORANGE, -0.1f), \
+	.bg_press_color = ColorBrightness(PHOS_GUI_COLOR_ORANGE, -0.2f), \
+	.bg_focus_color = PHOS_GUI_COLOR_ORANGE, \
+	.outline_hover_color = ColorBrightness(PHOS_GUI_COLOR_RED, -0.2f), \
+	.outline_press_color = ColorBrightness(PHOS_GUI_COLOR_RED, -0.2f), \
+	.outline_focus_color = ColorBrightness(PHOS_GUI_COLOR_RED, -0.2f), \
+	.text_color = ColorBrightness(PHOS_GUI_COLOR_DIM_RED, -0.5f), \
+	.window_bg_color = ColorBrightness(PHOS_GUI_COLOR_YELLOW, -0.2f), \
+	.outline_thickness = 5.0f }
+/**
+  A color theme built around pink.
+*/
+#define PHOS_GUI_THEME_BUBBLEGUM (phos_gui_theme) { \
+	.bg_color = PHOS_GUI_COLOR_PINK, \
+	.outline_color = PHOS_GUI_COLOR_DARK_PINK, \
+	.bg_hover_color = ColorBrightness(PHOS_GUI_COLOR_PINK, -0.1f), \
+	.bg_press_color = ColorBrightness(PHOS_GUI_COLOR_PINK, -0.2f), \
+	.bg_focus_color = PHOS_GUI_COLOR_PINK, \
+	.outline_hover_color = PHOS_GUI_COLOR_DARK_PINK, \
+	.outline_press_color = PHOS_GUI_COLOR_DARK_PINK, \
+	.outline_focus_color = PHOS_GUI_COLOR_DARK_PINK, \
+	.text_color = PHOS_GUI_COLOR_DARK_RED, \
+	.window_bg_color = ColorContrast(PHOS_GUI_COLOR_DIM_PINK, -0.1f), \
+	.outline_thickness = 5.0f }
+/**
+  A color theme built around white and yellow.
+*/
+#define PHOS_GUI_THEME_CORN (phos_gui_theme) { \
+	.bg_color = PHOS_GUI_COLOR_YELLOW, \
+	.outline_color = PHOS_GUI_COLOR_DIM_YELLOW, \
+	.bg_hover_color = ColorBrightness(PHOS_GUI_COLOR_YELLOW, -0.1f), \
+	.bg_press_color = ColorBrightness(PHOS_GUI_COLOR_YELLOW, -0.2f), \
+	.bg_focus_color = PHOS_GUI_COLOR_YELLOW, \
+	.outline_hover_color = PHOS_GUI_COLOR_DIM_YELLOW, \
+	.outline_press_color = PHOS_GUI_COLOR_DIM_YELLOW, \
+	.outline_focus_color = PHOS_GUI_COLOR_DIM_YELLOW, \
+	.text_color = PHOS_GUI_COLOR_BLACK, \
+	.window_bg_color = RAYWHITE, \
+	.outline_thickness = 5.0f }
+/**
+  A color theme revolving around retro terminals.
+*/
+#define PHOS_GUI_THEME_RETRO_TERMINAL (phos_gui_theme) { \
+	.bg_color = PHOS_GUI_COLOR_DIM_GREEN, \
+	.outline_color = PHOS_GUI_COLOR_DARK_GREEN, \
+	.bg_hover_color = ColorBrightness(PHOS_GUI_COLOR_DIM_GREEN, -0.1f), \
+	.bg_press_color = ColorBrightness(PHOS_GUI_COLOR_DIM_GREEN, -0.2f), \
+	.bg_focus_color = PHOS_GUI_COLOR_DIM_GREEN, \
+	.outline_hover_color = PHOS_GUI_COLOR_DARK_GREEN, \
+	.outline_press_color = PHOS_GUI_COLOR_DARK_GREEN, \
+	.outline_focus_color = PHOS_GUI_COLOR_DARK_GREEN, \
+	.text_color = ColorBrightness(PHOS_GUI_COLOR_DARK_GREEN, -0.2f), \
+	.window_bg_color = ColorBrightness(PHOS_GUI_COLOR_DARK_GREEN, -0.5f), \
+	.outline_thickness = 5.0f }
+/**
+  A color theme revolving around the punk aesthetic.
+*/
+#define PHOS_GUI_THEME_PUNK (phos_gui_theme) { \
+	.bg_color = PHOS_GUI_COLOR_BRIGHT_PINK, \
+	.outline_color = PHOS_GUI_COLOR_DIM_VIOLET, \
+	.bg_hover_color = ColorBrightness(PHOS_GUI_COLOR_BRIGHT_PINK, -0.1f), \
+	.bg_press_color = ColorBrightness(PHOS_GUI_COLOR_BRIGHT_PINK, -0.2f), \
+	.bg_focus_color = PHOS_GUI_COLOR_BRIGHT_PINK, \
+	.outline_hover_color = PHOS_GUI_COLOR_DIM_VIOLET, \
+	.outline_press_color = PHOS_GUI_COLOR_DIM_VIOLET, \
+	.outline_focus_color = PHOS_GUI_COLOR_DIM_VIOLET, \
+	.text_color = PHOS_GUI_COLOR_YELLOW, \
+	.window_bg_color = ColorContrast(PHOS_GUI_COLOR_DIM_CYAN, -0.15f), \
+	.outline_thickness = 5.0f }
+/**
+  A color theme built around two colors: red and black.
+*/
+#define PHOS_GUI_THEME_KNIGHT phos_gui_create_theme_accented(PHOS_GUI_COLOR_DIM_RED, PHOS_GUI_COLOR_BLACK)
+/**
+  An alternate version of PHOS_GUI_THEME_KNIGHT where the base and accent colors are reversed and
+  slightly modified to make text more readable.
+*/
+#define PHOS_GUI_THEME_DRAGON phos_gui_create_theme_accented(PHOS_GUI_COLOR_GRAY, PHOS_GUI_COLOR_BRIGHT_RED)
+/**
+  A color theme built around white and blue.
+*/
+#define PHOS_GUI_THEME_BLUE_LIGHT phos_gui_create_theme_accented(RAYWHITE, PHOS_GUI_COLOR_BRIGHT_BLUE)
+/**
+  A color theme built around two colors: red and green.
+*/
+#define PHOS_GUI_THEME_JOLLY phos_gui_create_theme_accented(PHOS_GUI_COLOR_RED, PHOS_GUI_COLOR_GREEN)
+/**
+  A color theme built around fruity colors.
+*/
+#define PHOS_GUI_THEME_FRUITY phos_gui_create_theme_full(PHOS_GUI_COLOR_BRIGHT_ORANGE, PHOS_GUI_COLOR_RED, PHOS_GUI_COLOR_DARK_ORANGE, ColorContrast(PHOS_GUI_COLOR_DARK_GREEN, -0.2f))
+/**
+  A simple black and white color theme.
+*/
+#define PHOS_GUI_THEME_MONOTONE phos_gui_create_theme_accented(PHOS_GUI_COLOR_LIGHT_GRAY, PHOS_GUI_COLOR_BLACK)
+/**
+  A simple blue theme.
+*/
+#define PHOS_GUI_THEME_BLUE phos_gui_create_theme_accented(PHOS_GUI_COLOR_DIM_BLUE, PHOS_GUI_COLOR_DARK_BLUE)
+/**
+  A simple dark theme.
+*/
+#define PHOS_GUI_THEME_DARK phos_gui_create_theme_basic(PHOS_GUI_COLOR_DARK_GRAY)
+/**
+  A simple gray theme.
+*/
+#define PHOS_GUI_THEME_GRAY phos_gui_create_theme_basic(PHOS_GUI_COLOR_LIGHT_GRAY)
+/**
+  A simple light theme.
+*/
+#define PHOS_GUI_THEME_LIGHT phos_gui_create_theme_basic(RAYWHITE)
 
 /**
   The different types of elements.
@@ -1410,7 +1630,7 @@ typedef struct phos_gui_drag_pane_component
 	/**
 	  If the drag pane uses a drag bar, this color
 	  determines the color of the drag bar. The drag
-	  bar color is PHOS_GUI_LIGHT_GRAY by default.
+	  bar color is PHOS_GUI_COLOR_LIGHT_GRAY by default.
 	*/
 	Color drag_bar_color;
 
@@ -2434,7 +2654,7 @@ PHOS_GUI_API int phos_gui_add_event_listener(phos_gui *gui, phos_gui_event_liste
 	  phos_gui_update(dt);
 
 	  BeginDrawing();
-	  ClearBackground(PHOS_GUI_BLACK);
+	  ClearBackground(PHOS_GUI_COLOR_BLACK);
 
 	  phos_gui_render();
 
@@ -2473,9 +2693,30 @@ PHOS_GUI_API void phos_gui_render_elem(phos_gui_elem *elem);
 */
 PHOS_GUI_API phos_gui_theme phos_gui_get_default_theme(void);
 /**
-  Creates a theme based on a starting color.
+  Creates a theme based on a single starting color.
+
+  @see phos_gui_create_theme_accented(Color, Color)
+  @see phos_gui_create_theme_full(Color, Color, Color, Color)
 */
-PHOS_GUI_API phos_gui_theme phos_gui_create_theme(Color base_color);
+PHOS_GUI_API phos_gui_theme phos_gui_create_theme_basic(Color base_color);
+/**
+  Creates a theme using a starting color as well as an accent
+  color. The accent color is used on things like outlines and the
+  window's background color.
+
+  @see phos_gui_create_theme_basic(Color)
+  @see phos_gui_create_theme_full(Color, Color, Color, Color)
+*/
+PHOS_GUI_API phos_gui_theme phos_gui_create_theme_accented(Color base_color, Color accent_color);
+/**
+  Creates a theme using a starting color as well as an accent
+  color, then specifically overrides the text and window background
+  colors of the theme.
+
+  @see phos_gui_create_theme_basic(Color)
+  @see phos_gui_create_theme_accented(Color, Color)
+*/
+PHOS_GUI_API phos_gui_theme phos_gui_create_theme_full(Color base_color, Color accent_color, Color text_color, Color window_bg_color);
 /**
   Sets a custom theme for the given phos_gui.
 
