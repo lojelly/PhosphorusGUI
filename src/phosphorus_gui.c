@@ -194,6 +194,51 @@ static void init_mouse_listener_component(void *mouse_listener_component)
 	listener->focus_on_start = false;
 }
 
+static void force_calculate_elem_rects(phos_gui_elem *elem);
+static void apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
+{
+	// elem-specific attributes:
+
+	elem->bg_color = theme.bg_color;
+	elem->outline_color = theme.outline_color;
+	elem->outline_thickness = theme.outline_thickness;
+
+	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+	if(mouse_listener)
+	{
+		mouse_listener->bg_hover_color = theme.bg_hover_color;
+		mouse_listener->bg_press_color = theme.bg_press_color;
+		mouse_listener->bg_focus_color = theme.bg_focus_color;
+		mouse_listener->outline_hover_color = theme.outline_hover_color;
+		mouse_listener->outline_press_color = theme.outline_press_color;
+		mouse_listener->outline_focus_color = theme.outline_focus_color;
+	}
+
+	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	if(text)
+		text->color = theme.text_color;
+
+	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
+	if(scroll_pane)
+	{
+		scroll_pane->v_bar.bg_color = scroll_pane->h_bar.bg_color = ColorBrightness(theme.bg_color, -0.35f);
+		scroll_pane->v_bar.thumb_color = scroll_pane->h_bar.thumb_color = ColorBrightness(theme.bg_color, -0.7f);
+		scroll_pane->v_bar.thumb_focus_color = scroll_pane->h_bar.thumb_focus_color = ColorBrightness(theme.bg_color, 0.25f);
+	}
+
+	phos_gui_drag_pane_component *drag_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_DRAG_PANE);
+	if(drag_pane)
+		drag_pane->drag_bar_color = ColorContrast(theme.bg_color, -0.3f);
+
+
+	// force recalculation of elem rects because outline thickness changed:
+	force_calculate_elem_rects(elem);
+
+	// other attributes:
+
+	phos_gui_set_window_bg_color(theme.window_bg_color);
+}
+
 static void init_text_component(void *text_component)
 {
 	if(!text_component)
@@ -233,6 +278,9 @@ static void init_text_component(void *text_component)
 
 	// enforce no additional text line spacing
 	SetTextLineSpacing(0);
+
+	// re-apply default theme to element
+	apply_theme_to_elem(owner, phos_gui_get_default_theme());
 }
 
 static void init_placeholder_text_extension(void *placeholder_text_component)
@@ -437,51 +485,6 @@ static void force_calculate_elem_rects(phos_gui_elem *e)
 {
 	prepare_elem_rects_for_caching(e);
 	calculate_elem_rects(e);
-}
-
-static void apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
-{
-	// elem-specific attributes:
-
-	elem->bg_color = theme.bg_color;
-	elem->outline_color = theme.outline_color;
-	elem->outline_thickness = theme.outline_thickness;
-
-	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
-	if(mouse_listener)
-	{
-		mouse_listener->bg_hover_color = theme.bg_hover_color;
-		mouse_listener->bg_press_color = theme.bg_press_color;
-		mouse_listener->bg_focus_color = theme.bg_focus_color;
-		mouse_listener->outline_hover_color = theme.outline_hover_color;
-		mouse_listener->outline_press_color = theme.outline_press_color;
-		mouse_listener->outline_focus_color = theme.outline_focus_color;
-	}
-
-	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
-	if(text)
-		text->color = theme.text_color;
-
-	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
-	if(scroll_pane)
-	{
-		scroll_pane->v_bar.bg_color = scroll_pane->h_bar.bg_color = ColorBrightness(theme.bg_color, -0.25f);
-		scroll_pane->v_bar.thumb_color = scroll_pane->h_bar.thumb_color = ColorBrightness(theme.bg_color, -0.6f);
-		scroll_pane->v_bar.thumb_focus_color = scroll_pane->h_bar.thumb_focus_color = ColorBrightness(theme.bg_color, 0.1f);
-	}
-
-	phos_gui_drag_pane_component *drag_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_DRAG_PANE);
-	if(drag_pane)
-		drag_pane->drag_bar_color = ColorContrast(theme.bg_color, -0.3f);
-
-
-	// force recalculation of elem rects because outline thickness changed:
-	force_calculate_elem_rects(elem);
-
-
-	// other attributes:
-
-	phos_gui_set_window_bg_color(theme.window_bg_color);
 }
 
 static void init_scroll_pane_component(void *scroll_pane_component)
@@ -4323,6 +4326,10 @@ void phos_gui_render_elem(phos_gui_elem *elem)
 	}
 
 	render_elem(elem);
+}
+Color phos_gui_random_color()
+{
+	return (Color) { GetRandomValue(0, 255), GetRandomValue(0, 255), GetRandomValue(0, 255), 255 };
 }
 phos_gui_theme phos_gui_get_default_theme()
 {
