@@ -556,6 +556,27 @@ static void init_drag_pane_component(void *drag_pane_component)
 	apply_theme_to_elem(owner, phos_gui_get_default_theme());
 }
 
+static void init_drop_down_component(void *drop_down_component)
+{
+	if(!drop_down_component)
+		return;
+
+	phos_gui_drop_down_component *drop_down = drop_down_component;
+
+	// get owner
+	phos_gui_elem *owner = pluto_cs_get_owner(drop_down);
+	if(!owner)
+	{
+		vl_log(VL_ERROR, "Drop down has no owner!\n");
+		return;
+	}
+
+	drop_down->container = NULL;
+	drop_down->selection = NULL;
+	drop_down->down_arrow_icon = phos_gui_load_texture("icons/down_arrow.png");
+	drop_down->expanded = false;
+}
+
 int phos_gui_init()
 {
 	if(init)
@@ -589,6 +610,7 @@ int phos_gui_init()
 	pluto_cs_register(PHOS_GUI_COMPONENT_LAYOUT, sizeof(phos_gui_layout_component), init_layout_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_SCROLL_PANE, sizeof(phos_gui_scroll_pane_component), init_scroll_pane_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_DRAG_PANE, sizeof(phos_gui_drag_pane_component), init_drag_pane_component, NULL);
+	pluto_cs_register(PHOS_GUI_COMPONENT_DROP_DOWN, sizeof(phos_gui_drop_down_component), init_drop_down_component, NULL);
 
 	// set default theme
 	default_theme = PHOS_GUI_THEME_MONOTONE;
@@ -842,10 +864,8 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 static Vector2 get_proposed_align_pos(Vector2 target_object_size, phos_gui_alignment alignment, phos_gui_elem *reference_elem)
 {
 	// start at reference_rect origin
-	Rectangle real_bounds = reference_elem->bounds;
 	Rectangle whole_rect = get_calculated_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_TOTAL);
-	Rectangle content_rect = get_calculated_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
-	Rectangle free_content_rect = get_calculated_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+	Rectangle whole_content_rect = get_calculated_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
 
 	// keep track of position of the whole space rect
 	Vector2 v = phos_gui_get_rect_pos(whole_rect);
@@ -856,13 +876,13 @@ static Vector2 get_proposed_align_pos(Vector2 target_object_size, phos_gui_align
 	float outer_right = outer_left + whole_rect.width;
 	float outer_bottom = outer_top + whole_rect.height;
 
-	float inner_left = content_rect.x;
-	float inner_top = content_rect.y;
-	float inner_right = inner_left + content_rect.width;
-	float inner_bottom = inner_top + content_rect.height;
+	float inner_left = whole_content_rect.x;
+	float inner_top = whole_content_rect.y;
+	float inner_right = inner_left + whole_content_rect.width;
+	float inner_bottom = inner_top + whole_content_rect.height;
 
-	float inner_center_x = inner_left + (content_rect.width - target_object_size.x) / 2.0f;
-	float inner_center_y = inner_top + (content_rect.height - target_object_size.y) / 2.0f;
+	float inner_center_x = inner_left + (whole_content_rect.width - target_object_size.x) / 2.0f;
+	float inner_center_y = inner_top + (whole_content_rect.height - target_object_size.y) / 2.0f;
 
 	switch(alignment)
 	{
@@ -1641,7 +1661,7 @@ Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_g
 	Vector2 text_bounds = resolve_elem_text_bounds(text_component, target_str);
 
 	v = get_proposed_align_pos(text_bounds, alignment, owner);
-	text_component->offset = Vector2Subtract(v, phos_gui_get_rect_pos(owner->bounds));
+	text_component->offset = Vector2Subtract(v, phos_gui_get_rect_pos(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE)));
 	text_component->alignment = alignment;
 
 	return v;
@@ -3361,7 +3381,16 @@ static phos_gui_elem *get_elem_mouse_target(phos_gui_elem *e, Vector2 mouse_pos)
 	{
 		phos_gui_elem *target = get_elem_mouse_target(e->children[i], mouse_pos);
 
-		// if the child was the mouse target, return the child instead
+		if(target)
+			return target;
+	}
+
+	// see if element has a drop down with an expanded list
+	phos_gui_drop_down_component *drop_down = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_DROP_DOWN);
+	if(drop_down && drop_down->container && drop_down->expanded)
+	{
+		phos_gui_elem *target = get_elem_mouse_target(drop_down->container, mouse_pos);
+
 		if(target)
 			return target;
 	}
@@ -3795,6 +3824,84 @@ static void update_elem(phos_gui_elem *e, float dt)
 			drag_pane->grabbed = false;
 	}
 
+	// drop down logic for the drop down button (must be combined with mouse listener to be interacted with)
+	phos_gui_drop_down_component *drop_down = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_DROP_DOWN);
+	if(drop_down && mouse_listener)
+	{
+		// see if button was clicked, and if so, toggle drop down's expanded state
+		if(mouse_listener->clicked)
+			drop_down->expanded = !drop_down->expanded;
+
+		bool selection_made = false;
+
+		// see if the drop down was supplied a container
+		if(drop_down->container)
+		{
+			// the container will render if the drop down is expanded
+			drop_down->container->auto_render = drop_down->expanded;
+
+			// only update elements within container if it's expanded
+			if(drop_down->expanded)
+			{
+				// update elements within container
+				update_elem(drop_down->container, dt);
+
+				// see which element in the container was clicked
+				for(size_t i = 0; i < drop_down->container->num_children; ++i)
+				{
+					phos_gui_elem *container_option_elem = drop_down->container->children[i];
+
+					phos_gui_mouse_listener_component *container_option_elem_ml = pluto_cs_get_component(container_option_elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+					if(container_option_elem_ml)
+					{
+						if(container_option_elem_ml->clicked)
+						{
+							drop_down->selection = container_option_elem;
+							selection_made = true;
+							break;
+						}
+					}
+				}
+			}
+
+			// see if an element was chosen by user
+			if(drop_down->selection && selection_made)
+			{
+				// modify contents of drop down button to match selection's text
+				phos_gui_text_component *container_option_elem_text = pluto_cs_get_component(drop_down->selection, PHOS_GUI_COMPONENT_TEXT);
+				if(container_option_elem_text && text)
+				{
+					phos_gui_set_text_contents(text, PHOS_GUI_TARGET_MAIN_TEXT, container_option_elem_text->str, PHOS_GUI_OPTS_NONE);
+				}
+
+				// collapse drop down list
+				drop_down->expanded = false;
+				// the container is guaranteed to be a valid pointer because 'selection_made' is true
+				drop_down->container->auto_render = false;
+			}
+		}
+	}
+
+	// drop down logic for the container (parent of 'e' must have a drop down component)
+	phos_gui_drop_down_component *parent_drop_down = NULL;
+	if(e->parent)
+		parent_drop_down = pluto_cs_get_component(e->parent, PHOS_GUI_COMPONENT_DROP_DOWN);
+	// see if the parent has a drop down and 'e' has a mouse listener
+	if(parent_drop_down && mouse_listener)
+	{
+		// if 'e' was clicked, that means the selected elem in 'parent_drop_down' becomes 'e'
+		if(mouse_listener->clicked)
+			parent_drop_down->selection = e;
+
+		// now the text on the parent element should reflect the text on 'e'
+		phos_gui_text_component *child_text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXT);
+		phos_gui_text_component *parent_text = pluto_cs_get_component(e->parent, PHOS_GUI_COMPONENT_TEXT);
+		// both elems must have a text component for this to work
+		if(child_text && parent_text)
+			// parent text becomes child text
+			phos_gui_set_text_contents(parent_text, PHOS_GUI_TARGET_MAIN_TEXT, child_text->str, PHOS_GUI_OPTS_NONE);
+	}
+
 	// update child elements
 	update_children:
 	for(size_t i = 0; i < e->num_children; ++i)
@@ -4046,16 +4153,17 @@ static void render_elem(phos_gui_elem *e)
 	// get color of elem
 	const Color primary_color = resolve_elem_bg_color(e);
 
-	// create elem rects:
-	const Rectangle whole_content_bounds = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
-	const Rectangle usable_content_bounds = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
-
 	// if empty size, cannot render
 	if(e->bounds.width <= 0 || e->bounds.height <= 0)
 	{
 		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element '%s' with negative visual bounds: %.2f, %.2f!\n", e->ID, e->bounds.width, e->bounds.height);
 		return;
 	}
+
+	// create elem rects:
+	const Rectangle whole_content_bounds = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	const Rectangle usable_content_bounds = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+
 	if(whole_content_bounds.width <= 0 || whole_content_bounds.height <= 0)
 	{
 		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element '%s' with negative content bounds: %.2f, %.2f!\n", e->ID, whole_content_bounds.width, whole_content_bounds.height);
@@ -4251,6 +4359,24 @@ static void render_elem(phos_gui_elem *e)
 			DrawRectangleRec(h_bar, scroll_pane->h_bar.bg_color);
 			DrawRectangleRec(h_thumb, h_thumb_color);
 		}
+	}
+
+	// see if this elem has a drop down component
+	phos_gui_drop_down_component *drop_down = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_DROP_DOWN);
+	if(drop_down)
+	{
+		// render down arrow icon on drop down button when it's not expanded
+		Texture2D* down_arrow = drop_down->down_arrow_icon;
+		if(!drop_down->expanded && down_arrow)
+		{
+			float x = usable_content_bounds.x + usable_content_bounds.width - down_arrow->width * 1.25f;
+			float y = usable_content_bounds.y + ((usable_content_bounds.height - down_arrow->height) / 2.0f);
+			DrawTexture(*down_arrow, x, y, WHITE);
+		}
+
+		// render container if necessary
+		if(drop_down->container && drop_down->expanded)
+			render_elem(drop_down->container);
 	}
 
 	// render child elements:

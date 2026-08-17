@@ -1083,6 +1083,11 @@ typedef enum phos_gui_component_type
 	PHOS_GUI_COMPONENT_DRAG_PANE,
 
 	/**
+	  @see phos_gui_drop_down_component
+	*/
+	PHOS_GUI_COMPONENT_DROP_DOWN,
+
+	/**
 	  Represents the last component ID in PhosphorusGUI.
 	  
 	  @note PhosphorusGUI does not register a component using this ID.
@@ -1282,11 +1287,11 @@ typedef enum phos_gui_target_text_string
   A phos_gui_text_component represents a piece of
   text within an element.
 
-  @note When adding a text component to an element,
-  you also need to add a phos_gui_scroll_pane_component
-  to the element for the text component to work properly.
+  @note A text component can be combined with
+  a scroll pane component for scrolling text.
+
+  @see phos_gui_scroll_pane_component
 */
-// TODO update docs here based on actual text-scroll_pane relationship
 typedef struct phos_gui_text_component
 {
 	/**
@@ -1746,6 +1751,62 @@ typedef struct phos_gui_drag_pane_component
 	*/
 	bool grabbed;
 } phos_gui_drag_pane_component;
+
+/**
+  A phos_gui_drop_down_component provides an element with the ability
+  to have a list of options for the user to select from.
+
+  You should add a drop down component to the element representing
+  the drop down button.
+*/
+typedef struct phos_gui_drop_down_component
+{
+	/**
+	  The container the drop down will use.
+
+	  This should point to an element with children
+	  representing the drop down's options.
+
+	  @important When setting the container on a drop down
+	  component, do not add the same container element
+	  to the phos_gui currently set. Only add the element
+	  with this drop down component to the phos_gui, and
+	  PhosphorusGUI will automatically handle updating and
+	  rendering the drop down's option elements.
+	*/
+	struct phos_gui_elem *container;
+	/**
+	  The element in 'container' the user has chosen.
+
+	  If no selection has been made, this will be NULL.
+	*/
+	struct phos_gui_elem *selection;
+
+	/**
+	  The texture for the drop down's down arrow.
+
+	  The down arrow is drawn on the far right of the
+	  drop down button, and it just helps signify
+	  that the element can be clicked to show a list
+	  of options.
+
+	  If this is NULL, then nothing is rendered.
+	  If it's not NULL, the texture is drawn
+	  over the button when it is rendered.
+
+	  By default, the texture at "icons/down_arrow.png"
+	  is loaded as the down arrow icon. You can change
+	  this by loading a different texture or just editing
+	  "icons/down_arrow.png" directly.
+	*/
+	Texture2D *down_arrow_icon;
+	
+	/**
+	  Whether or not the drop down is expanded.
+	  By default, this is false.
+	*/
+	bool expanded;
+} phos_gui_drop_down_component;
 
 /**
   Represents an actual bounding box for an element.
