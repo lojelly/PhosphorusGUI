@@ -2953,7 +2953,13 @@ PHOS_GUI_API phos_gui_theme phos_gui_create_theme_full(Color base_color, Color a
   To set the default theme of PhosphorusGUI, use
   phos_gui_set_default_theme(...) instead.
 */
-PHOS_GUI_API void phos_gui_apply_theme(phos_gui *gui, phos_gui_theme theme);
+PHOS_GUI_API void phos_gui_apply_theme_to_gui(phos_gui *gui, phos_gui_theme theme);
+/**
+  Applies a custom theme to the given element and its children.
+
+  @see phos_gui_apply_theme_to_gui(phos_gui*, phos_gui_theme)
+*/
+PHOS_GUI_API void phos_gui_apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme);
 /**
   Sets the default theme of PhosphorusGUI.
 
