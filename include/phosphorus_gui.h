@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include "raylib.h"
 
 #ifdef _WIN32
@@ -1284,6 +1285,34 @@ typedef enum phos_gui_target_text_string
 } phos_gui_target_text_string;
 
 /**
+  Determines how a text component should be wrapped.
+
+  Text wrapping is when the characters the user types
+  are forced onto the next line because there's no
+  more space on the current line to store those characters.
+*/
+typedef enum phos_gui_text_wrap_mode
+{
+	/**
+	  Indicates there's no wrapping.
+
+	  This is the default wrap mode.
+	*/
+	PHOS_GUI_TEXT_WRAP_NONE,
+	/**
+	  Indicates that wrapping should
+	  be performed on individual characters
+	  only.
+	*/
+	PHOS_GUI_TEXT_WRAP_CHAR,
+	/**
+	  Indicates that wrapping should
+	  be performed on whole words.
+	*/
+	PHOS_GUI_TEXT_WRAP_WORD
+} phos_gui_text_wrap_mode;
+
+/**
   A phos_gui_text_component represents a piece of
   text within an element.
 
@@ -1317,21 +1346,6 @@ typedef struct phos_gui_text_component
 	  @note This value should be less than or equal to PHOS_GUI_MAX_TEXT_LEN.
 	*/
 	size_t max_len;
-	/**
-	  The max number of chars that can be typed into a single line on the
-	  text component.
-
-	  As the user types into the text component, if the current line
-	  exceeds this value, the text automatically wraps to the next line.
-	  Set this value to PHOS_GUI_MAX_TEXT_LEN to stop the automatic
-	  wrapping.
-
-	  @note This value should be less than or equal to 'max_len.'
-	  Additionally, PhosphorusGUI only uses this value
-	  when 'enter_inserts_new_line' is true. It is equal
-	  to PHOS_GUI_MAX_TEXT_LEN by default.
-	*/
-	size_t max_line_len;
 	/**
 	  The current number of chars in this text component's current line.
 
@@ -1369,6 +1383,12 @@ typedef struct phos_gui_text_component
 	*/
 	float font_size;
 
+	/**
+	  The wrap mode for this text component.
+
+	  This is PHOS_GUI_TEXT_WRAP_NONE by default.
+	*/
+	phos_gui_text_wrap_mode wrap_mode;
 	/**
 	  The alignment the text component is using.
 
@@ -2574,14 +2594,42 @@ PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, floa
   Initializes an element and turns it into a text field element.
 
   By default, text field elements come with mouse listener components,
-  text components, placeholder text components, as well as scroll
-  pane components. Each text component is initialized with the
-  respective string given.
+  text components, and placeholder text components. A scroll
+  pane component is added to the container element. Each text
+  component is initialized with the respective string given.
+
+  @note The 'text_container' element given should point to an element
+  representing a container that will contain the text field element.
+  The reason text elements should be contained within other elements
+  is that decorational components such as drag bars and scroll bars
+  take up the same space that text does, so a container ensures the
+  text is separated from those decorations. This is also why
+  this function does not take in any position or size for 'elem.'
+  The function calculatins the actual text field's position and size
+  using the text container's position and size.
 
   @important If a placeholder string is given, then this function
   will make the placeholder text fit the element.
+
+  @important This function does not initialize 'text_container,' only
+  'elem.' However, it does automatically add 'elem' as a child to
+  'text_container.'
 */
-PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text);
+PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *text_container, phos_gui_elem *elem, const char *ID, const char *main_text, const char *placeholder_text);
+/**
+  Initializes an element and turns it into a text area element.
+
+  By default, text area elements come with mouse listener components,
+  text components, placeholder text components, as well as scroll
+  pane components.
+
+  @note The difference between a text field and text area is that
+  text areas are much bigger and usually accept more than one line
+  of input from the user.
+
+  @see phos_gui_init_text_field(phos_gui_elem*, phos_gui_elem*, const char*, float, float, float, float, const char*, const char*)
+*/
+PHOS_GUI_API void phos_gui_init_text_area(phos_gui_elem *text_container, phos_gui_elem *elem, const char *ID, const char *main_text, const char *placeholder_text);
 /**
   Initializes an element and turns it into a drop down menu.
 

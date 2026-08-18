@@ -220,7 +220,7 @@ static void apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
 
 	phos_gui_placeholder_text_extension *placeholder_text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
 	if(placeholder_text)
-		placeholder_text->color = ColorContrast(theme.text_color, -0.3f);
+		placeholder_text->color = ColorContrast(theme.bg_color, -0.6f);
 
 	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 	if(scroll_pane)
@@ -260,13 +260,13 @@ static void init_text_component(void *text_component)
 
 	text->font = default_font;
 	text->max_len = PHOS_GUI_MAX_TEXT_LEN;
-	text->max_line_len = PHOS_GUI_MAX_TEXT_LEN;
 	text->curr_line_len = 0;
 	text->len = 0;
 	text->num_lines = 0;
 	text->cursor_pos = 0;
 	text->offset = Vector2Zero();
 	text->font_size = PHOS_GUI_FONT_SIZE_DEFAULT;
+	text->wrap_mode = PHOS_GUI_TEXT_WRAP_NONE;
 	text->alignment = PHOS_GUI_ALIGN_INNER_CENTER;
 	text->edit_opts = PHOS_GUI_OPTS_NONE;
 	text->color = PHOS_GUI_COLOR_BLACK;
@@ -1103,8 +1103,14 @@ static Vector2 get_text_draw_pos(const phos_gui_text_component *const text, cons
 	if(!owner)
 		return Vector2Zero();
 
+	// get text container
+	phos_gui_elem *container = owner->parent;
+	if(!container)
+		return Vector2Zero();
+
 	// add text offset
-	Vector2 text_pos = Vector2Add(phos_gui_get_rect_pos(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE)), text->offset);
+	Vector2 text_elem_pos = phos_gui_get_rect_pos(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE));
+	Vector2 text_pos = Vector2Add(text_elem_pos, text->offset);
 
 	// calculate where to draw the text based on scrolling (only if scroll pane is not null)
 	if(scroll_pane)
@@ -1129,14 +1135,14 @@ void phos_gui_get_text_bounds(const phos_gui_text_component *const text_componen
 		vl_delay_log(VL_ERROR, 2.0f, "Text component is missing an owner! Cannot obtain bounds.\n");
 		return;
 	}
-
-	// get scroll pane component on owner
-	const phos_gui_scroll_pane_component *const scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
-	if(!scroll_pane)
+	if(!elem->parent)
 	{
-		vl_delay_log(VL_ERROR, 2.0f, "The text component on this element '%s' must be paired with a scroll pane component to work properly!\n", elem->ID);
+		vl_delay_log(VL_ERROR, 2.0f, "Text component's owner's parent cannot be NULL!\n");
 		return;
 	}
+
+	// if text is paired with a scroll pane, it should be on the parent element
+	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem->parent, PHOS_GUI_COMPONENT_SCROLL_PANE);
 
 	Rectangle main_bounds = {0};
 	Rectangle placeholder_bounds = {0};
@@ -1285,27 +1291,28 @@ static Vector2 get_cursor_draw_pos(const phos_gui_text_component *const text, co
 static void update_text_scrolling(phos_gui_text_component *text)
 {
 	// get owner of text component
-	phos_gui_elem *e = pluto_cs_get_owner(text);
-	if(!e)
+	phos_gui_elem *text_elem = pluto_cs_get_owner(text);
+	if(!text_elem)
 	{
 		vl_delay_log(VL_WARNING, 5.0f, "Failed to update text scrolling. Text component's owner is invalid!\n");
 		return;
 	}
 
-	// get scroll pane on owner
-	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_SCROLL_PANE);
+	// get scroll pane on text container, not the text element
+	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(text_elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 	// if the elem does not own a scroll pane, then the text cannot be scrolled
 	if(!scroll_pane)
 		return;
 
+	// if no characters in text, reset all scrolling
 	if(strlen(text->str) == 0)
 	{
-		vl_delay_log(VL_WARNING, 5.0f, "Failed to update text scrolling. Text component must contain string data to calculate!\n");
+		scroll_pane->max_scroll_x = scroll_pane->max_scroll_y = scroll_pane->scroll_x = scroll_pane->scroll_y = 0.0f;
 		return;
 	}
 
-	// text always resides in free content space:
-	Rectangle free_content_bounds = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+	// text always resides in the container's free content space:
+	Rectangle free_content_bounds = get_calculated_elem_rect(text_elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
 	// get bounds of text
 	Rectangle text_bounds;
@@ -1339,31 +1346,29 @@ static void update_text_scrolling(phos_gui_text_component *text)
 	}
 
 	// caret logic:
-	if(strlen(text->str) > 0)
-	{
-		// copy typed string into temp buffer
-		char buf[PHOS_GUI_MAX_TEXT_LEN + 1];
-		memcpy(buf, text->str, text->cursor_pos);
-		buf[text->cursor_pos] = '\0';
 
-		Vector2 cursor_pos = get_cursor_draw_pos(text, scroll_pane);
+	// copy typed string into temp buffer
+	char buf[PHOS_GUI_MAX_TEXT_LEN + 1];
+	memcpy(buf, text->str, text->cursor_pos);
+	buf[text->cursor_pos] = '\0';
 
-		// right-side check (include cursor width because the cursor takes up that many more pixels)
-		if(cursor_pos.x + CURSOR_WIDTH > vis_right)
-			scroll_pane->scroll_x += (cursor_pos.x + CURSOR_WIDTH) - vis_right;
+	Vector2 cursor_pos = get_cursor_draw_pos(text, scroll_pane);
 
-		// left-side check (don't include cursor width)
-		if(cursor_pos.x < vis_left)
-			scroll_pane->scroll_x -= vis_left - cursor_pos.x;
+	// right-side check (include cursor width because the cursor takes up that many more pixels)
+	if(cursor_pos.x + CURSOR_WIDTH > vis_right)
+		scroll_pane->scroll_x += (cursor_pos.x + CURSOR_WIDTH) - vis_right;
 
-		// bottom-side check
-		if(cursor_pos.y + text->font_size > vis_bottom)
-			scroll_pane->scroll_y += (cursor_pos.y + text->font_size) - vis_bottom;
+	// left-side check (don't include cursor width)
+	if(cursor_pos.x < vis_left)
+		scroll_pane->scroll_x -= vis_left - cursor_pos.x;
 
-		// top-side check
-		if(cursor_pos.y < vis_top)
-			scroll_pane->scroll_y -= vis_top - cursor_pos.y;
-	}
+	// bottom-side check
+	if(cursor_pos.y + text->font_size > vis_bottom)
+		scroll_pane->scroll_y += (cursor_pos.y + text->font_size) - vis_bottom;
+
+	// top-side check
+	if(cursor_pos.y < vis_top)
+		scroll_pane->scroll_y -= vis_top - cursor_pos.y;
 
 	scroll_pane->scroll_x = Clamp(scroll_pane->scroll_x, 0.0f, scroll_pane->max_scroll_x);
 	scroll_pane->scroll_y = Clamp(scroll_pane->scroll_y, 0.0f, scroll_pane->max_scroll_y);
@@ -1943,19 +1948,29 @@ void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y,
 	if(!mouse_listener)
 		phos_gui_exit(EXIT_FAILURE);
 }
-void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text)
+void phos_gui_init_text_field(phos_gui_elem *text_container, phos_gui_elem *elem, const char *ID, const char *main_text, const char *placeholder_text)
 {
+	if(!text_container)
+	{
+		vl_log(VL_ERROR, "You should initialize a text field with a text container!\n");
+		return;
+	}
 	if(!elem)
 	{
 		vl_log(VL_ERROR, "Cannot initialize a NULL element!\n");
 		return;
 	}
 
+	Rectangle container_bounds = get_calculated_elem_rect(text_container, PHOS_GUI_ELEM_BOUNDS_REAL);
+
 	// first, init elem as a button
-	phos_gui_init_button(elem, ID, x, y, w, h, main_text);
+	phos_gui_init_button(elem, ID, container_bounds.x, container_bounds.y, container_bounds.width, container_bounds.height, main_text);
+
+	// remove outline from text field
+	elem->render_mode = PHOS_GUI_RENDER_FILL;
 
 	// make sure text fits on right side of elem
-	phos_gui_set_elem_paddings(elem, 0.0f, 0.0f, CURSOR_WIDTH, 0.0f);
+	phos_gui_add_elem_paddings(elem, 0.0f, 0.0f, CURSOR_WIDTH, 0.0f);
 
 	// now obtain text component and modify it so that element becomes a text field
 	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
@@ -1967,7 +1982,12 @@ void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, floa
 		phos_gui_exit(EXIT_FAILURE);
 	phos_gui_set_text_contents(text, PHOS_GUI_TARGET_PLACEHOLDER_TEXT, placeholder_text, PHOS_GUI_OPTS_NONE);
 
-	// add scroll pane component so text scrolls as user types
+	// clamp elem around placeholder text if necesary
+	if(strlen(placeholder_text) > 0)
+		phos_gui_make_text_fit_elem(text, PHOS_GUI_TARGET_PLACEHOLDER_TEXT);
+
+	// add scroll pane component TO THE TEXT CONTAINER so text scrolls as user types
+	// TODO add scroll pane to container not elem
 	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 	if(!scroll_pane)
 		phos_gui_exit(EXIT_FAILURE);
@@ -1979,12 +1999,46 @@ void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, floa
 	// mouse wheel cannot scroll the text
 	scroll_pane->use_mouse_wheel_input = false;
 
-	// clamp elem around placeholder text if necesary
-	if(strlen(placeholder_text) > 0)
-		phos_gui_make_text_fit_elem(text, PHOS_GUI_TARGET_PLACEHOLDER_TEXT);
-
-	//text->alignment = PHOS_GUI_ALIGN_INNER_LEFT;
+	// change alignment and realign
+	text->alignment = PHOS_GUI_ALIGN_INNER_LEFT;
 	phos_gui_realign_elem_text(text);
+}
+void phos_gui_init_text_area(phos_gui_elem *text_container, phos_gui_elem *elem, const char *ID, const char *main_text, const char *placeholder_text)
+{
+	if(!text_container)
+	{
+		vl_log(VL_ERROR, "You should initialize a text area with a text container!\n");
+		return;
+	}
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot initialize a NULL element!\n");
+		return;
+	}
+
+	// first, init elem as text field
+	phos_gui_init_text_field(text_container, elem, ID, main_text, placeholder_text);
+
+	// modify scroll pane to work for multiple lines
+	// TODO add scroll pane to container not elem
+	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
+	scroll_pane->h_bar.active = true;
+	scroll_pane->h_bar.rendered = true;
+	scroll_pane->v_bar.active = true;
+	scroll_pane->v_bar.rendered = true;
+
+	// set wrap mode of text component
+	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	text->wrap_mode = PHOS_GUI_TEXT_WRAP_WORD;
+	text->enter_inserts_new_line = true;
+
+	// start text at top left of text area and go back to default font size
+	text->alignment = PHOS_GUI_ALIGN_INNER_TOP_LEFT;
+	text->font_size = PHOS_GUI_FONT_SIZE_MED;
+	phos_gui_realign_elem_text(text);
+
+	// add text to container
+	phos_gui_add_child_to_elem(elem, text_container, PHOS_GUI_OPTS_NONE);
 }
 void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text)
 {
@@ -2289,7 +2343,7 @@ int phos_gui_remove_child(phos_gui_elem *parent, phos_gui_elem *child)
 			// matching elem was found:
 
 			// otherwise, shift all elements to the left and decrement num_children:
-			memmove(&parent->children[i], &parent->children[i + 1], (parent->num_children - i - 1) * sizeof(phos_gui_elem*));
+			memmove(parent->children + i, parent->children + i + 1, (parent->num_children - i - 1) * sizeof(phos_gui_elem*));
 			parent->num_children--;
 
 			vl_log(VL_SUCCESS, "Removed element '%s' from parent '%s'!\n", child->ID, parent->ID);
@@ -2745,30 +2799,38 @@ static bool run_event_listener(phos_gui_event_listener *listener)
 
 static void backspace(phos_gui_text_component *t)
 {
-	if(t->len > 0)
+	if(t->len > 0 && t->cursor_pos > 0)
 	{
 		// see if user deleted a new line char
-		char curr_c = t->str[t->len - 1];
+		char curr_c = t->str[t->cursor_pos - 1];
 		if(curr_c == '\n')
 		{
-			// one less line
+			size_t num_deletes = 1;
+
+			// when wrapping by char, both the '\n' and previous char have to be deleted
+			if(t->wrap_mode == PHOS_GUI_TEXT_WRAP_CHAR)
+				num_deletes = 2;
+
+			// move all characters after cursor two to the left (one for the character being deleted, as well as the '\n' char)
+			memmove(t->str + t->cursor_pos - num_deletes, t->str + t->cursor_pos, t->len - t->cursor_pos + 1);
 			t->num_lines--;
-			t->len--;
-			t->str[t->len] = '\0';
+			t->len -= num_deletes;
 
 			// find length of new current line
 			t->curr_line_len = 0;
 			for(int i = t->len - 1; i >= 0 && t->str[i] != '\n'; --i)
 				t->curr_line_len++;
+
+			t->cursor_pos -= num_deletes;
 		}
 		else
 		{
+			memmove(t->str + t->cursor_pos - 1, t->str + t->cursor_pos, t->len - t->cursor_pos + 1);
 			t->len--;
-			t->str[t->len] = '\0';
 			t->curr_line_len--;
+			t->cursor_pos--;
 		}
 
-		t->cursor_pos--;
 		t->edited = true;
 
 		// fit and realign text based on edit_opts
@@ -2783,10 +2845,11 @@ static void delete(phos_gui_text_component *t)
 	if(t->len > 0 && t->cursor_pos < t->len)
 	{
 		// see if user deleted a new line char
-		char curr_c = t->str[t->cursor_pos];
+		char curr_c = t->str[t->cursor_pos - 1];
 		if(curr_c == '\n')
 		{
-			memmove(&t->str[t->cursor_pos], &t->str[t->cursor_pos + 1], t->len - t->cursor_pos);
+			// move all characters after the cursor back one
+			memmove(t->str + t->cursor_pos, t->str + t->cursor_pos + 1, t->len - t->cursor_pos);
 			t->num_lines--;
 			t->len--;
 
@@ -2797,7 +2860,8 @@ static void delete(phos_gui_text_component *t)
 		}
 		else
 		{
-			memmove(&t->str[t->cursor_pos], &t->str[t->cursor_pos + 1], t->len - t->cursor_pos);
+			// move all characters after the cursor back one
+			memmove(t->str + t->cursor_pos, t->str + t->cursor_pos + 1, t->len - t->cursor_pos);
 			t->len--;
 			t->curr_line_len--;
 		}
@@ -2899,6 +2963,7 @@ static void update_key_timer(phos_gui_text_component *t, float dt, key_timer *kt
 		if(!kt->active)
 		{
 			action(t);
+			t->key_typed = kt->key;
 			kt->timer = KEY_REPEAT_DELAY;
 		}
 		else
@@ -2908,6 +2973,7 @@ static void update_key_timer(phos_gui_text_component *t, float dt, key_timer *kt
 			if(kt->timer <= 0.0f)
 			{
 				action(t);
+				t->key_typed = kt->key;
 				kt->timer = KEY_REPEAT_INTERVAL;
 			}
 		}
@@ -3129,15 +3195,15 @@ static bool travel_elems()
 
 static float get_max_scroll_x(const phos_gui_elem *const e)
 {
-	float min_x = FLT_MAX;
-	float max_x = -FLT_MAX;
+	float min_x = e->content_free_bounds.rect.x;
+	float max_x = min_x + e->content_free_bounds.rect.width;
 
 	for(size_t i = 0; i < e->num_children; ++i)
 	{
 		const phos_gui_elem *const child = e->children[i];
 
-		float left = child->bounds.x - child->left_margin;
-		float right = child->bounds.x + child->bounds.width + child->right_margin;
+		float left = child->total_bounds.rect.x;
+		float right = left + child->total_bounds.rect.width;
 
 		if(left < min_x)
 			min_x = left;
@@ -3153,15 +3219,15 @@ static float get_max_scroll_x(const phos_gui_elem *const e)
 }
 static float get_max_scroll_y(const phos_gui_elem *const e)
 {
-	float min_y = FLT_MAX;
-	float max_y = -FLT_MAX;
+	float min_y = e->content_free_bounds.rect.y;
+	float max_y = min_y + e->content_free_bounds.rect.height;
 
 	for(size_t i = 0; i < e->num_children; ++i)
 	{
 		const phos_gui_elem *const child = e->children[i];
 
-		float top = child->bounds.y - child->top_margin;
-		float bottom = child->bounds.y + child->bounds.height + child->bottom_margin;
+		float top = child->total_bounds.rect.y;
+		float bottom = top + child->total_bounds.rect.height;
 
 		if(top < min_y)
 			min_y = top;
@@ -3471,13 +3537,44 @@ static phos_gui_elem *get_gui_mouse_target(phos_gui *gui, Vector2 mouse_pos)
 	// no mouse target
 	return NULL;
 }
+static void insert_char_text(phos_gui_text_component *text, char c, phos_gui_scroll_pane_component *scroll_pane);
+static void wrap_text(phos_gui_text_component *text, phos_gui_scroll_pane_component *scroll_pane)
+{
+	switch(text->wrap_mode)
+	{
+		case PHOS_GUI_TEXT_WRAP_CHAR:
+			// just go to new line
+			insert_char_text(text, '\n', scroll_pane);
+			break;
+		case PHOS_GUI_TEXT_WRAP_WORD:
+			// walk back to the last ' ' character, then insert new line there:
+
+			size_t cursor_pos = text->cursor_pos;
+
+			while(cursor_pos > 0)
+			{
+				cursor_pos--;
+
+				if(text->str[cursor_pos] == ' ')
+				{
+					text->str[cursor_pos] = '\n';
+					text->num_lines++;
+					text->curr_line_len = 0;
+					break;
+				}
+			}
+			break;
+		default:
+			break;
+	}
+}
 static void insert_char_text(phos_gui_text_component *text, char c, phos_gui_scroll_pane_component *scroll_pane)
 {
 	// insert char into string at cursor pos (if possible)
 	if(text->len + 1 <= text->max_len && strlen(text->str) + 1 < PHOS_GUI_MAX_TEXT_LEN)
 	{
 		// first, move all chars at cursor pos one slot over to the right
-		memmove(text->str + text->cursor_pos + 1, text->str + text->cursor_pos, strlen(text->str) - text->cursor_pos + 1);
+		memmove(text->str + text->cursor_pos + 1, text->str + text->cursor_pos, text->len - text->cursor_pos + 1);
 
 		// insert char and move to next cursor pos
 		text->str[text->cursor_pos++] = c;
@@ -3505,6 +3602,32 @@ static void insert_char_text(phos_gui_text_component *text, char c, phos_gui_scr
 		text->curr_line_len = 0;
 		text->num_lines++;
 	}
+
+	// check to see if the current line needs to wrap to the next line
+	char curr_line[PHOS_GUI_MAX_TEXT_LEN];
+
+	size_t line_start = text->cursor_pos;
+
+	while(line_start > 0 && text->str[line_start - 1] != '\n')
+		line_start--;
+	size_t line_len = text->cursor_pos - line_start;
+
+	// copy text into curr_line
+	memcpy(curr_line, text->str + line_start, line_len);
+	curr_line[line_len] = '\0';
+
+	// measure line
+	Vector2 line_bounds = MeasureTextEx(*text->font, curr_line, text->font_size, 0.0f);
+
+	// compare text bounds to content free bounds
+	phos_gui_elem *text_elem = pluto_cs_get_owner(text);
+	if(!text_elem)
+	{
+		vl_log(VL_ERROR, "Cannot properly modify text component without an owner!\n");
+		return;
+	}
+	if(line_bounds.x >= text_elem->content_free_bounds.rect.width)
+		wrap_text(text, scroll_pane);
 }
 static void update_elem(phos_gui_elem *e, float dt)
 {
@@ -3641,10 +3764,6 @@ static void update_elem(phos_gui_elem *e, float dt)
 			if(text->enter_inserts_new_line && IsKeyPressed(KEY_ENTER))
 				insert_char_text(text, '\n', scroll_pane);
 
-			// check to see if the current line needs to wrap to the next line
-			if(text->enter_inserts_new_line && text->curr_line_len > text->max_line_len)
-				insert_char_text(text, '\n', scroll_pane);
-
 			// collect char pressed
 			char c = GetCharPressed();
 
@@ -3720,7 +3839,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 
 	if(scroll_pane)
 	{
-		// calculate max scroll unless the text component decided it already
+		// first, determine max scroll values for element (unless text already handled scrolling)
 		if(!text)
 		{
 			scroll_pane->max_scroll_x = get_max_scroll_x(e);
