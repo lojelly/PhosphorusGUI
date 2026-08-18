@@ -1589,6 +1589,12 @@ typedef struct phos_gui_scroll_bar
 	  This is true by default.
 	*/
 	bool rendered;
+	/**
+	  Whether or not this bar can be used to scroll.
+
+	  This is true by default.
+	*/
+	bool active;
 } phos_gui_scroll_bar;
 
 /**
@@ -1650,18 +1656,6 @@ typedef struct phos_gui_scroll_pane_component
 	  pane. This is true by default.
 	*/
 	bool use_mouse_wheel_input;
-	/**
-	  Whether or not vertical scrolling is supported.
-
-	  This is true by default.
-	*/
-	bool vertical_scrolling_active;
-	/**
-	  Whether or not horizontal scrolling is supported.
-
-	  This is true by default.
-	*/
-	bool horizontal_scrolling_active;
 } phos_gui_scroll_pane_component;
 
 /**
@@ -1764,15 +1758,9 @@ typedef struct phos_gui_drop_down_component
 	/**
 	  The container the drop down will use.
 
-	  This should point to an element with children
-	  representing the drop down's options.
-
-	  @important When setting the container on a drop down
-	  component, do not add the same container element
-	  to the phos_gui currently set. Only add the element
-	  with this drop down component to the phos_gui, and
-	  PhosphorusGUI will automatically handle updating and
-	  rendering the drop down's option elements.
+	  @important This should point to a child element
+	  on the drop down representing the main container
+	  holding the drop down's options.
 	*/
 	struct phos_gui_elem *container;
 	/**
@@ -2467,6 +2455,14 @@ PHOS_GUI_API void phos_gui_set_elem_paddings(phos_gui_elem *elem, float left, fl
 */
 PHOS_GUI_API void phos_gui_set_elem_padding(phos_gui_elem *elem, float padding);
 /**
+  Adds each amount to each respective padding value on an element.
+*/
+PHOS_GUI_API void phos_gui_add_elem_paddings(phos_gui_elem *elem, float left, float top, float right, float bottom);
+/**
+  Adds the same amount to all of the padding values on an element.
+*/
+PHOS_GUI_API void phos_gui_add_elem_padding(phos_gui_elem *elem, float padding);
+/**
   Sets the margins on an element.
 */
 PHOS_GUI_API void phos_gui_set_elem_margins(phos_gui_elem *elem, float left, float top, float right, float bottom);
@@ -2474,6 +2470,14 @@ PHOS_GUI_API void phos_gui_set_elem_margins(phos_gui_elem *elem, float left, flo
   Sets the margin values on an element all to the same value.
 */
 PHOS_GUI_API void phos_gui_set_elem_margin(phos_gui_elem *elem, float margin);
+/**
+  Adds each amount to each respective margin value on an element.
+*/
+PHOS_GUI_API void phos_gui_add_elem_margins(phos_gui_elem *elem, float left, float top, float right, float bottom);
+/**
+  Adds the same amount to all of the margin values on an element.
+*/
+PHOS_GUI_API void phos_gui_add_elem_margin(phos_gui_elem *elem, float margin);
 
 /**
   Sets the contents of the given element's text component.
@@ -2541,33 +2545,14 @@ PHOS_GUI_API void phos_gui_fill_window_with_elem(phos_gui_elem *elem, phos_gui_o
 PHOS_GUI_API void phos_gui_fill_elem_with_elem(phos_gui_elem *target_elem, phos_gui_elem_bounding_box bounds, phos_gui_elem *reference_elem, phos_gui_opts opts);
 
 /**
-  Makes the owner of the text component fit the text's bounds.
-
-  @note This makes the element's visible bounds exactly equal to the text's bounds.
-  In most cases, this will shrink the element significantly. To make the element
-  fit a text component but retain its original size, use phos_gui_make_elem_fit_text(...).
-*/
-PHOS_GUI_API void phos_gui_clamp_elem_to_text(const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str, phos_gui_opts opts);
-/**
   Makes the given text component fit its owner's bounds.
 
   This function will modify the text component's font size to
   make it fit its owner's size.
 
-  @see phos_gui_make_elem_fit_text(phos_gui_text_component*, phos_gui_target_text_string)
+  @note This function is the equivalent of using PHOS_GUI_OPTS_FIT_TEXT.
 */
 PHOS_GUI_API void phos_gui_make_text_fit_elem(phos_gui_text_component *text_component, phos_gui_target_text_string target_str);
-/**
-  Makes the owner of the given text component fit the
-  the text component's bounds.
-
-  @note This function walks up the parent tree of the given element
-  and makes each parent also fit the text component. This is because
-  if only the child was affected, it may cause size-collisions.
-
-  @see phos_gui_make_text_fit_elem(phos_gui_text_component*, phos_gui_target_text_string)
-*/
-PHOS_GUI_API void phos_gui_make_elem_fit_text(const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str);
 
 /**
   Sets some basic element attributes
@@ -2585,6 +2570,29 @@ PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_g
   'text' string given.
 */
 PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text);
+/**
+  Initializes an element and turns it into a text field element.
+
+  By default, text field elements come with mouse listener components,
+  text components, placeholder text components, as well as scroll
+  pane components. Each text component is initialized with the
+  respective string given.
+
+  @important If a placeholder string is given, then this function
+  will make the placeholder text fit the element.
+*/
+PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text);
+/**
+  Initializes an element and turns it into a drop down menu.
+
+  By default, drop down elements come with mouse listener components,
+  text components, and drop down components.
+
+  @note 'container_elem' should point to the container of the drop down menu.
+
+  @see phos_gui_drop_down_component
+*/
+PHOS_GUI_API void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text);
 
 /**
   Generates the background colors on a mouse listener component using brightness factors.

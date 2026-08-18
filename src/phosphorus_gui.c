@@ -10,7 +10,7 @@
 #include "raymath.h"
 #include "rlgl.h"
 
-#define CURSOR_WIDTH 3.0f
+#define CURSOR_WIDTH 5.0f
 #define KEY_REPEAT_DELAY 0.5f
 #define KEY_REPEAT_INTERVAL 0.033f
 
@@ -23,7 +23,7 @@
 #define MIN_SCROLL_BAR_WIDTH 25.0f
 #define MIN_SCROLL_BAR_HEIGHT 25.0f
 
-#define DEFAULT_SCROLL_BAR (phos_gui_scroll_bar) { .span = 12.0f, .bg_color = PHOS_GUI_COLOR_LIGHT_GRAY, .thumb_color = PHOS_GUI_COLOR_GRAY, .thumb_focus_color = PHOS_GUI_COLOR_DARK_GRAY, .thumb_has_focus = false, .thumb_grabbed = false, .rendered = true }
+#define DEFAULT_SCROLL_BAR (phos_gui_scroll_bar) { .span = 12.0f, .bg_color = PHOS_GUI_COLOR_LIGHT_GRAY, .thumb_color = PHOS_GUI_COLOR_GRAY, .thumb_focus_color = PHOS_GUI_COLOR_DARK_GRAY, .thumb_has_focus = false, .thumb_grabbed = false, .rendered = true, .active = true }
 
 #define PX_PER_MOUSE_MOVE_TICK 2.0f
 
@@ -218,6 +218,10 @@ static void apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
 	if(text)
 		text->color = theme.text_color;
 
+	phos_gui_placeholder_text_extension *placeholder_text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
+	if(placeholder_text)
+		placeholder_text->color = ColorContrast(theme.text_color, -0.3f);
+
 	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 	if(scroll_pane)
 	{
@@ -313,8 +317,10 @@ static void init_placeholder_text_extension(void *placeholder_text_component)
 		return;
 	}
 
-	placeholder_text->color = PHOS_GUI_COLOR_GRAY;
 	snprintf(placeholder_text->str, sizeof(placeholder_text->str), "");
+
+	// re-apply default theme to element
+	apply_theme_to_elem(elem, phos_gui_get_default_theme());
 }
 
 static void init_layout_component(void *layout_component)
@@ -381,9 +387,9 @@ static Rectangle get_calculated_elem_rect(phos_gui_elem *elem, phos_gui_elem_bou
 				phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 				if((scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE)))
 				{
-					if(scroll_pane->vertical_scrolling_active && scroll_pane->v_bar.rendered)
+					if(scroll_pane->v_bar.active && scroll_pane->v_bar.rendered)
 						elem->content_free_bounds.rect.width -= scroll_pane->v_bar.span;
-					if(scroll_pane->horizontal_scrolling_active && scroll_pane->h_bar.rendered)
+					if(scroll_pane->h_bar.active && scroll_pane->h_bar.rendered)
 						elem->content_free_bounds.rect.height -= scroll_pane->h_bar.span;
 				}
 				else
@@ -398,9 +404,9 @@ static Rectangle get_calculated_elem_rect(phos_gui_elem *elem, phos_gui_elem_bou
 
 					if(scroll_pane)
 					{
-						if(scroll_pane->vertical_scrolling_active && scroll_pane->v_bar.rendered)
+						if(scroll_pane->v_bar.active && scroll_pane->v_bar.rendered)
 							elem->content_free_bounds.rect.width -= scroll_pane->v_bar.span;
-						if(scroll_pane->horizontal_scrolling_active && scroll_pane->h_bar.rendered)
+						if(scroll_pane->h_bar.active && scroll_pane->h_bar.rendered)
 							elem->content_free_bounds.rect.height -= scroll_pane->h_bar.span;
 					}
 				}
@@ -513,8 +519,8 @@ static void init_scroll_pane_component(void *scroll_pane_component)
 	scroll_pane->scroll_y = 0.0f;
 	scroll_pane->max_scroll_y = 0.0f;
 	scroll_pane->use_mouse_wheel_input = true;
-	scroll_pane->vertical_scrolling_active = true;
-	scroll_pane->horizontal_scrolling_active = true;
+	scroll_pane->v_bar.active = true;
+	scroll_pane->h_bar.active = true;
 
 	// re-calculate elem rects instantly
 	force_calculate_elem_rects(owner);
@@ -657,6 +663,11 @@ void phos_gui_shutdown()
 }
 void phos_gui_exit(int exit_code)
 {
+	if(exit_code != 0)
+		vl_log(VL_ERROR, "Exiting with exit code: %d!\n", exit_code);
+	else
+		vl_log(VL_INFO, "Exiting with exit code: %d!\n", exit_code);
+
 	pluto_cs_shutdown();
 	phos_gui_shutdown();
 	CloseWindow();
@@ -1098,9 +1109,9 @@ static Vector2 get_text_draw_pos(const phos_gui_text_component *const text, cons
 	// calculate where to draw the text based on scrolling (only if scroll pane is not null)
 	if(scroll_pane)
 	{
-		if(scroll_pane->horizontal_scrolling_active)
+		if(scroll_pane->h_bar.active)
 			text_pos.x -= scroll_pane->scroll_x;
-		if(scroll_pane->vertical_scrolling_active)
+		if(scroll_pane->v_bar.active)
 			text_pos.y -= scroll_pane->scroll_y;
 	}
 
@@ -1302,7 +1313,7 @@ static void update_text_scrolling(phos_gui_text_component *text)
 
 	// calculate the overflow on each axis
 	float vis_left = free_content_bounds.x;
-	float vis_right = free_content_bounds.x + free_content_bounds.width;
+	float vis_right = free_content_bounds.x + free_content_bounds.width - CURSOR_WIDTH;
 	float vis_width = vis_right - (free_content_bounds.x + text->offset.x);
 	float overflow_w = text_bounds.width - vis_width;
 
@@ -1381,12 +1392,12 @@ void phos_gui_init_text(phos_gui_text_component *text, const char *str, float fo
 		return;
 	}
 
-	text->len = strlen(str);
 	snprintf(text->str, sizeof(text->str), "%s", str);
+	text->len = strlen(str);
 	text->max_len = PHOS_GUI_MAX_TEXT_LEN;
 	text->color = color;
 	text->font_size = font_size;
-	text->editable = true;
+	text->editable = false;
 	text->edited = false;
 	text->cursor_pos = text->len;
 	text->accept_letters = text->accept_nums = text->accept_specials = true;
@@ -1492,6 +1503,20 @@ void phos_gui_set_elem_padding(phos_gui_elem *elem, float padding)
 {
 	phos_gui_set_elem_paddings(elem, padding, padding, padding, padding);
 }
+void phos_gui_add_elem_paddings(phos_gui_elem *elem, float left, float top, float right, float bottom)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot add to padding on a NULL element!\n");
+		return;
+	}
+
+	phos_gui_set_elem_paddings(elem, elem->left_padding + left, elem->top_padding + top, elem->right_padding + right, elem->bottom_padding + bottom);
+}
+void phos_gui_add_elem_padding(phos_gui_elem *elem, float padding)
+{
+	phos_gui_add_elem_paddings(elem, padding, padding, padding, padding);
+}
 void phos_gui_set_elem_margins(phos_gui_elem *elem, float left, float top, float right, float bottom)
 {
 	if(!elem)
@@ -1511,6 +1536,20 @@ void phos_gui_set_elem_margins(phos_gui_elem *elem, float left, float top, float
 void phos_gui_set_elem_margin(phos_gui_elem *elem, float margin)
 {
 	phos_gui_set_elem_margins(elem, margin, margin, margin, margin);
+}
+void phos_gui_add_elem_margins(phos_gui_elem *elem, float left, float top, float right, float bottom)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot add to margin on a NULL element!\n");
+		return;
+	}
+
+	phos_gui_set_elem_margins(elem, elem->left_margin + left, elem->top_margin + top, elem->right_margin + right, elem->bottom_margin + bottom);
+}
+void phos_gui_add_elem_margin(phos_gui_elem *elem, float margin)
+{
+	phos_gui_add_elem_margins(elem, margin, margin, margin, margin);
 }
 
 void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, const char *new_contents, phos_gui_opts opts)
@@ -1559,7 +1598,12 @@ void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gu
 
 	// use hardcoded size from string buffers:
 	snprintf(dest, PHOS_GUI_MAX_TEXT_LEN + 1, "%s", new_contents);
-	text_component->cursor_pos = text_component->len = strlen(dest);
+
+	// only modify cursor pos if targeting main string
+	if(dest == text_component->str)
+		text_component->cursor_pos = text_component->len = strlen(dest);
+
+	// TODO should the rest of this logic only apply when targeting main string like the cursor pos logic above?
 
 	// curr line len is length of last string before a '\n' is encountered
 	size_t last_line_len = 0;
@@ -1615,10 +1659,10 @@ static Vector2 resolve_elem_text_bounds(const phos_gui_text_component *const tex
 			size_t placeholder_len = placeholder_text ? strlen(placeholder_text->str) : 0;
 			if(main_len > placeholder_len)
 				text_bounds = MeasureTextEx(*text_component->font, text_component->str, text_component->font_size, 0.0f);
-			else if(placeholder_text)
+			else if(placeholder_text && placeholder_len > main_len)
 				text_bounds = MeasureTextEx(*text_component->font, placeholder_text->str, text_component->font_size, 0.0f);
 			else
-				vl_log(VL_ERROR, "PHOS_GUI_TARGET_AUTO_TEXT failed!\n");
+				vl_log(VL_WARNING, "PHOS_GUI_TARGET_AUTO_TEXT failed for element: '%s'!\n", elem->ID);
 			break;
 		default:
 			vl_log(VL_ERROR, "Invalid target string: %d!\n", target_str);
@@ -1807,28 +1851,6 @@ static void use_largest_possible_font_size(phos_gui_text_component *text_compone
 		text_bounds = resolve_elem_text_bounds(text_component, target_str);
 	}
 }
-void phos_gui_clamp_elem_to_text(const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str, phos_gui_opts opts)
-{
-	if(!text_component || !text_component->font)
-	{
-		vl_log(VL_ERROR, "To clamp the element to the text, the text component can't be NULL/invalid!\n");
-		return;
-	}
-
-	// get owner of text component
-	phos_gui_elem *elem = pluto_cs_get_owner(text_component);
-	if(!elem)
-	{
-		vl_log(VL_ERROR, "The text component's owner is NULL, cannot clamp!\n");
-		return;
-	}
-
-	// get resolved text bounds
-	Vector2 text_bounds = resolve_elem_text_bounds(text_component, target_str);
-
-	// match elem bounds to text bounds
-	phos_gui_set_elem_size(elem, text_bounds.x, text_bounds.y, opts);
-}
 
 void phos_gui_make_text_fit_elem(phos_gui_text_component *text_component, phos_gui_target_text_string target_str)
 {
@@ -1856,55 +1878,6 @@ void phos_gui_make_text_fit_elem(phos_gui_text_component *text_component, phos_g
 
 	// use largest possible font size
 	use_largest_possible_font_size(text_component, target_str);
-}
-void phos_gui_make_elem_fit_text(const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str)
-{
-	if(!text_component)
-	{
-		vl_log(VL_ERROR, "To make the given element fit the text component, the text component cannot be NULL!\n");
-		return;
-	}
-	if(!text_component->font)
-	{
-		vl_log(VL_ERROR, "To make the given element fit the text component, its font must be set first!\n");
-		return;
-	}
-
-	// get text component's owner
-	phos_gui_elem *elem = pluto_cs_get_owner(text_component);
-	if(!elem)
-	{
-		vl_log(VL_ERROR, "To make the given element fit the text component, the text component must have a valid owner element!\n");
-		return;
-	}
-
-	// get content area of elem
-	Rectangle bounds = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
-
-	// measure text bounds
-	Vector2 text_bounds = resolve_elem_text_bounds(text_component, target_str);
-
-	// expand element if necessary
-	if(text_bounds.x > bounds.width)
-	{
-		// find diff in widths
-		float diff_w = text_bounds.x - bounds.height;
-
-		// expand by that much
-		phos_gui_resize_elem_wh(elem, diff_w, 0.0f, PHOS_GUI_OPTS_NONE);
-	}
-	if(text_bounds.y > bounds.height)
-	{
-		// find diff in heights
-		float diff_h = text_bounds.y - bounds.height;
-
-		// expand by that much
-		phos_gui_resize_elem_wh(elem, 0.0f, diff_h, PHOS_GUI_OPTS_NONE);
-	}
-
-	// if element has a parent, make sure it can contain the text too
-	/*if(elem->parent)
-		phos_gui_make_elem_fit_text(elem->parent, text_component, target_str);*/
 }
 
 void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h)
@@ -1969,6 +1942,82 @@ void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y,
 	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
 	if(!mouse_listener)
 		phos_gui_exit(EXIT_FAILURE);
+}
+void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot initialize a NULL element!\n");
+		return;
+	}
+
+	// first, init elem as a button
+	phos_gui_init_button(elem, ID, x, y, w, h, main_text);
+
+	// make sure text fits on right side of elem
+	phos_gui_set_elem_paddings(elem, 0.0f, 0.0f, CURSOR_WIDTH, 0.0f);
+
+	// now obtain text component and modify it so that element becomes a text field
+	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	text->editable = true;
+
+	// add placeholder text component
+	phos_gui_placeholder_text_extension *placeholder_text_component = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
+	if(!placeholder_text_component)
+		phos_gui_exit(EXIT_FAILURE);
+	phos_gui_set_text_contents(text, PHOS_GUI_TARGET_PLACEHOLDER_TEXT, placeholder_text, PHOS_GUI_OPTS_NONE);
+
+	// add scroll pane component so text scrolls as user types
+	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
+	if(!scroll_pane)
+		phos_gui_exit(EXIT_FAILURE);
+	// text only scrolls horizontally by default:
+	scroll_pane->v_bar.active = false;
+	// neither scroll bar is rendered
+	scroll_pane->v_bar.rendered = false;
+	scroll_pane->h_bar.rendered = false;
+	// mouse wheel cannot scroll the text
+	scroll_pane->use_mouse_wheel_input = false;
+
+	// clamp elem around placeholder text if necesary
+	if(strlen(placeholder_text) > 0)
+		phos_gui_make_text_fit_elem(text, PHOS_GUI_TARGET_PLACEHOLDER_TEXT);
+
+	//text->alignment = PHOS_GUI_ALIGN_INNER_LEFT;
+	phos_gui_realign_elem_text(text);
+}
+void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot initialize a NULL element!\n");
+		return;
+	}
+	if(!container_elem)
+	{
+		vl_log(VL_ERROR, "Cannot initialize a drop down with a NULL container element!\n");
+		return;
+	}
+
+	// first init elem as a button
+	phos_gui_init_button(elem, ID, x, y, w, h, text);
+
+	// add drop down component
+	phos_gui_drop_down_component *drop_down = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_DROP_DOWN);
+	if(!drop_down)
+		phos_gui_exit(EXIT_FAILURE);
+	// container element becomes a child to elem
+	phos_gui_add_child_to_elem(container_elem, elem, PHOS_GUI_OPTS_NONE);
+	// and point to the container elem in the drop down
+	drop_down->container = container_elem;
+
+	// re-align text to inner left
+	phos_gui_text_component *text_component = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	text_component->alignment = PHOS_GUI_ALIGN_INNER_LEFT;
+	phos_gui_realign_elem_text(text_component);
+
+	// move container to elem pos
+	phos_gui_set_elem_pos(container_elem, elem->bounds.x, elem->bounds.y + elem->bounds.height, PHOS_GUI_OPTS_NONE);
 }
 
 void phos_gui_gen_bg_colors(phos_gui_mouse_listener_component *mouse_listener, float hover_color_factor, float press_color_factor, float focus_color_factor)
@@ -3194,7 +3243,7 @@ static float get_elem_total_content_height(phos_gui_elem *e)
 static void get_scroll_bar_rects(const phos_gui_scroll_pane_component *const scroll_pane, Rectangle *out_v_bar, Rectangle *out_v_thumb, Rectangle *out_h_bar, Rectangle *out_h_thumb)
 {
 	// no scrolling enabled, return
-	if(!scroll_pane->vertical_scrolling_active && !scroll_pane->horizontal_scrolling_active)
+	if(!scroll_pane->v_bar.active && !scroll_pane->h_bar.active)
 		return;
 
 	// get owner of scroll pane
@@ -3271,14 +3320,14 @@ static void get_scroll_bar_rects(const phos_gui_scroll_pane_component *const scr
 	h_thumb.width = h_scroll_thumb_width;
 	h_thumb.height = scroll_pane->h_bar.span;
 
-	if(scroll_pane->vertical_scrolling_active)
+	if(scroll_pane->v_bar.active)
 	{
 		if(out_v_bar)
 			*out_v_bar = v_bar;
 		if(out_v_thumb)
 			*out_v_thumb = v_thumb;
 	}
-	if(scroll_pane->horizontal_scrolling_active)
+	if(scroll_pane->h_bar.active)
 	{
 		if(out_h_bar)
 			*out_h_bar = h_bar;
@@ -3372,6 +3421,10 @@ static phos_gui_elem *get_elem_mouse_target(phos_gui_elem *e, Vector2 mouse_pos)
 	if(e -> type == PHOS_GUI_TYPE_INVALID)
 		return NULL;
 
+	// if elem isn't rendered, it can't be the mouse target either
+	if(!e->auto_render)
+		return NULL;
+
 	// then see if mouse is within the parent's clip region
 	if(!elem_in_parent_clip(e, mouse_pos))
 		return NULL;
@@ -3380,16 +3433,6 @@ static phos_gui_elem *get_elem_mouse_target(phos_gui_elem *e, Vector2 mouse_pos)
 	for(int i = e->num_children - 1; i >= 0; --i)
 	{
 		phos_gui_elem *target = get_elem_mouse_target(e->children[i], mouse_pos);
-
-		if(target)
-			return target;
-	}
-
-	// see if element has a drop down with an expanded list
-	phos_gui_drop_down_component *drop_down = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_DROP_DOWN);
-	if(drop_down && drop_down->container && drop_down->expanded)
-	{
-		phos_gui_elem *target = get_elem_mouse_target(drop_down->container, mouse_pos);
 
 		if(target)
 			return target;
@@ -3411,6 +3454,10 @@ static phos_gui_elem *get_elem_mouse_target(phos_gui_elem *e, Vector2 mouse_pos)
 // checks mouse collision with all GUI elems and children:
 static phos_gui_elem *get_gui_mouse_target(phos_gui *gui, Vector2 mouse_pos)
 {
+	// when mouse pos is (0, 0) it's outside window's bounds, and therefore cannot interact with any element in the GUI
+	if(mouse_pos.x == 0.0f && mouse_pos.y == 0.0f)
+		return NULL;
+
 	// iterate over all elems in the GUI
 	for(int i = gui->num_elems - 1; i >= 0; --i)
 	{
@@ -3427,10 +3474,10 @@ static phos_gui_elem *get_gui_mouse_target(phos_gui *gui, Vector2 mouse_pos)
 static void insert_char_text(phos_gui_text_component *text, char c, phos_gui_scroll_pane_component *scroll_pane)
 {
 	// insert char into string at cursor pos (if possible)
-	if(text->len + 1 <= text->max_len && text->len + 1 < PHOS_GUI_MAX_TEXT_LEN)
+	if(text->len + 1 <= text->max_len && strlen(text->str) + 1 < PHOS_GUI_MAX_TEXT_LEN)
 	{
 		// first, move all chars at cursor pos one slot over to the right
-		memmove(text->str + text->cursor_pos + 1, text->str + text->cursor_pos, text->len - text->cursor_pos + 1);
+		memmove(text->str + text->cursor_pos + 1, text->str + text->cursor_pos, strlen(text->str) - text->cursor_pos + 1);
 
 		// insert char and move to next cursor pos
 		text->str[text->cursor_pos++] = c;
@@ -3472,6 +3519,10 @@ static void update_elem(phos_gui_elem *e, float dt)
 	}
 	// skip basic elements as well by going to update_children tag
 	else if(e->type == PHOS_GUI_TYPE_BLANK)
+		goto update_children;
+
+	// if element is not being rendered, it shouldn't be updated either
+	if(!e->auto_render)
 		goto update_children;
 
 	// obtain all input state here:
@@ -3693,8 +3744,8 @@ static void update_elem(phos_gui_elem *e, float dt)
 		scroll_pane->h_bar.thumb_has_focus = false;
 
 		// see if mouse is over the thumb
-		bool mouse_over_v_thumb = scroll_pane->vertical_scrolling_active && scroll_pane->v_bar.rendered && phos_gui_is_mouse_over_rect(v_thumb);
-		bool mouse_over_h_thumb = scroll_pane->horizontal_scrolling_active && scroll_pane->h_bar.rendered && phos_gui_is_mouse_over_rect(h_thumb);
+		bool mouse_over_v_thumb = scroll_pane->v_bar.active && scroll_pane->v_bar.rendered && phos_gui_is_mouse_over_rect(v_thumb);
+		bool mouse_over_h_thumb = scroll_pane->h_bar.active && scroll_pane->h_bar.rendered && phos_gui_is_mouse_over_rect(h_thumb);
 
 		// see if user is hovered over the thumb and not currently dragging pane
 		if(mouse_over_v_thumb && !dragging_drag_pane)
@@ -3844,7 +3895,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 			if(drop_down->expanded)
 			{
 				// update elements within container
-				update_elem(drop_down->container, dt);
+				//update_elem(drop_down->container, dt);
 
 				// see which element in the container was clicked
 				for(size_t i = 0; i < drop_down->container->num_children; ++i)
@@ -3870,9 +3921,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 				// modify contents of drop down button to match selection's text
 				phos_gui_text_component *container_option_elem_text = pluto_cs_get_component(drop_down->selection, PHOS_GUI_COMPONENT_TEXT);
 				if(container_option_elem_text && text)
-				{
 					phos_gui_set_text_contents(text, PHOS_GUI_TARGET_MAIN_TEXT, container_option_elem_text->str, PHOS_GUI_OPTS_NONE);
-				}
 
 				// collapse drop down list
 				drop_down->expanded = false;
@@ -4349,12 +4398,12 @@ static void render_elem(phos_gui_elem *e)
 		Color h_thumb_color = scroll_pane->h_bar.thumb_has_focus || scroll_pane->h_bar.thumb_grabbed ? scroll_pane->h_bar.thumb_focus_color : scroll_pane->h_bar.thumb_color;
 
 		// if rendering scroll bar:
-		if(scroll_pane->v_bar.rendered && scroll_pane->vertical_scrolling_active)
+		if(scroll_pane->v_bar.rendered && scroll_pane->v_bar.active)
 		{
 			DrawRectangleRec(v_bar, scroll_pane->v_bar.bg_color);
 			DrawRectangleRec(v_thumb, v_thumb_color);
 		}
-		if(scroll_pane->h_bar.rendered && scroll_pane->horizontal_scrolling_active)
+		if(scroll_pane->h_bar.rendered && scroll_pane->h_bar.active)
 		{
 			DrawRectangleRec(h_bar, scroll_pane->h_bar.bg_color);
 			DrawRectangleRec(h_thumb, h_thumb_color);
@@ -4375,8 +4424,8 @@ static void render_elem(phos_gui_elem *e)
 		}
 
 		// render container if necessary
-		if(drop_down->container && drop_down->expanded)
-			render_elem(drop_down->container);
+		//if(drop_down->container && drop_down->expanded)
+			//render_elem(drop_down->container);
 	}
 
 	// render child elements:
