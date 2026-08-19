@@ -82,6 +82,14 @@ typedef struct gui_arr
 	size_t size, capacity;
 } gui_arr;
 
+// icon registry:
+typedef struct icon_map
+{
+	phos_gui_icon *keys;
+	const char **values;
+	size_t size, capacity;
+} icon_map;
+
 // core info and registries
 static bool init = false;
 static dynas_string_arr all_ids;
@@ -89,7 +97,9 @@ static elem_arr elem_registry;
 static blueprint_arr blueprint_registry;
 static gui_arr gui_registry;
 
+// resources
 static tex_arr textures;
+static icon_map icons;
 static font_arr fonts;
 
 // for objects with ID="auto":
@@ -157,10 +167,21 @@ static phos_gui_theme default_theme = {0};
 		dynas_init(arr); \
 		assert_obj_ptr(arr, data, __VA_ARGS__); \
 	} while(0)
+#define arr_add(arr, item, ...) \
+	do { \
+		dynas_add(arr, item); \
+		assert_obj_ptr(arr, data, __VA_ARGS__); \
+	} while(0)
 
 #define init_map(map, ...) \
 	do { \
 		dynmaps_init(map); \
+		assert_obj_ptr(map, keys, __VA_ARGS__); \
+		assert_obj_ptr(map, values, __VA_ARGS__); \
+	} while(0)
+#define map_add(map, key, value, ...) \
+	do { \
+		dynmaps_set(map, key, value); \
 		assert_obj_ptr(map, keys, __VA_ARGS__); \
 		assert_obj_ptr(map, values, __VA_ARGS__); \
 	} while(0)
@@ -535,7 +556,6 @@ static void init_drop_down_component(void *drop_down_component)
 
 	drop_down->container = NULL;
 	drop_down->selection = NULL;
-	drop_down->down_arrow_icon = phos_gui_load_texture("icons/down_arrow.png");
 	drop_down->expanded = false;
 }
 
@@ -555,6 +575,7 @@ int phos_gui_init()
 
 	// resources:
 	init_arr(&textures, 0);
+	init_map(&icons, 0);
 	init_arr(&fonts, 0);
 
 	// keyboard input:
@@ -578,6 +599,9 @@ int phos_gui_init()
 
 	// set default theme
 	default_theme = PHOS_GUI_THEME_MONOTONE;
+
+	// fill icon map
+	phos_gui_set_icon(PHOS_GUI_ICON_DOWN_ARROW, "icons/down_arrow.png");
 
 	init = true;
 	vl_log(VL_SUCCESS, "Initialized PhosphorusGUI!\n");
@@ -607,6 +631,9 @@ void phos_gui_shutdown()
 		vl_log(VL_SUCCESS, "Unloaded texture: '%s'!\n", textures.data[i].file_path);
 	}
 	dynas_free(&textures);
+
+	// after unloading all textures, free icons map
+	dynmaps_free(&icons);
 
 	// unload every font loaded
 	for(size_t i = 0; i < fonts.size; ++i)
@@ -674,8 +701,8 @@ void phos_gui_set_gui(phos_gui *new_gui)
 			return;
 
 		// register the phos_gui
-		dynas_add(&all_ids, new_gui->ID);
-		dynas_add(&gui_registry, new_gui);
+		arr_add(&all_ids, new_gui->ID);
+		arr_add(&gui_registry, new_gui);
 
 		vl_log(VL_SUCCESS, "Registered GUI with ID: '%s'!\n", new_gui->ID);
 	}
@@ -2091,8 +2118,8 @@ static int register_elem(phos_gui_elem *elem)
 	}
 
 	// no duplicate, the elem can be registered
-	dynas_add(&all_ids, elem->ID);
-	dynas_add(&elem_registry, elem);
+	arr_add(&all_ids, elem->ID, 0);
+	arr_add(&elem_registry, elem, 0);
 
 	vl_log(VL_SUCCESS, "Registered element with ID: '%s'!\n", elem->ID);
 
@@ -2511,8 +2538,8 @@ static int create_blueprint(phos_gui_elem *elem, const char *ID, blueprint *bp)
 	new_bp.elem = elem;
 
 	// no duplicate, blueprint can be created and saved
-	dynas_add(&blueprint_registry, new_bp);
-	dynas_add(&all_ids, blueprint_registry.data[blueprint_registry.size - 1].ID);
+	arr_add(&blueprint_registry, new_bp, 0);
+	arr_add(&all_ids, blueprint_registry.data[blueprint_registry.size - 1].ID, 0);
 
 	vl_log(VL_SUCCESS, "Registered blueprint with ID: '%s'!\n", ID);
 
@@ -4527,12 +4554,12 @@ static void render_elem(phos_gui_elem *e)
 	if(drop_down)
 	{
 		// render down arrow icon on drop down button when it's not expanded
-		Texture2D* down_arrow = drop_down->down_arrow_icon;
+		Texture2D* down_arrow = phos_gui_get_icon(PHOS_GUI_ICON_DOWN_ARROW);
 		if(!drop_down->expanded && down_arrow)
 		{
 			float x = usable_content_bounds.x + usable_content_bounds.width - down_arrow->width * 1.25f;
 			float y = usable_content_bounds.y + ((usable_content_bounds.height - down_arrow->height) / 2.0f);
-			DrawTexture(*down_arrow, x, y, WHITE);
+			DrawTexture(*down_arrow, x, y, default_theme.icon_color);
 		}
 
 		// render container if necessary
@@ -4635,6 +4662,7 @@ phos_gui_theme phos_gui_create_theme_basic(Color base_color)
 	theme.outline_press_color = theme.outline_color;
 	theme.outline_focus_color = theme.outline_color;
 	theme.text_color = ColorBrightness(base_color, -0.75f);
+	theme.icon_color = ColorContrast(base_color, 0.5f);
 	theme.window_bg_color = ColorBrightness(base_color, -0.9f);
 	theme.outline_thickness = 5.0f;
 
@@ -4653,12 +4681,13 @@ phos_gui_theme phos_gui_create_theme_accented(Color base_color, Color accent_col
 	theme.outline_press_color = theme.outline_color;
 	theme.outline_focus_color = theme.outline_color;
 	theme.text_color = ColorBrightness(accent_color, -0.75f);
+	theme.icon_color = ColorContrast(accent_color, 0.5f);
 	theme.window_bg_color = PHOS_GUI_COLOR_MIX(ColorContrast(accent_color, -0.65f), ColorBrightness(accent_color, -0.8f));
 	theme.outline_thickness = 5.0f;
 
 	return theme;
 }
-phos_gui_theme phos_gui_create_theme_full(Color base_color, Color accent_color, Color text_color, Color window_bg_color)
+phos_gui_theme phos_gui_create_theme_full(Color base_color, Color accent_color, Color text_color, Color icon_color, Color window_bg_color)
 {
 	phos_gui_theme theme = {0};
 
@@ -4667,6 +4696,7 @@ phos_gui_theme phos_gui_create_theme_full(Color base_color, Color accent_color, 
 
 	// then override specific colors given
 	theme.text_color = text_color;
+	theme.icon_color = icon_color;
 	theme.window_bg_color = window_bg_color;
 
 	return theme;
@@ -4864,11 +4894,30 @@ Texture2D *phos_gui_load_texture(const char *file_path)
 
 	texture pg_tex = { .tex = tex, .file_path = file_path };
 
-	dynas_add(&textures, pg_tex);
+	arr_add(&textures, pg_tex, NULL);
 
 	vl_log(VL_SUCCESS, "Loaded texture: '%s'!\n", file_path);
 
 	return &textures.data[textures.size - 1].tex;
+}
+Texture2D *phos_gui_get_icon(phos_gui_icon icon)
+{
+	// return loaded texture at icon's file path in the icon map
+	const char **icon_file_path_value = NULL;
+	dynmaps_get(&icons, icon, icon_file_path_value);
+	if(icon_file_path_value)
+	{
+		const char *icon_file_path = *icon_file_path_value;
+		return phos_gui_load_texture(icon_file_path);
+	}
+
+	vl_log(VL_ERROR, "Failed to obtain icon texture: %d!\n", icon);
+	return NULL;
+}
+void phos_gui_set_icon(phos_gui_icon icon, const char *file_path)
+{
+	map_add(&icons, icon, file_path);
+	vl_log(VL_INFO, "Icon %d loaded with texture '%s'!\n", icon, file_path);
 }
 
 Font *phos_gui_load_font(const char *file_path)
@@ -4896,7 +4945,7 @@ Font *phos_gui_load_font(const char *file_path)
 
 	font pg_font = { .font = f, .file_path = file_path };
 
-	dynas_add(&fonts, pg_font);
+	arr_add(&fonts, pg_font, NULL);
 
 	vl_log(VL_SUCCESS, "Loaded font: '%s'!\n", file_path);
 
