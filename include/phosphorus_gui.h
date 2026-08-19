@@ -1062,6 +1062,10 @@ enum
 typedef enum phos_gui_component_type
 {
 	/**
+	  @see phos_gui_shadow_component
+	*/
+	PHOS_GUI_COMPONENT_SHADOW,
+	/**
 	  @see phos_gui_texture_component
 	*/
 	PHOS_GUI_COMPONENT_TEXTURE,
@@ -1124,6 +1128,83 @@ typedef enum phos_gui_component_type
 	*/
 	PHOS_GUI_COMPONENT_LAST
 } phos_gui_component_type;
+
+/**
+  The different positions and orientations for a shadow component.
+*/
+typedef enum phos_gui_shadow_edges
+{
+	/**
+	  Indicates the shadow will be on the left edge only.
+	*/
+	PHOS_GUI_SHADOW_LEFT,
+	/**
+	  Indicates the shadow will be on the top edge only.
+	*/
+	PHOS_GUI_SHADOW_TOP,
+	/**
+	  Indicates the shadow will be on the right edge only.
+	*/
+	PHOS_GUI_SHADOW_RIGHT,
+	/**
+	  Indicates the shadow will be on the bottom edge only.
+	*/
+	PHOS_GUI_SHADOW_BOTTOM,
+	/**
+	  Indicates the shadow will be on the top and left edges of the element.
+	*/
+	PHOS_GUI_SHADOW_TOP_LEFT,
+	/**
+	  Indicates the shadow will be on the top and right edges of the element.
+	*/
+	PHOS_GUI_SHADOW_TOP_RIGHT,
+	/**
+	  Indicates the shadow will be on the bottom and left edges of the element.
+	*/
+	PHOS_GUI_SHADOW_BOTTOM_LEFT,
+	/**
+	  Indicates the shadow will be on the bottom and right edges of the element.
+	*/
+	PHOS_GUI_SHADOW_BOTTOM_RIGHT,
+	/**
+	  Indicates every edge should have a shadow.
+	*/
+	PHOS_GUI_SHADOW_ALL
+} phos_gui_shadow_edges;
+/**
+  A phos_gui_shadow_component provides an element
+  with a shadow on one of its edges.
+*/
+typedef struct phos_gui_shadow_component
+{
+	/**
+	  The edges on the element where the shadow will be rendered.
+
+	  The default value is PHOS_GUI_SHADOW_BOTTOM_RIGHT.
+	*/
+	phos_gui_shadow_edges edges;
+	/**
+	  The length of the shadow from the element's edge.
+
+	  This is 10.0f by default.
+	*/
+	float length;
+	/**
+	  The initial color of the shadow.
+
+	  This is PHOS_GUI_COLOR_DARK_GRAY by default.
+	*/
+	Color initial_color;
+	/**
+	  The fade color of the shadow.
+
+	  As the shadow moves out, it becomes this
+	  color.
+
+	  This is PHOS_GUI_LIGHT_GRAY by default.
+	*/
+	Color fade_color;
+} phos_gui_shadow_component;
 
 /**
   A phos_gui_texture_component provides an element

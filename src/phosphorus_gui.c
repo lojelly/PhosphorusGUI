@@ -186,6 +186,18 @@ static phos_gui_theme default_theme = {0};
 		assert_obj_ptr(map, values, __VA_ARGS__); \
 	} while(0)
 
+static void init_shadow_component(void *shadow_component)
+{
+	if(!shadow_component)
+		return;
+
+	phos_gui_shadow_component *shadow = shadow_component;
+
+	shadow->edges = PHOS_GUI_SHADOW_BOTTOM_RIGHT;
+	shadow->length = 10.0f;
+	shadow->initial_color = PHOS_GUI_COLOR_DARK_GRAY;
+	shadow->fade_color = PHOS_GUI_COLOR_LIGHT_GRAY;
+}
 static void init_texture_component(void *texture_component)
 {
 	if(!texture_component)
@@ -598,6 +610,7 @@ int phos_gui_init()
 	tab_timer.key = KEY_TAB;
 
 	// register PhosphorusGUI component types
+	pluto_cs_register(PHOS_GUI_COMPONENT_SHADOW, sizeof(phos_gui_shadow_component), init_shadow_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_TEXTURE, sizeof(phos_gui_texture_component), init_texture_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_MOUSE_LISTENER, sizeof(phos_gui_mouse_listener_component), init_mouse_listener_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_TEXT, sizeof(phos_gui_text_component), init_text_component, NULL);
@@ -2280,6 +2293,9 @@ int phos_gui_add_child_to_elem(phos_gui_elem *child, phos_gui_elem *parent, phos
 	// force calculate rectangles around child
 	force_calculate_elem_rects(child);
 	prepare_elem_rects_for_caching(child);
+
+	// apply theme to child
+	phos_gui_apply_theme_to_elem(child, phos_gui_get_default_theme());
 
 	vl_log(VL_SUCCESS, "Element '%s' added to parent element '%s'!\n", child->ID, parent->ID);
 
@@ -4475,6 +4491,162 @@ static void render_elem(phos_gui_elem *e)
 			vl_delay_log(VL_WARNING, 5.0f, "Cannot render text component on element '%s' because it does not have a valid font!!\n", e->ID);
 	}
 
+	// see if this elem has a shadow component
+	phos_gui_shadow_component *shadow = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_SHADOW);
+	if(shadow)
+	{
+		// first, imagine shadow over entire element's visual bounds
+		Rectangle shadow_rect = e->bounds;
+
+		switch(shadow->edges)
+		{
+			case PHOS_GUI_SHADOW_LEFT:
+				shadow_rect.x = e->bounds.x - shadow->length;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+				break;
+
+			case PHOS_GUI_SHADOW_TOP:
+				shadow_rect.y = e->bounds.y - shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+				break;
+
+			case PHOS_GUI_SHADOW_RIGHT:
+				shadow_rect.x = e->bounds.x + e->bounds.width;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+				break;
+
+			case PHOS_GUI_SHADOW_BOTTOM:
+				shadow_rect.y = e->bounds.y + e->bounds.height;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+				break;
+
+			case PHOS_GUI_SHADOW_TOP_LEFT:
+				shadow_rect.y = e->bounds.y - shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+
+				shadow_rect = e->bounds;
+				shadow_rect.x = e->bounds.x - shadow->length;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+
+				shadow_rect.x = e->bounds.x - shadow->length;
+				shadow_rect.y = e->bounds.y - shadow->length;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->fade_color, shadow->initial_color, shadow->fade_color);
+				break;
+
+			case PHOS_GUI_SHADOW_TOP_RIGHT:
+				shadow_rect.y = e->bounds.y - shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+
+				shadow_rect = e->bounds;
+				shadow_rect.x = e->bounds.x + e->bounds.width;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+
+				shadow_rect.x = e->bounds.x + e->bounds.width;
+				shadow_rect.y = e->bounds.y - shadow->length;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->initial_color, shadow->fade_color, shadow->fade_color);
+				break;
+
+			case PHOS_GUI_SHADOW_BOTTOM_LEFT:
+				shadow_rect.y = e->bounds.y + e->bounds.height;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+
+				shadow_rect = e->bounds;
+				shadow_rect.x = e->bounds.x - shadow->length;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+
+				shadow_rect.x = e->bounds.x - shadow->length;
+				shadow_rect.y = e->bounds.y + e->bounds.height;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->fade_color, shadow->fade_color, shadow->initial_color);
+				break;
+
+			case PHOS_GUI_SHADOW_BOTTOM_RIGHT:
+				shadow_rect.y = e->bounds.y + e->bounds.height;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+
+				shadow_rect = e->bounds;
+				shadow_rect.x = e->bounds.x + e->bounds.width;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+
+				shadow_rect.x = e->bounds.x + e->bounds.width;
+				shadow_rect.y = e->bounds.y + e->bounds.height;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->initial_color, shadow->fade_color, shadow->fade_color, shadow->fade_color);
+				break;
+
+			case PHOS_GUI_SHADOW_ALL:
+				// top left shadow
+				shadow_rect.y = e->bounds.y - shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+
+				shadow_rect = e->bounds;
+				shadow_rect.x = e->bounds.x - shadow->length;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+
+				shadow_rect.x = e->bounds.x - shadow->length;
+				shadow_rect.y = e->bounds.y - shadow->length;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->fade_color, shadow->initial_color, shadow->fade_color);
+
+				// bottom right shadow
+				shadow_rect = e->bounds;
+				shadow_rect.y = e->bounds.y + e->bounds.height;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+
+				shadow_rect = e->bounds;
+				shadow_rect.x = e->bounds.x + e->bounds.width;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+
+				shadow_rect.x = e->bounds.x + e->bounds.width;
+				shadow_rect.y = e->bounds.y + e->bounds.height;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->initial_color, shadow->fade_color, shadow->fade_color, shadow->fade_color);
+
+				// top right corner
+				shadow_rect.x = e->bounds.x + e->bounds.width;
+				shadow_rect.y = e->bounds.y - shadow->length;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->initial_color, shadow->fade_color, shadow->fade_color);
+
+				// bottom left corner
+				shadow_rect.x = e->bounds.x - shadow->length;
+				shadow_rect.y = e->bounds.y + e->bounds.height;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->fade_color, shadow->fade_color, shadow->initial_color);
+				break;
+
+			default:
+				vl_log(VL_ERROR, "A shadow component requires a valid position. See phos_gui_shadow_component.edges!\n");
+				break;
+		}
+	}
+
 	// render outline (if set)
 	if(e->render_mode == PHOS_GUI_RENDER_FILL_OUTLINE || e->render_mode == PHOS_GUI_RENDER_OUTLINE)
 	{
@@ -4762,6 +4934,13 @@ void phos_gui_apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
 	phos_gui_drag_pane_component *drag_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_DRAG_PANE);
 	if(drag_pane)
 		drag_pane->drag_bar_color = ColorContrast(theme.bg_color, -0.3f);
+
+	phos_gui_shadow_component *shadow = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SHADOW);
+	if(shadow)
+	{
+		shadow->initial_color = ColorBrightness(theme.window_bg_color, -0.3f);
+		shadow->fade_color = theme.window_bg_color;
+	}
 
 
 	// force recalculation of elem rects because outline thickness changed:
