@@ -114,6 +114,8 @@ static key_timer left_arrow_timer = {0};
 static key_timer up_arrow_timer = {0};
 static key_timer right_arrow_timer = {0};
 static key_timer down_arrow_timer = {0};
+static key_timer enter_timer = {0};
+static key_timer tab_timer = {0};
 
 static phos_gui *prev_gui = NULL;
 static phos_gui *curr_gui = NULL;
@@ -216,6 +218,7 @@ static void init_text_component(void *text_component)
 	text->len = 0;
 	text->num_lines = 0;
 	text->cursor_pos = 0;
+	text->spaces_per_tab = 4;
 	text->offset = Vector2Zero();
 	text->font_size = PHOS_GUI_FONT_SIZE_DEFAULT;
 	text->wrap_mode = PHOS_GUI_TEXT_WRAP_NONE;
@@ -230,6 +233,7 @@ static void init_text_component(void *text_component)
 	text->accept_nums = true;
 	text->accept_specials = true;
 	text->enter_inserts_new_line = false;
+	text->auto_indent = false;
 	snprintf(text->str, sizeof(text->str), "");
 
 	// enforce no additional text line spacing
@@ -560,6 +564,8 @@ int phos_gui_init()
 	up_arrow_timer.key = KEY_UP;
 	right_arrow_timer.key = KEY_RIGHT;
 	down_arrow_timer.key = KEY_DOWN;
+	enter_timer.key = KEY_ENTER;
+	tab_timer.key = KEY_TAB;
 
 	// register PhosphorusGUI component types
 	pluto_cs_register(PHOS_GUI_COMPONENT_MOUSE_LISTENER, sizeof(phos_gui_mouse_listener_component), init_mouse_listener_component, NULL);
@@ -2885,6 +2891,162 @@ static void move_cursor_down(phos_gui_text_component *t)
 		update_text_scrolling(t);
 	}
 }
+static void insert_char_text(phos_gui_text_component *text, char c, phos_gui_scroll_pane_component *scroll_pane);
+static void wrap_text(phos_gui_text_component *text, phos_gui_scroll_pane_component *scroll_pane)
+{
+	switch(text->wrap_mode)
+	{
+		case PHOS_GUI_TEXT_WRAP_CHAR:
+			// just go to new line
+			insert_char_text(text, '\n', scroll_pane);
+			break;
+		case PHOS_GUI_TEXT_WRAP_WORD:
+			// walk back to the last ' ' character, then insert new line there:
+
+			size_t cursor_pos = text->cursor_pos;
+
+			while(cursor_pos > 0)
+			{
+				cursor_pos--;
+
+				if(text->str[cursor_pos] == ' ')
+				{
+					text->str[cursor_pos] = '\n';
+					text->num_lines++;
+					text->curr_line_len = 0;
+					break;
+				}
+			}
+			break;
+		default:
+			break;
+	}
+}
+static void insert_char_text(phos_gui_text_component *text, char c, phos_gui_scroll_pane_component *scroll_pane)
+{
+	// insert char into string at cursor pos (if possible)
+	if(text->len + 1 <= text->max_len && strlen(text->str) + 1 < PHOS_GUI_MAX_TEXT_LEN)
+	{
+		// first, move all chars at cursor pos one slot over to the right
+		memmove(text->str + text->cursor_pos + 1, text->str + text->cursor_pos, text->len - text->cursor_pos + 1);
+
+		// insert char and move to next cursor pos
+		text->str[text->cursor_pos++] = c;
+
+		// increase string length by one
+		text->len++;
+		text->curr_line_len++;
+
+		// signal that the text was edited by the user
+		text->edited = true;
+
+		// fit and realign text based on edit_opts
+		if(text->edit_opts & PHOS_GUI_OPTS_FIT_TEXT)
+			phos_gui_make_text_fit_elem(text, PHOS_GUI_TARGET_AUTO_TEXT);
+		if(text->edit_opts & PHOS_GUI_OPTS_REALIGN_TEXT)
+			phos_gui_realign_elem_text(text);
+	}
+
+	// if the char inserted is '\n', reset scroll x on text component
+	if(c == '\n')
+	{
+		// only update scroll pane if it's not null
+		if(scroll_pane)
+			scroll_pane->scroll_x = 0.0f;
+		text->curr_line_len = 0;
+		text->num_lines++;
+	}
+
+	// check to see if the current line needs to wrap to the next line
+	char curr_line[PHOS_GUI_MAX_TEXT_LEN];
+
+	size_t line_start = text->cursor_pos;
+
+	while(line_start > 0 && text->str[line_start - 1] != '\n')
+		line_start--;
+	size_t line_len = text->cursor_pos - line_start;
+
+	// copy text into curr_line
+	memcpy(curr_line, text->str + line_start, line_len);
+	curr_line[line_len] = '\0';
+
+	// measure line
+	Vector2 line_bounds = MeasureTextEx(*text->font, curr_line, text->font_size, 0.0f);
+
+	// compare text bounds to content free bounds
+	phos_gui_elem *text_elem = pluto_cs_get_owner(text);
+	if(!text_elem)
+	{
+		vl_log(VL_ERROR, "Cannot properly modify text component without an owner!\n");
+		return;
+	}
+	if(line_bounds.x >= text_elem->content_free_bounds.rect.width)
+		wrap_text(text, scroll_pane);
+}
+static void new_line(phos_gui_text_component *t)
+{
+	// get scroll pane off owner
+	phos_gui_elem *owner = pluto_cs_get_owner(t);
+	if(!owner)
+	{
+		vl_log(VL_ERROR, "Unable to update text component properly, it requires an owner element!\n");
+		return;
+	}
+
+	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(owner, PHOS_GUI_COMPONENT_SCROLL_PANE);
+
+	// if text inserts new lines on enter and user hit ENTER key, add line to text
+	if(t->enter_inserts_new_line)
+	{
+		// number of auto-indent spaces
+		size_t indent_spaces = 0;
+
+		// handle auto-indentation (requires at least one line to work)
+		if(t->auto_indent && t->num_lines > 0)
+		{
+			// get cursor pos
+			size_t cursor_pos = t->cursor_pos;
+
+			// walk back until a '\n' is encountered
+			while(cursor_pos > 0 && t->str[cursor_pos - 1] != '\n')
+				cursor_pos--;
+
+			/*
+			   now cursor pos is at start of previous line, so walk forward until a non whitespace char is found.
+			   that number of spaces is equal to the number of spaces to indent for the next line
+			*/
+			while(cursor_pos < t->len && t->str[cursor_pos] == ' ')
+			{
+				cursor_pos++;
+				indent_spaces++;
+			}
+		}
+
+		// go to new line
+		insert_char_text(t, '\n', scroll_pane);
+
+		// if indent_spaces is greater than 0, indent that many spaces
+		if(indent_spaces > 0)
+			for(size_t i = 0; i < indent_spaces; ++i)
+				insert_char_text(t, ' ', scroll_pane);
+	}
+}
+static void indent(phos_gui_text_component *t)
+{
+	// get scroll pane off owner
+	phos_gui_elem *owner = pluto_cs_get_owner(t);
+	if(!owner)
+	{
+		vl_log(VL_ERROR, "Unable to update text component properly, it requires an owner element!\n");
+		return;
+	}
+
+	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(owner, PHOS_GUI_COMPONENT_SCROLL_PANE);
+
+	// enter specified amount of spaces for a tab character
+	for(size_t i = 0; i < t->spaces_per_tab; ++i)
+		insert_char_text(t, ' ', scroll_pane);
+}
 static void update_key_timer(phos_gui_text_component *t, float dt, key_timer *kt, void (*action) (phos_gui_text_component*))
 {
 	if(IsKeyDown(kt->key))
@@ -3248,7 +3410,7 @@ static void get_scroll_bar_rects(const phos_gui_scroll_pane_component *const scr
 
 	// get elem rects
 	force_calculate_elem_rects(elem);
-	Rectangle whole_content_bounds = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	Rectangle whole_content_bounds = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_REAL); // TODO FIXME TESTING REAL REAL BOUNDS INSTEAD OF CONTENT_TOTAL
 	Rectangle usable_content_bounds = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
 	// vertical scroll bar pos
@@ -3466,98 +3628,6 @@ static phos_gui_elem *get_gui_mouse_target(phos_gui *gui, Vector2 mouse_pos)
 	// no mouse target
 	return NULL;
 }
-static void insert_char_text(phos_gui_text_component *text, char c, phos_gui_scroll_pane_component *scroll_pane);
-static void wrap_text(phos_gui_text_component *text, phos_gui_scroll_pane_component *scroll_pane)
-{
-	switch(text->wrap_mode)
-	{
-		case PHOS_GUI_TEXT_WRAP_CHAR:
-			// just go to new line
-			insert_char_text(text, '\n', scroll_pane);
-			break;
-		case PHOS_GUI_TEXT_WRAP_WORD:
-			// walk back to the last ' ' character, then insert new line there:
-
-			size_t cursor_pos = text->cursor_pos;
-
-			while(cursor_pos > 0)
-			{
-				cursor_pos--;
-
-				if(text->str[cursor_pos] == ' ')
-				{
-					text->str[cursor_pos] = '\n';
-					text->num_lines++;
-					text->curr_line_len = 0;
-					break;
-				}
-			}
-			break;
-		default:
-			break;
-	}
-}
-static void insert_char_text(phos_gui_text_component *text, char c, phos_gui_scroll_pane_component *scroll_pane)
-{
-	// insert char into string at cursor pos (if possible)
-	if(text->len + 1 <= text->max_len && strlen(text->str) + 1 < PHOS_GUI_MAX_TEXT_LEN)
-	{
-		// first, move all chars at cursor pos one slot over to the right
-		memmove(text->str + text->cursor_pos + 1, text->str + text->cursor_pos, text->len - text->cursor_pos + 1);
-
-		// insert char and move to next cursor pos
-		text->str[text->cursor_pos++] = c;
-
-		// increase string length by one
-		text->len++;
-		text->curr_line_len++;
-
-		// signal that the text was edited by the user
-		text->edited = true;
-
-		// fit and realign text based on edit_opts
-		if(text->edit_opts & PHOS_GUI_OPTS_FIT_TEXT)
-			phos_gui_make_text_fit_elem(text, PHOS_GUI_TARGET_AUTO_TEXT);
-		if(text->edit_opts & PHOS_GUI_OPTS_REALIGN_TEXT)
-			phos_gui_realign_elem_text(text);
-	}
-
-	// if the char inserted is '\n', reset scroll x on text component
-	if(c == '\n')
-	{
-		// only update scroll pane if it's not null
-		if(scroll_pane)
-			scroll_pane->scroll_x = 0.0f;
-		text->curr_line_len = 0;
-		text->num_lines++;
-	}
-
-	// check to see if the current line needs to wrap to the next line
-	char curr_line[PHOS_GUI_MAX_TEXT_LEN];
-
-	size_t line_start = text->cursor_pos;
-
-	while(line_start > 0 && text->str[line_start - 1] != '\n')
-		line_start--;
-	size_t line_len = text->cursor_pos - line_start;
-
-	// copy text into curr_line
-	memcpy(curr_line, text->str + line_start, line_len);
-	curr_line[line_len] = '\0';
-
-	// measure line
-	Vector2 line_bounds = MeasureTextEx(*text->font, curr_line, text->font_size, 0.0f);
-
-	// compare text bounds to content free bounds
-	phos_gui_elem *text_elem = pluto_cs_get_owner(text);
-	if(!text_elem)
-	{
-		vl_log(VL_ERROR, "Cannot properly modify text component without an owner!\n");
-		return;
-	}
-	if(line_bounds.x >= text_elem->content_free_bounds.rect.width)
-		wrap_text(text, scroll_pane);
-}
 static void update_elem(phos_gui_elem *e, float dt)
 {
 	// skip disabled elems
@@ -3685,14 +3755,6 @@ static void update_elem(phos_gui_elem *e, float dt)
 		// only type into text if it can be edited and has focus (requires mouse listener component)
 		if(text->editable && mouse_listener && mouse_listener->has_focus)
 		{
-			// collect key
-			int k = GetKeyPressed();
-			text->key_typed = k;
-
-			// if text inserts new lines on enter and user hit ENTER key, add line to text
-			if(text->enter_inserts_new_line && IsKeyPressed(KEY_ENTER))
-				insert_char_text(text, '\n', scroll_pane);
-
 			// collect char pressed
 			char c = GetCharPressed();
 
@@ -3738,6 +3800,8 @@ static void update_elem(phos_gui_elem *e, float dt)
 			update_key_timer(text, dt, &up_arrow_timer, move_cursor_up);
 			update_key_timer(text, dt, &right_arrow_timer, move_cursor_right);
 			update_key_timer(text, dt, &down_arrow_timer, move_cursor_down);
+			update_key_timer(text, dt, &enter_timer, new_line);
+			update_key_timer(text, dt, &tab_timer, indent);
 		}
 		else
 			text->edited = false;

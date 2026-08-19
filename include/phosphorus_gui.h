@@ -736,6 +736,10 @@
 */
 #define PHOS_GUI_THEME_XENON phos_gui_create_theme_accented(PHOS_GUI_COLOR_BRIGHT_BLUE, PHOS_GUI_COLOR_DULL_VIOLET)
 /**
+  A theme revolving around orange and blue.
+*/
+#define PHOS_GUI_THEME_YOYO phos_gui_create_theme_accented(PHOS_GUI_COLOR_SKY_BLUE, PHOS_GUI_COLOR_BRIGHT_ORANGE)
+/**
   A theme revolving around fruity and tropical colors.
 */
 #define PHOS_GUI_THEME_ZEST phos_gui_create_theme_full(PHOS_GUI_COLOR_BRIGHT_YELLOW, PHOS_GUI_COLOR_BRIGHT_ORANGE, PHOS_GUI_COLOR_DARK_GREEN, PHOS_GUI_COLOR_SKY_BLUE)
@@ -1371,6 +1375,14 @@ typedef struct phos_gui_text_component
 	size_t cursor_pos;
 
 	/**
+	  The number of spaces one single tab character represents
+	  in this text component.
+
+	  This is 4 by default.
+	*/
+	size_t spaces_per_tab;
+
+	/**
 	  The relative position of this text within its parent element.
 	*/
 	Vector2 offset;
@@ -1459,6 +1471,18 @@ typedef struct phos_gui_text_component
 	  By default, this is false.
 	*/
 	bool enter_inserts_new_line;
+	/**
+	  Whether or not new lines should automatically be indented
+	  to match the indent of the previous line.
+
+	  @note The user must be able to enter new lines
+	  into the text component for this to work.
+
+	  This is false by default.
+
+	  @see enter_inserts_new_line
+	*/
+	bool auto_indent;
 } phos_gui_text_component;
 
 /**
