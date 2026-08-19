@@ -838,8 +838,8 @@ typedef enum phos_gui_elem_render_mode
 	  The element's shape will be used for other things,
 	  but the main content of the element will not be
 	  rendered using its shape. Instead, PhosphorusGUI
-	  now expects the element to have a texture set on it,
-	  and you only want the texture rendered.
+	  now expects the element to have a texture component
+	  attached to it with a valid Texture2D set.
 	*/
 	PHOS_GUI_RENDER_TEXTURE
 } phos_gui_elem_render_mode;
@@ -1062,6 +1062,10 @@ enum
 typedef enum phos_gui_component_type
 {
 	/**
+	  @see phos_gui_texture_component
+	*/
+	PHOS_GUI_COMPONENT_TEXTURE,
+	/**
 	  @see phos_gui_mouse_listener_component
 	*/
 	PHOS_GUI_COMPONENT_MOUSE_LISTENER,
@@ -1120,6 +1124,30 @@ typedef enum phos_gui_component_type
 	*/
 	PHOS_GUI_COMPONENT_LAST
 } phos_gui_component_type;
+
+/**
+  A phos_gui_texture_component provides an element
+  with a texture.
+
+  When giving an element a texture, its shape and outline
+  will no longer be rendered. The texture becomes the
+  element's shape and outline. However, for calculations,
+  the element's shape will still be used.
+*/
+typedef struct phos_gui_texture_component
+{
+	/**
+	  The actual texture.
+
+	  @note You should use phos_gui_load_texture(...)
+	  when setting this field.
+
+	  This is NULL by default. If the texture is still
+	  NULL in the program loop, a warning message
+	  is printed.
+	*/
+	Texture2D *src;
+} phos_gui_texture_component;
 
 /**
   The different types of mouse listeners.
@@ -1925,22 +1953,6 @@ typedef struct phos_gui_elem
 	  If the element has no parent, this is equal to NULL.
 	*/
 	struct phos_gui_elem *parent;
-
-	/**
-	  This UI element's background texture.
-
-	  @note When an element has a valid, non-null
-	  texture, that texture is rendered instead
-	  of the element's shape. Additionally,
-	  when using a texture, the render mode of the
-	  element is expected to be PHOS_GUI_TEXTURE.
-
-	  @important If you load the texture yourself,
-	  it is up to you to unload it later. However,
-	  if you use phos_gui_load_texture(...) instead,
-	  PhosphorusGUI will handle it all for you.
-	*/
-	Texture2D *texture;
 
 	/**
 	  This element's number of children.

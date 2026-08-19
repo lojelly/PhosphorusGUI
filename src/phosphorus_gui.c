@@ -186,6 +186,15 @@ static phos_gui_theme default_theme = {0};
 		assert_obj_ptr(map, values, __VA_ARGS__); \
 	} while(0)
 
+static void init_texture_component(void *texture_component)
+{
+	if(!texture_component)
+		return;
+
+	phos_gui_texture_component *texture = texture_component;
+
+	texture->src = NULL;
+}
 static void init_mouse_listener_component(void *mouse_listener_component)
 {
 	if(!mouse_listener_component)
@@ -589,6 +598,7 @@ int phos_gui_init()
 	tab_timer.key = KEY_TAB;
 
 	// register PhosphorusGUI component types
+	pluto_cs_register(PHOS_GUI_COMPONENT_TEXTURE, sizeof(phos_gui_texture_component), init_texture_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_MOUSE_LISTENER, sizeof(phos_gui_mouse_listener_component), init_mouse_listener_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_TEXT, sizeof(phos_gui_text_component), init_text_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT, sizeof(phos_gui_placeholder_text_extension), init_placeholder_text_extension, NULL);
@@ -1870,7 +1880,6 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 	elem->content_free_bounds.rect = bounds;
 	elem->gui = NULL;
 	elem->parent = NULL;
-	elem->texture = NULL;
 	elem->num_children = 0;
 	elem->type = type;
 	elem->shape = PHOS_GUI_SHAPE_RECT;
@@ -4367,14 +4376,15 @@ static void render_elem(phos_gui_elem *e)
 	const float e_rx = e->bounds.width / 2.0f;
 	const float e_ry = e->bounds.height / 2.0f;
 
-	// draw elem bg if it is valid
-	if(e->texture && IsTextureValid(*e->texture))
+	// draw elem texture if it has a texture component and render mode indicates the texture should be rendered
+	phos_gui_texture_component *texture = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXTURE);
+	if(e->render_mode == PHOS_GUI_RENDER_TEXTURE && texture && texture->src && IsTextureValid(*texture->src))
 	{
 		if(primary_color.a == 0)
 			vl_delay_log(VL_WARNING, 5.0f, "Cannot render element with 0 alpha: '%s'!\n", e->ID);
 
-		Rectangle src = { 0, 0, e->texture->width, e->texture->height };
-		DrawTexturePro(*e->texture, src, e->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, primary_color);
+		Rectangle src_rect = { 0, 0, texture->src->width, texture->src->height };
+		DrawTexturePro(*texture->src, src_rect, e->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, primary_color);
 	}
 	// else just draw base shape (if set)
 	else if(e->render_mode == PHOS_GUI_RENDER_FILL_OUTLINE || e->render_mode == PHOS_GUI_RENDER_FILL)
