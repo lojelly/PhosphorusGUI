@@ -2560,9 +2560,9 @@ PHOS_GUI_API Vector2 phos_gui_align_elem_with_window(phos_gui_elem *target_elem,
 */
 PHOS_GUI_API void phos_gui_fill_window_with_elem(phos_gui_elem *elem, phos_gui_opts opts);
 /**
-  Fills an element's bounding box with another element.
+  Fills a reference element's bounding box with a target element.
 */
-PHOS_GUI_API void phos_gui_fill_elem_with_elem(phos_gui_elem *target_elem, phos_gui_elem_bounding_box bounds, phos_gui_elem *reference_elem, phos_gui_opts opts);
+PHOS_GUI_API void phos_gui_fill_elem_with_elem(phos_gui_elem *reference_elem, phos_gui_elem_bounding_box bounds, phos_gui_elem *target_elem, phos_gui_opts opts);
 
 /**
   Makes the given text component fit its owner's bounds.
@@ -2598,24 +2598,10 @@ PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, floa
   pane component is added to the container element. Each text
   component is initialized with the respective string given.
 
-  @note The 'text_container' element given should point to an element
-  representing a container that will contain the text field element.
-  The reason text elements should be contained within other elements
-  is that decorational components such as drag bars and scroll bars
-  take up the same space that text does, so a container ensures the
-  text is separated from those decorations. This is also why
-  this function does not take in any position or size for 'elem.'
-  The function calculatins the actual text field's position and size
-  using the text container's position and size.
-
   @important If a placeholder string is given, then this function
   will make the placeholder text fit the element.
-
-  @important This function does not initialize 'text_container,' only
-  'elem.' However, it does automatically add 'elem' as a child to
-  'text_container.'
 */
-PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *text_container, phos_gui_elem *elem, const char *ID, const char *main_text, const char *placeholder_text);
+PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text);
 /**
   Initializes an element and turns it into a text area element.
 
@@ -2625,11 +2611,14 @@ PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *text_container, phos_g
 
   @note The difference between a text field and text area is that
   text areas are much bigger and usually accept more than one line
-  of input from the user.
+  of input from the user. Additionally, this function takes a wrap
+  mode determining how the text in the text area wraps. If PHOS_GUI_TEXT_WRAP_NONE
+  is given, a scroll pane is added to the text area element. If PHOS_GUI_TEXT_WRAP_CHAR
+  or PHOS_GUI_TEXT_WRAP_WORD is given, the text area will not have a scroll pane component.
 
   @see phos_gui_init_text_field(phos_gui_elem*, phos_gui_elem*, const char*, float, float, float, float, const char*, const char*)
 */
-PHOS_GUI_API void phos_gui_init_text_area(phos_gui_elem *text_container, phos_gui_elem *elem, const char *ID, const char *main_text, const char *placeholder_text);
+PHOS_GUI_API void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui_text_wrap_mode wrap_mode);
 /**
   Initializes an element and turns it into a drop down menu.
 

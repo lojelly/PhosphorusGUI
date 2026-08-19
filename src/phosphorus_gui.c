@@ -1055,11 +1055,6 @@ static Vector2 get_text_draw_pos(const phos_gui_text_component *const text, cons
 	if(!owner)
 		return Vector2Zero();
 
-	// get text container
-	phos_gui_elem *container = owner->parent;
-	if(!container)
-		return Vector2Zero();
-
 	// add text offset
 	Vector2 text_elem_pos = phos_gui_get_rect_pos(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE));
 	Vector2 text_pos = Vector2Add(text_elem_pos, text->offset);
@@ -1087,14 +1082,8 @@ void phos_gui_get_text_bounds(const phos_gui_text_component *const text_componen
 		vl_delay_log(VL_ERROR, 2.0f, "Text component is missing an owner! Cannot obtain bounds.\n");
 		return;
 	}
-	if(!elem->parent)
-	{
-		vl_delay_log(VL_ERROR, 2.0f, "Text component's owner's parent cannot be NULL!\n");
-		return;
-	}
 
-	// if text is paired with a scroll pane, it should be on the parent element
-	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem->parent, PHOS_GUI_COMPONENT_SCROLL_PANE);
+	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 
 	Rectangle main_bounds = {0};
 	Rectangle placeholder_bounds = {0};
@@ -1201,11 +1190,6 @@ void phos_gui_get_text_bounds_v(const phos_gui_text_component *const text_compon
 
 static Vector2 get_cursor_draw_pos(const phos_gui_text_component *const text, const phos_gui_scroll_pane_component *const scroll_pane)
 {
-	// get initial pos of text and owner:
-	const phos_gui_elem *const owner = pluto_cs_get_owner(text);
-	if(!owner)
-		return Vector2Zero();
-
 	const Vector2 text_pos = get_text_draw_pos(text, scroll_pane);
 
 	char buf[PHOS_GUI_MAX_TEXT_LEN + 1];
@@ -1250,20 +1234,19 @@ static void update_text_scrolling(phos_gui_text_component *text)
 		return;
 	}
 
-	// get scroll pane on text container, not the text element
-	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(text_elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 	// if the elem does not own a scroll pane, then the text cannot be scrolled
+	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(text_elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 	if(!scroll_pane)
 		return;
 
 	// if no characters in text, reset all scrolling
-	if(strlen(text->str) == 0)
+	if(text->len == 0)
 	{
 		scroll_pane->max_scroll_x = scroll_pane->max_scroll_y = scroll_pane->scroll_x = scroll_pane->scroll_y = 0.0f;
 		return;
 	}
 
-	// text always resides in the container's free content space:
+	// text always resides in the element's free content space:
 	Rectangle free_content_bounds = get_calculated_elem_rect(text_elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
 	// get bounds of text
@@ -1558,21 +1541,21 @@ void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gu
 
 	// only modify cursor pos if targeting main string
 	if(dest == text_component->str)
+	{
 		text_component->cursor_pos = text_component->len = strlen(dest);
 
-	// TODO should the rest of this logic only apply when targeting main string like the cursor pos logic above?
+		// curr line len is length of last string before a '\n' is encountered
+		size_t last_line_len = 0;
+		for(size_t i = text_component->len; i > 0 && dest[i - 1] != '\n'; --i)
+			last_line_len++;
+		text_component->curr_line_len = last_line_len;
 
-	// curr line len is length of last string before a '\n' is encountered
-	size_t last_line_len = 0;
-	for(size_t i = text_component->len; i > 0 && dest[i - 1] != '\n'; --i)
-		last_line_len++;
-	text_component->curr_line_len = last_line_len;
-
-	// num lines becomes number of '\n's found
-	text_component->num_lines = text_component->len > 0 ? 1 : 0; // reset line count first
-	for(size_t i = 0; i < text_component->len; ++i)
-		if(text_component->str[i] == '\n')
-			text_component->num_lines++;
+		// num lines becomes number of '\n's found
+		text_component->num_lines = text_component->len > 0 ? 1 : 0; // reset line count first
+		for(size_t i = 0; i < text_component->len; ++i)
+			if(text_component->str[i] == '\n')
+				text_component->num_lines++;
+	}
 
 	// force recalculation of elem rects
 	force_calculate_elem_rects(owner);
@@ -1766,7 +1749,7 @@ void phos_gui_fill_window_with_elem(phos_gui_elem *elem, phos_gui_opts opts)
 	elem->alignment = PHOS_GUI_ALIGN_INNER_TOP_LEFT;
 	phos_gui_set_elem_bounds(elem, 0.0f, 0.0f, GetRenderWidth(), GetRenderHeight(), opts);
 }
-void phos_gui_fill_elem_with_elem(phos_gui_elem *target_elem, phos_gui_elem_bounding_box bounds, phos_gui_elem *reference_elem, phos_gui_opts opts)
+void phos_gui_fill_elem_with_elem(phos_gui_elem *reference_elem, phos_gui_elem_bounding_box bounds, phos_gui_elem *target_elem, phos_gui_opts opts)
 {
 	if(!target_elem || !reference_elem)
 	{
@@ -1900,23 +1883,16 @@ void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y,
 	if(!mouse_listener)
 		phos_gui_exit(EXIT_FAILURE);
 }
-void phos_gui_init_text_field(phos_gui_elem *text_container, phos_gui_elem *elem, const char *ID, const char *main_text, const char *placeholder_text)
+void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text)
 {
-	if(!text_container)
-	{
-		vl_log(VL_ERROR, "You should initialize a text field with a text container!\n");
-		return;
-	}
 	if(!elem)
 	{
 		vl_log(VL_ERROR, "Cannot initialize a NULL element!\n");
 		return;
 	}
 
-	Rectangle container_bounds = get_calculated_elem_rect(text_container, PHOS_GUI_ELEM_BOUNDS_REAL);
-
 	// first, init elem as a button
-	phos_gui_init_button(elem, ID, container_bounds.x, container_bounds.y, container_bounds.width, container_bounds.height, main_text);
+	phos_gui_init_button(elem, ID, x, y, w, h, main_text);
 
 	// remove outline from text field
 	elem->render_mode = PHOS_GUI_RENDER_FILL;
@@ -1939,7 +1915,6 @@ void phos_gui_init_text_field(phos_gui_elem *text_container, phos_gui_elem *elem
 		phos_gui_make_text_fit_elem(text, PHOS_GUI_TARGET_PLACEHOLDER_TEXT);
 
 	// add scroll pane component TO THE TEXT CONTAINER so text scrolls as user types
-	// TODO add scroll pane to container not elem
 	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 	if(!scroll_pane)
 		phos_gui_exit(EXIT_FAILURE);
@@ -1955,13 +1930,8 @@ void phos_gui_init_text_field(phos_gui_elem *text_container, phos_gui_elem *elem
 	text->alignment = PHOS_GUI_ALIGN_INNER_LEFT;
 	phos_gui_realign_elem_text(text);
 }
-void phos_gui_init_text_area(phos_gui_elem *text_container, phos_gui_elem *elem, const char *ID, const char *main_text, const char *placeholder_text)
+void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui_text_wrap_mode wrap_mode)
 {
-	if(!text_container)
-	{
-		vl_log(VL_ERROR, "You should initialize a text area with a text container!\n");
-		return;
-	}
 	if(!elem)
 	{
 		vl_log(VL_ERROR, "Cannot initialize a NULL element!\n");
@@ -1969,28 +1939,35 @@ void phos_gui_init_text_area(phos_gui_elem *text_container, phos_gui_elem *elem,
 	}
 
 	// first, init elem as text field
-	phos_gui_init_text_field(text_container, elem, ID, main_text, placeholder_text);
+	phos_gui_init_text_field(elem, ID, x, y, w, h, main_text, placeholder_text);
 
-	// modify scroll pane to work for multiple lines
-	// TODO add scroll pane to container not elem
-	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
-	scroll_pane->h_bar.active = true;
-	scroll_pane->h_bar.rendered = true;
-	scroll_pane->v_bar.active = true;
-	scroll_pane->v_bar.rendered = true;
+	// check which wrap mode the user gave:
+	if(wrap_mode == PHOS_GUI_TEXT_WRAP_NONE)
+	{
+		// keep scroll pane component:
+
+		// modify scroll pane to work for multiple lines
+		phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
+		scroll_pane->h_bar.active = true;
+		scroll_pane->h_bar.rendered = true;
+		scroll_pane->v_bar.active = true;
+		scroll_pane->v_bar.rendered = true;
+	}
+	else
+	{
+		// no need for scroll pane component since text wraps
+		pluto_cs_remove_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
+	}
 
 	// set wrap mode of text component
 	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
-	text->wrap_mode = PHOS_GUI_TEXT_WRAP_WORD;
+	text->wrap_mode = wrap_mode;
 	text->enter_inserts_new_line = true;
 
 	// start text at top left of text area and go back to default font size
 	text->alignment = PHOS_GUI_ALIGN_INNER_TOP_LEFT;
 	text->font_size = PHOS_GUI_FONT_SIZE_MED;
 	phos_gui_realign_elem_text(text);
-
-	// add text to container
-	phos_gui_add_child_to_elem(elem, text_container, PHOS_GUI_OPTS_NONE);
 }
 void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text)
 {
