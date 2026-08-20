@@ -3208,11 +3208,31 @@ PHOS_GUI_API void phos_gui_end_clip(void);
 */
 PHOS_GUI_API Texture2D *phos_gui_load_texture(const char *file_path);
 /**
-  Obtains a texture for a specific icon.
+  Obtains a texture for a specific icon using an icon ID.
 
   @see phos_gui_load_texture(const char*)
+  @see phos_gui_get_icon_str(const char*)
 */
-PHOS_GUI_API Texture2D *phos_gui_get_icon(phos_gui_icon icon);
+PHOS_GUI_API Texture2D *phos_gui_get_icon_id(phos_gui_icon icon);
+/**
+  Obtains a texture for a specific icon using an icon string.
+
+  For example, if you were obtaining the down arrow icon using its
+  ID, you would use phos_gui_get_icon_id(PHOS_GUI_ICON_DOWN_ARROW).
+  But this function expects a special string that matches the icon ID.
+  For PHOS_GUI_ICON_DOWN_ARROW, you could pass in "<icon_id=0>," or you
+  could also pass in "<icon=DOWN_ARROW>." When using 'icon_id' you must
+  pass in the ID of the icon, and in this case 0 corresponds to
+  PHOS_GUI_ICON_DOWN_ARROW. If using just 'icon' you must use the name
+  of the icon but omit the 'PHOS_GUI_' part of the name. This technique
+  also works in text components. Just insert the same type of string
+  into a text component's string and the icon will be rendered there
+  instead of characters.
+
+  @see phos_gui_get_icon_id(phos_gui_icon)
+*/
+// TODO work on this
+//PHOS_GUI_API Texture2D *phos_gui_get_icon_str(const char *str);
 /**
   Sets up an icon and its texture.
 

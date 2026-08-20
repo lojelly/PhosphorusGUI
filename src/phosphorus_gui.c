@@ -4845,7 +4845,7 @@ static void render_elem(phos_gui_elem *e)
 	if(drop_down)
 	{
 		// render down arrow icon on drop down button when it's not expanded
-		Texture2D* down_arrow = phos_gui_get_icon(PHOS_GUI_ICON_DOWN_ARROW);
+		Texture2D* down_arrow = phos_gui_get_icon_id(PHOS_GUI_ICON_DOWN_ARROW);
 		if(!drop_down->expanded && down_arrow)
 		{
 			float x = usable_content_bounds.x + usable_content_bounds.width - down_arrow->width * 1.25f;
@@ -5198,7 +5198,7 @@ Texture2D *phos_gui_load_texture(const char *file_path)
 
 	return &textures.data[textures.size - 1].tex;
 }
-Texture2D *phos_gui_get_icon(phos_gui_icon icon)
+Texture2D *phos_gui_get_icon_id(phos_gui_icon icon)
 {
 	// return loaded texture at icon's file path in the icon map
 	const char **icon_file_path_value = NULL;
@@ -5212,6 +5212,66 @@ Texture2D *phos_gui_get_icon(phos_gui_icon icon)
 	vl_log(VL_ERROR, "Failed to obtain icon texture: %d!\n", icon);
 	return NULL;
 }
+// TODO should this still be used? how to incorporate into text components like docs say?
+/*Texture2D *phos_gui_get_icon_str(const char *str)
+{
+	// example str:   '<icon_id=0>'
+	// example str 2: '<icon=DOWN_ARROW>'
+
+	// parse an ID:
+	if(strncmp(str, "<icon_id=", 9) == 0)
+	{
+		// get characters after '=' but before closing '>'
+		const char *e = str + 9;
+
+		// max of 3 digits
+		char icon_id[3];
+		size_t icon_id_idx = 0;
+
+		// walk forward until closing '>' is found
+		while(*e + 1 != '>' && icon_id_idx < sizeof(icon_id))
+		{
+			icon_id[icon_id_idx++] = *e;
+			e++;
+		}
+		icon_id[icon_id_idx] = '\0';
+
+		// parse ID
+		int real_icon_id = strtol(icon_id, NULL, 10);
+
+		// return texture matching the icon ID parsed, or NULL if invalid ID given
+		return phos_gui_get_icon_id(real_icon_id);
+	}
+	// parse a name:
+	else if(strncmp(str, "<icon=", 6) == 0)
+	{
+		// get characters after '=' but before closing '>'
+		const char *e = str + 6;
+
+		char icon_name[64];
+		size_t icon_id_idx = 0;
+
+		// walk forward until closing '>' is found
+		while(*e + 1 != '>' && icon_id_idx < sizeof(icon_name))
+		{
+			icon_name[icon_id_idx++] = *e;
+			e++;
+		}
+		icon_name[icon_id_idx] = '\0';
+
+		// parse name
+		if(strcmp(icon_name, "DOWN_ARROW"))
+			return phos_gui_get_icon_id(PHOS_GUI_ICON_DOWN_ARROW);
+		else
+		{
+			vl_log(VL_ERROR, "Invalid icon name given: '%s'!\n", icon_name);
+			return NULL;
+		}
+	}
+
+	// unable to parse because an invalid string was given
+	return NULL;
+}*/
 void phos_gui_set_icon(phos_gui_icon icon, const char *file_path)
 {
 	map_add(&icons, icon, file_path);
