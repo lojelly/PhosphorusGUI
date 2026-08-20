@@ -784,12 +784,12 @@ typedef enum phos_gui_elem_type
 } phos_gui_elem_type;
 
 /**
-  The different shapes of elements.
+  The different shapes of objects.
 */
-typedef enum phos_gui_elem_shape
+typedef enum phos_gui_shape
 {
 	/**
-	  The default type of all elements: the rectangle shape.
+	  The rectangle shape.
 	*/
 	PHOS_GUI_SHAPE_RECT,
 	/**
@@ -799,11 +799,11 @@ typedef enum phos_gui_elem_shape
 	/**
 	  The rounded-rectangle shape.
 
-	  Change the element's 'corner_radius' attribute
+	  Change the objects's corner-radius attribute
 	  to modify the roundness of the rectangle.
 	*/
 	PHOS_GUI_SHAPE_ROUND_RECT
-} phos_gui_elem_shape;
+} phos_gui_shape;
 
 /**
   The different render modes of elements.
@@ -1716,10 +1716,6 @@ typedef struct phos_gui_layout_component
 typedef struct phos_gui_scroll_bar
 {
 	/**
-	  The width/height of the scroll bar based on its orientation.
-	*/
-	float span;
-	/**
 	  The background color of the entire bar.
 	*/
 	Color bg_color;
@@ -1732,6 +1728,35 @@ typedef struct phos_gui_scroll_bar
 	  interacting with it.
 	*/
 	Color thumb_focus_color;
+	/**
+	  The shape of the scroll thumb. By default, this
+	  is PHOS_GUI_SHAPE_RECT.
+	*/
+	phos_gui_shape thumb_shape;
+	/**
+	  The roundness of the scroll thumb.
+
+	  @note This value is only used if the scroll thumb's shape is PHOS_GUI_SHAPE_ROUND_RECT.
+
+	  @important This value should remain in between 0.0f (no roundess)
+	  and 1.0f (full roundness).
+
+	  By default, this is 0.0f.
+	*/
+	float thumb_corner_radius;
+	/**
+	  The width/height of the scroll bar based on its orientation.
+
+	  This is 10.0f by default.
+	*/
+	float span;
+	/**
+	  Used when the user grabs the scroll thumb of this scroll bar.
+
+	  Represents the distance between the user's initial mouse click
+	  and the scroll thumb's origin.
+	*/
+	float thumb_grab_offset;
 	/**
 	  Whether or not the scroll thumb has focus.
 	*/
@@ -2046,8 +2071,10 @@ typedef struct phos_gui_elem
 	phos_gui_elem_type type;
 	/**
 	  The shape of this element.
+
+	  This is PHOS_GUI_SHAPE_RECT by default.
 	*/
-	phos_gui_elem_shape shape;
+	phos_gui_shape shape;
 	/**
 	  How this element should be rendered.
 
@@ -2106,6 +2133,8 @@ typedef struct phos_gui_elem
 
 	  @important This value should remain in between
 	  0.0f (no roundness) and 1.0f (full roundness).
+
+	  By default, this is 0.0f.
 	*/
 	float corner_radius;
 
@@ -2526,6 +2555,16 @@ PHOS_GUI_API Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem);
   Returns the requested rectangle for an element.
 */
 PHOS_GUI_API Rectangle phos_gui_get_elem_rect(phos_gui_elem *elem, phos_gui_elem_bounding_box bounds);
+/**
+  Forces an element's rectangles to be calculated.
+*/
+PHOS_GUI_API void phos_gui_reload_elem(phos_gui_elem *elem);
+/**
+  Forces all elements in a phos_gui to be reloaded.
+
+  @see phos_gui_reload_elem(phos_gui_elem*)
+*/
+PHOS_GUI_API void phos_gui_reload_gui(phos_gui *gui);
 
 /**
   Returns the bounds of a text component.
