@@ -22,7 +22,7 @@
 
 #define MIN_SCROLL_THUMB_LENGTH 25.0f
 
-#define DEFAULT_SCROLL_BAR (phos_gui_scroll_bar) { .bg_color = PHOS_GUI_COLOR_LIGHT_GRAY, .thumb_color = PHOS_GUI_COLOR_GRAY, .thumb_focus_color = PHOS_GUI_COLOR_DARK_GRAY, .thumb_shape = PHOS_GUI_SHAPE_RECT, .thumb_corner_radius = 0.0f, .span = 10.0f, .thumb_grab_offset = 0.0f, .thumb_has_focus = false, .thumb_grabbed = false, .rendered = true, .active = true }
+#define DEFAULT_SCROLL_BAR (phos_gui_scroll_bar) { .bg_color = PHOS_GUI_COLOR_LIGHT_GRAY, .thumb_color = PHOS_GUI_COLOR_GRAY, .thumb_focus_color = PHOS_GUI_COLOR_DARK_GRAY, .thumb_shape = PHOS_GUI_SHAPE_RECT, .thumb_corner_radius = 0.0f, .span = 15.0f, .thumb_grab_offset = 0.0f, .thumb_has_focus = false, .thumb_grabbed = false, .rendered = true, .active = true }
 
 // array of element pointers
 typedef struct elem_arr
@@ -4952,6 +4952,7 @@ phos_gui_theme phos_gui_create_theme_basic(Color base_color)
 	theme.outline_hover_color = theme.outline_color;
 	theme.outline_press_color = theme.outline_color;
 	theme.outline_focus_color = theme.outline_color;
+	theme.decoration_color = ColorContrast(base_color, -0.3f);
 	theme.text_color = ColorBrightness(base_color, -0.75f);
 	theme.icon_color = ColorContrast(base_color, 0.5f);
 	theme.window_bg_color = ColorBrightness(base_color, -0.9f);
@@ -4971,6 +4972,7 @@ phos_gui_theme phos_gui_create_theme_accented(Color base_color, Color accent_col
 	theme.outline_hover_color = theme.outline_color;
 	theme.outline_press_color = theme.outline_color;
 	theme.outline_focus_color = theme.outline_color;
+	theme.decoration_color = ColorContrast(accent_color, -0.3f);
 	theme.text_color = ColorBrightness(accent_color, -0.75f);
 	theme.icon_color = ColorContrast(accent_color, 0.5f);
 	theme.window_bg_color = PHOS_GUI_COLOR_MIX(ColorContrast(accent_color, -0.65f), ColorBrightness(accent_color, -0.8f));
@@ -4978,7 +4980,7 @@ phos_gui_theme phos_gui_create_theme_accented(Color base_color, Color accent_col
 
 	return theme;
 }
-phos_gui_theme phos_gui_create_theme_full(Color base_color, Color accent_color, Color text_color, Color icon_color, Color window_bg_color)
+phos_gui_theme phos_gui_create_theme_full(Color base_color, Color accent_color, Color decoration_color, Color text_color, Color icon_color, Color window_bg_color)
 {
 	phos_gui_theme theme = {0};
 
@@ -4986,6 +4988,7 @@ phos_gui_theme phos_gui_create_theme_full(Color base_color, Color accent_color, 
 	theme = phos_gui_create_theme_accented(base_color, accent_color);
 
 	// then override specific colors given
+	theme.decoration_color = decoration_color;
 	theme.text_color = text_color;
 	theme.icon_color = icon_color;
 	theme.window_bg_color = window_bg_color;
@@ -5030,19 +5033,19 @@ void phos_gui_apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
 
 	phos_gui_placeholder_text_extension *placeholder_text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
 	if(placeholder_text)
-		placeholder_text->color = ColorContrast(theme.bg_color, -0.6f);
+		placeholder_text->color = ColorContrast(theme.text_color, -0.3f);
 
 	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 	if(scroll_pane)
 	{
-		scroll_pane->v_bar.bg_color = scroll_pane->h_bar.bg_color = ColorBrightness(theme.bg_color, -0.35f);
-		scroll_pane->v_bar.thumb_color = scroll_pane->h_bar.thumb_color = ColorBrightness(theme.bg_color, -0.7f);
-		scroll_pane->v_bar.thumb_focus_color = scroll_pane->h_bar.thumb_focus_color = ColorBrightness(theme.bg_color, 0.25f);
+		scroll_pane->v_bar.bg_color = theme.decoration_color;
+		scroll_pane->v_bar.thumb_color = scroll_pane->h_bar.thumb_color = ColorBrightness(theme.decoration_color, -0.4f);
+		scroll_pane->v_bar.thumb_focus_color = scroll_pane->h_bar.thumb_focus_color = ColorBrightness(theme.decoration_color, 0.4f);
 	}
 
 	phos_gui_drag_pane_component *drag_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_DRAG_PANE);
 	if(drag_pane)
-		drag_pane->drag_bar_color = ColorContrast(theme.bg_color, -0.3f);
+		drag_pane->drag_bar_color = theme.decoration_color;
 
 	phos_gui_shadow_component *shadow = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SHADOW);
 	if(shadow)
