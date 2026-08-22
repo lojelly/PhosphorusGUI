@@ -47,6 +47,12 @@
 #define PHOS_GUI_MAX_EVENT_LISTENERS 64
 
 /**
+  The max number of timers that a single
+  phos_gui can hold.
+*/
+#define PHOS_GUI_MAX_TIMERS 32
+
+/**
   The max length of an element's ID.
 */
 #define PHOS_GUI_MAX_ID_LEN 32
@@ -997,7 +1003,7 @@ typedef enum phos_gui_elem_bounding_box
 	  This bounding box includes the element's
 	  margins.
 	*/
-	PHOS_GUI_ELEM_BOUNDS_TOTAL
+	PHOS_GUI_ELEM_BOUNDS_TOTAL,
 } phos_gui_elem_bounding_box;
 
 /**
@@ -1109,6 +1115,11 @@ typedef enum phos_gui_component_type
 	  @see phos_gui_drop_down_component
 	*/
 	PHOS_GUI_COMPONENT_DROP_DOWN,
+
+	/**
+	  @see phos_gui_value_bar_component
+	*/
+	PHOS_GUI_COMPONENT_VALUE_BAR,
 
 	/**
 	  Represents the last component ID in PhosphorusGUI.
@@ -1522,6 +1533,11 @@ typedef struct phos_gui_text_component
 	phos_gui_text_wrap_mode wrap_mode;
 	/**
 	  The alignment the text component is using.
+
+	  @important This alignment must always be one of the
+	  'INNER' alignments. This is because when text is rendered,
+	  it is clipped so that it fits into its owner's visual
+	  bounds.
 
 	  By default, this is equal to PHOS_GUI_ALIGN_INNER_CENTER.
 	*/
@@ -1966,6 +1982,94 @@ typedef struct phos_gui_drop_down_component
 } phos_gui_drop_down_component;
 
 /**
+  A phos_gui_value_bar_component provides an element
+  with a visual representation of a specific value,
+  percentage, etc, using a min/max value.
+*/
+typedef struct phos_gui_value_bar_component
+{
+	/**
+	  The minimum value in the value bar.
+
+	  This is 0.0f by default.
+	*/
+	float min_value;
+	/**
+	  The maximum value in the value bar.
+
+	  This is 100.0f by default.
+	*/
+	float max_value;
+	/**
+	  The current value in the value bar.
+
+	  This is 0.0f by default.
+	*/
+	float curr_value;
+
+	/**
+	  The shape of the value bar's slider knob.
+
+	  This shape is only used when the value
+	  bar becomes a slider.
+
+	  This is PHOS_GUI_SHAPE_RECT by default.
+
+	  @see editable
+	*/
+	phos_gui_shape slider_knob_shape;
+	/**
+	  The corner radius of the slider knob (if the
+	  slider knob is being used and its shape
+	  is PHOS_GUI_SHAPE_ROUND_RECT).
+
+	  This is 0.0f by default.
+
+	  @see slider_knob_shape
+	*/
+	float slider_knob_corner_radius;
+	/**
+	  The color of the slider knob (if the
+	  slider knob is being used).
+
+	  This is WHITE by default.
+
+	  @see slider_knob_shape
+	*/
+	Color slider_knob_color;
+
+	/**
+	  The color of the current value, or
+	  the progress bar.
+
+	  When rendering a value bar,
+	  the element's background color
+	  is used as the background of the
+	  value bar. This color will be used
+	  to render the rectangle representing
+	  the value bar's progress.
+
+	  This is PHOS_GUI_COLOR_GREEN by default.
+	*/
+	Color progress_color;
+
+	/**
+	  Whether or not the user can directly
+	  edit this value bar.
+
+	  When a value bar becomes editable,
+	  it is referred to as a slider.
+	  After a value bar becomes a slider,
+	  its slider knob is rendered for the user.
+	  The slider knob is what the user grabs
+	  to change the current value of the value bar.
+
+	  By default, this is false.
+	*/
+	bool editable;
+} phos_gui_value_bar_component;
+
+/**
   Represents an actual bounding box for an element.
 */
 typedef struct phos_gui_elem_rect
@@ -2255,6 +2359,8 @@ typedef enum phos_gui_event_type
   The function returns nothing and takes in the target
   object, or NULL if the target object was the window,
   as well as additional options.
+
+  @see phos_gui_event_listener
 */
 typedef void (*phos_gui_event_listener_action) (phos_gui_elem *elem, phos_gui_opts opts);
 
@@ -2304,6 +2410,61 @@ typedef struct phos_gui_event_listener
 	*/
 	KeyboardKey key;
 } phos_gui_event_listener;
+
+/**
+  Provides a timer with executable code.
+
+  Whenever a timer's target time is reached,
+  this function is executed.
+
+  @param args The function should take in a
+  void pointer representing any generic arguments.
+  It is up to the user to handle these arguments
+  and how the timer uses them.
+
+  @see phos_gui_timer
+*/
+typedef void (*phos_gui_timer_action) (void *args);
+
+/**
+  A phos_gui_timer allows the user to execute
+  events over and over based on a time interval
+  in seconds.
+*/
+typedef struct phos_gui_timer
+{
+	/**
+	  The action this timer should
+	  execute when its target time
+	  is reached.
+	*/
+	phos_gui_timer_action action;
+	/**
+	  The arguments the timer should
+	  use in the action function.
+	*/
+	void *args;
+
+	/**
+	  The number of times this timer should execute.
+
+	  Set this to -1 to indicate the timer should
+	  loop forever.
+	*/
+	int execution_count;
+
+	/**
+	  The target time for the timer.
+
+	  For example, to repeat an action
+	  every second, this should be 1.0f.
+	*/
+	float target_time;
+	/**
+	  The timer's current time in seconds;
+	*/
+	float curr_time;
+} phos_gui_timer;
 
 /**
   The list of different icons for the program.
@@ -2425,14 +2586,17 @@ typedef struct phos_gui_theme
 typedef struct phos_gui
 {
 	/**
-	  The event listeners added to this GUI.
-	*/
-	phos_gui_event_listener listeners[PHOS_GUI_MAX_EVENT_LISTENERS];
-
-	/**
 	  The elements inside the GUI.
 	*/
 	phos_gui_elem *elems[PHOS_GUI_MAX_ELEMS];
+	/**
+	  The event listeners added to this GUI.
+	*/
+	phos_gui_event_listener listeners[PHOS_GUI_MAX_EVENT_LISTENERS];
+	/**
+	  The timers added to this GUI.
+	*/
+	phos_gui_timer timers[PHOS_GUI_MAX_TIMERS];
 
 	/**
 	  This GUI's ID.
@@ -2456,6 +2620,10 @@ typedef struct phos_gui
 	  The current amount of event listeners added to this GUI.
 	*/
 	size_t num_listeners;
+	/**
+	  The current amount of timers added to this GUI.
+	*/
+	size_t num_timers;
 } phos_gui;
 
 
@@ -2757,8 +2925,23 @@ PHOS_GUI_API void phos_gui_fill_elem_with_elem(phos_gui_elem *reference_elem, ph
   make it fit its owner's size.
 
   @note This function is the equivalent of using PHOS_GUI_OPTS_FIT_TEXT.
+
+  @see phos_gui_make_text_fit_rect(phos_gui_text_component*, phos_gui_target_text_string, Rectangle)
 */
 PHOS_GUI_API void phos_gui_make_text_fit_elem(phos_gui_text_component *text_component, phos_gui_target_text_string target_str);
+/**
+  Makes the given text component fit into the given rectangle.
+
+  This function will modify the text component's font size to
+  make it fit the rectangle's size.
+
+  @note PHOS_GUI_OPTS_FIT_TEXT does not result in this function being called.
+  PHOS_GUI_OPTS_FIT_TEXT results in phos_gui_make_text_fit_elem(...)
+  being used.
+
+  @see phos_gui_make_text_fit_elem(phos_gui_text_component*, phos_gui_target_text_string)
+*/
+PHOS_GUI_API void phos_gui_make_text_fit_rect(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, Rectangle rect);
 
 /**
   Sets some basic element attributes
@@ -3026,11 +3209,23 @@ PHOS_GUI_API bool phos_gui_is_mouse_over_rect(Rectangle r);
 PHOS_GUI_API phos_gui_elem *phos_gui_get_mouse_target(void);
 
 /**
-  Adds an event listener to the current phos_gui.
+  Adds an event listener to the given phos_gui.
 
   @return 1 on success, 0 on failure.
 */
 PHOS_GUI_API int phos_gui_add_event_listener(phos_gui *gui, phos_gui_event_listener listener);
+/**
+  Adds a timer to the given phos_gui.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_add_timer(phos_gui *gui, phos_gui_timer timer);
+/**
+  Creates and adds a timer to the given phos_gui.
+
+  @see phos_gui_add_timer(phos_gui*, phos_gui_timer)
+*/
+PHOS_GUI_API int phos_gui_new_timer(phos_gui *gui, phos_gui_timer_action action, void *args, float target_time, int execution_count);
 
 /**
   Launches a custom program loop for PhosphorusGUI.
@@ -3289,3 +3484,10 @@ PHOS_GUI_API void phos_gui_set_default_font(const char *file_path);
   Returns the defualt font or NULL if one was never set.
 */
 PHOS_GUI_API Font *phos_gui_get_default_font(void);
+
+/**
+  Returns a random float value in the range given.
+
+  @note The range is inclusive.
+*/
+PHOS_GUI_API float phos_gui_randf(float start, float end);

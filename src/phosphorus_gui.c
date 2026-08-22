@@ -254,7 +254,6 @@ static void init_mouse_listener_component(void *mouse_listener_component)
 	listener->gained_focus = false;
 	listener->focus_on_start = false;
 }
-
 static void force_calculate_elem_rects(phos_gui_elem *elem);
 static void init_text_component(void *text_component)
 {
@@ -301,7 +300,6 @@ static void init_text_component(void *text_component)
 	// re-apply default theme to element
 	phos_gui_apply_theme_to_elem(owner, phos_gui_get_default_theme());
 }
-
 static void init_placeholder_text_extension(void *placeholder_text_component)
 {
 	if(!placeholder_text_component)
@@ -337,7 +335,6 @@ static void init_placeholder_text_extension(void *placeholder_text_component)
 	// re-apply default theme to element
 	phos_gui_apply_theme_to_elem(elem, phos_gui_get_default_theme());
 }
-
 static void init_layout_component(void *layout_component)
 {
 	if(!layout_component)
@@ -360,7 +357,6 @@ static void calculate_elem_rects(phos_gui_elem *e);
 static Rectangle get_calculated_elem_rect(phos_gui_elem *elem, phos_gui_elem_bounding_box bounds)
 {
 	Rectangle r = {0};
-	bool realign_text = false;
 
 	// if no calculation for all rects necessary, perform exact calculation necessary
 	switch(bounds)
@@ -395,9 +391,6 @@ static Rectangle get_calculated_elem_rect(phos_gui_elem *elem, phos_gui_elem_bou
 
 				// mark it as cached
 				elem->content_total_bounds.should_calculate = false;
-
-				// if elem has text, realign
-				realign_text = true;
 			}
 			r = elem->content_total_bounds.rect;
 			break;
@@ -468,9 +461,6 @@ static Rectangle get_calculated_elem_rect(phos_gui_elem *elem, phos_gui_elem_bou
 
 				// mark it as cached
 				elem->content_free_bounds.should_calculate = false;
-
-				// if elem has text, realign
-				realign_text = true;
 			}
 			r = elem->content_free_bounds.rect;
 			break;
@@ -486,9 +476,6 @@ static Rectangle get_calculated_elem_rect(phos_gui_elem *elem, phos_gui_elem_bou
 
 				// mark it as cached
 				elem->total_bounds.should_calculate = false;
-
-				// if elem has text, realign
-				realign_text = true;
 			}
 			r = elem->total_bounds.rect;
 			break;
@@ -552,7 +539,6 @@ static void init_scroll_pane_component(void *scroll_pane_component)
 	// re-apply default theme to elem
 	phos_gui_apply_theme_to_elem(owner, phos_gui_get_default_theme());
 }
-
 static void init_drag_pane_component(void *drag_pane_component)
 {
 	if(!drag_pane_component)
@@ -585,7 +571,6 @@ static void init_drag_pane_component(void *drag_pane_component)
 	// re-apply default theme to elem
 	phos_gui_apply_theme_to_elem(owner, phos_gui_get_default_theme());
 }
-
 static void init_drop_down_component(void *drop_down_component)
 {
 	if(!drop_down_component)
@@ -604,6 +589,33 @@ static void init_drop_down_component(void *drop_down_component)
 	drop_down->container = NULL;
 	drop_down->selection = NULL;
 	drop_down->expanded = false;
+}
+static void init_value_bar_component(void *value_bar_component)
+{
+	if(!value_bar_component)
+		return;
+
+	phos_gui_value_bar_component *value_bar = value_bar_component;
+
+	// get owner
+	phos_gui_elem *owner = pluto_cs_get_owner(value_bar);
+	if(!owner)
+	{
+		vl_log(VL_ERROR, "Value bar has no owner!\n");
+		return;
+	}
+
+	value_bar->min_value = 0.0f;
+	value_bar->max_value = 100.0f;
+	value_bar->curr_value = 0.0f;
+	value_bar->slider_knob_shape = PHOS_GUI_SHAPE_RECT;
+	value_bar->slider_knob_corner_radius = 0.0f;
+	value_bar->slider_knob_color = WHITE;
+	value_bar->progress_color = PHOS_GUI_COLOR_GREEN;
+	value_bar->editable = false;
+
+	// re-apply default theme to elem
+	phos_gui_apply_theme_to_elem(owner, phos_gui_get_default_theme());
 }
 
 int phos_gui_init()
@@ -645,6 +657,7 @@ int phos_gui_init()
 	pluto_cs_register(PHOS_GUI_COMPONENT_SCROLL_PANE, sizeof(phos_gui_scroll_pane_component), init_scroll_pane_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_DRAG_PANE, sizeof(phos_gui_drag_pane_component), init_drag_pane_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_DROP_DOWN, sizeof(phos_gui_drop_down_component), init_drop_down_component, NULL);
+	pluto_cs_register(PHOS_GUI_COMPONENT_VALUE_BAR, sizeof(phos_gui_value_bar_component), init_value_bar_component, NULL);
 
 	// set default theme
 	default_theme = PHOS_GUI_THEME_MONOTONE;
@@ -1137,6 +1150,7 @@ void phos_gui_reload_elem(phos_gui_elem *elem)
 		return;
 	}
 
+	// finally, update elem rectangles
 	force_calculate_elem_rects(elem);
 }
 void phos_gui_reload_gui(phos_gui *gui)
@@ -1751,6 +1765,8 @@ Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_g
 	Vector2 text_bounds = resolve_elem_text_bounds(text_component, target_str);
 
 	v = get_proposed_align_pos(text_bounds, alignment, owner);
+
+	// position text component relative to owner
 	text_component->offset = Vector2Subtract(v, phos_gui_get_rect_pos(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE)));
 	text_component->alignment = alignment;
 
@@ -1868,14 +1884,10 @@ void phos_gui_fill_elem_with_elem(phos_gui_elem *reference_elem, phos_gui_elem_b
 	phos_gui_set_elem_bounds_r(target_elem, get_calculated_elem_rect(reference_elem, bounds), opts);
 }
 
-static void use_largest_possible_font_size(phos_gui_text_component *text_component, phos_gui_target_text_string target_str)
+static void use_largest_possible_font_size(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, Rectangle rect)
 {
-	phos_gui_elem *elem = pluto_cs_get_owner(text_component);
-	if(!elem)
-		return;
-
 	// get content area
-	Vector2 size = phos_gui_get_rect_size(get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE));
+	Vector2 size = phos_gui_get_rect_size(rect);
 
 	// create virtual padding around text
 	size.x -= TEXT_PADDING * 2.0f;
@@ -1912,18 +1924,31 @@ void phos_gui_make_text_fit_elem(phos_gui_text_component *text_component, phos_g
 	}
 
 	// get text component's owner
-	const phos_gui_elem *const elem = pluto_cs_get_owner(text_component);
+	phos_gui_elem *elem = pluto_cs_get_owner(text_component);
 	if(!elem)
 	{
 		vl_log(VL_ERROR, "To make the given text component fit its owner, the text component must have a valid owner element!\n");
 		return;
 	}
 
-	// if text already fits element, do not resize text
-	Vector2 text_bounds = resolve_elem_text_bounds(text_component, target_str);
+	// use element's free content bounds rect
+	use_largest_possible_font_size(text_component, target_str, get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE));
+}
+void phos_gui_make_text_fit_rect(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, Rectangle rect)
+{
+	if(!text_component)
+	{
+		vl_log(VL_ERROR, "To make the given text component fit the rectangle, the text component cannot be NULL!\n");
+		return;
+	}
+	if(!text_component->font)
+	{
+		vl_log(VL_ERROR, "To make the given text component fit the rectangle, its font must be set first!\n");
+		return;
+	}
 
-	// use largest possible font size
-	use_largest_possible_font_size(text_component, target_str);
+	// use the rectangle the user gave
+	use_largest_possible_font_size(text_component, target_str, rect);
 }
 
 void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h)
@@ -2265,7 +2290,7 @@ int phos_gui_remove_elem_from_gui(phos_gui_elem *elem, phos_gui *gui)
 			}
 
 			// otherwise, shift all elements to the left and decrement num_elems:
-			memmove(gui->elems[i], gui->elems[i + 1], (gui->num_elems - i) - 1);
+			memmove(gui->elems[i], gui->elems[i + 1], (gui->num_elems - i - 1) * sizeof(phos_gui_elem*));
 			gui->num_elems--;
 
 			vl_log(VL_SUCCESS, "Removed element '%s' from GUI '%s'!\n", e->ID, gui->ID);
@@ -2768,64 +2793,33 @@ int phos_gui_add_event_listener(phos_gui *gui, phos_gui_event_listener listener)
 
 	return 1;
 }
-// return true on action executed, false on failure
-static bool run_event_listener(phos_gui_event_listener *listener)
+int phos_gui_add_timer(phos_gui *gui, phos_gui_timer timer)
 {
-	phos_gui_event_type event = listener->event;
-	phos_gui_elem *elem = listener->elem;
-	phos_gui_event_listener_action action = listener->action;
-
-	// validate listener
-	if(event == PHOS_GUI_EVENT_NONE)
+	if(!gui)
 	{
-		vl_log(VL_ERROR, "Invalid event listener event: %d!\n", event);
-		return false;
-	}
-	if(!action)
-	{
-		vl_log(VL_WARNING, "This event listener has a null action!\n");
-		return false;
+		vl_log(VL_ERROR, "To add a timer, the phos_gui cannot be NULL!\n");
+		return 0;
 	}
 
-	Rectangle window_rect = { 0, 0, GetRenderWidth(), GetRenderHeight() };
-
-	// see if elem has a mouse listener component 
-	const phos_gui_mouse_listener_component *const mouse_listener = elem ? pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER) : NULL;
-
-	// check event conditions:
-	bool mouse_clicked = elem && mouse_listener ? mouse_listener->clicked : IsMouseButtonPressed(listener->mouse_btn);
-	bool mouse_down = elem && mouse_listener ? mouse_listener->pressed : IsMouseButtonDown(listener->mouse_btn);
-	bool mouse_hovered = elem && mouse_listener ? mouse_listener->hovered : phos_gui_is_mouse_over_rect(window_rect);
-	bool key_clicked = IsKeyPressed(listener->key);
-	bool key_down = IsKeyDown(listener->key);
-
-	bool can_execute = false;
-	switch(event)
+	// add the timer to the gui
+	if(gui->num_timers >= PHOS_GUI_MAX_TIMERS)
 	{
-		case PHOS_GUI_EVENT_MOUSE_CLICK:
-			can_execute = mouse_clicked;
-			break;
-		case PHOS_GUI_EVENT_MOUSE_DOWN:
-			can_execute = mouse_down;
-			break;
-		case PHOS_GUI_EVENT_KEY_CLICK:
-			can_execute = key_clicked;
-			break;
-		case PHOS_GUI_EVENT_KEY_DOWN:
-			can_execute = key_down;
-			break;
-		case PHOS_GUI_EVENT_HOVER:
-			can_execute = mouse_hovered;
-			break;
-		default:
-			break;
+		vl_log(VL_WARNING, "No more timers can be added to this phos_gui: '%s'!\n", gui->ID);
+		return 0;
 	}
+	gui->timers[gui->num_timers++] = timer;
 
-	// execute action if conditions are true
-	if(can_execute)
-		action(elem, listener->opts);
+	return 1;
+}
+int phos_gui_new_timer(phos_gui *gui, phos_gui_timer_action action, void *args, float target_time, int execution_count)
+{
+	phos_gui_timer timer = {0};
+	timer.target_time = target_time;
+	timer.execution_count = execution_count;
+	timer.action = action;
+	timer.args = args;
 
-	return can_execute;
+	return phos_gui_add_timer(gui, timer);
 }
 
 static void backspace(phos_gui_text_component *t)
@@ -4213,6 +4207,94 @@ void phos_gui_launch()
 		EndDrawing();
 	}
 }
+// return true on action executed, false on failure
+static bool run_event_listener(phos_gui_event_listener *listener)
+{
+	phos_gui_event_type event = listener->event;
+	phos_gui_elem *elem = listener->elem;
+	phos_gui_event_listener_action action = listener->action;
+
+	// validate listener
+	if(event == PHOS_GUI_EVENT_NONE)
+	{
+		vl_log(VL_ERROR, "Invalid event listener event: %d!\n", event);
+		return false;
+	}
+	if(!action)
+	{
+		vl_log(VL_WARNING, "This event listener has a null action!\n");
+		return false;
+	}
+
+	Rectangle window_rect = { 0, 0, GetRenderWidth(), GetRenderHeight() };
+
+	// see if elem has a mouse listener component 
+	const phos_gui_mouse_listener_component *const mouse_listener = elem ? pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER) : NULL;
+
+	// check event conditions:
+	bool mouse_clicked = elem && mouse_listener ? mouse_listener->clicked : IsMouseButtonPressed(listener->mouse_btn);
+	bool mouse_down = elem && mouse_listener ? mouse_listener->pressed : IsMouseButtonDown(listener->mouse_btn);
+	bool mouse_hovered = elem && mouse_listener ? mouse_listener->hovered : phos_gui_is_mouse_over_rect(window_rect);
+	bool key_clicked = IsKeyPressed(listener->key);
+	bool key_down = IsKeyDown(listener->key);
+
+	bool can_execute = false;
+	switch(event)
+	{
+		case PHOS_GUI_EVENT_MOUSE_CLICK:
+			can_execute = mouse_clicked;
+			break;
+		case PHOS_GUI_EVENT_MOUSE_DOWN:
+			can_execute = mouse_down;
+			break;
+		case PHOS_GUI_EVENT_KEY_CLICK:
+			can_execute = key_clicked;
+			break;
+		case PHOS_GUI_EVENT_KEY_DOWN:
+			can_execute = key_down;
+			break;
+		case PHOS_GUI_EVENT_HOVER:
+			can_execute = mouse_hovered;
+			break;
+		default:
+			break;
+	}
+
+	// execute action if conditions are true
+	if(can_execute)
+		action(elem, listener->opts);
+
+	return can_execute;
+}
+static void update_timer(phos_gui_timer *timer, float dt)
+{
+	if(!timer)
+	{
+		vl_delay_log(VL_ERROR, 3.0f, "Unable to update NULL timer!\n");
+		return;
+	}
+
+	// if timer has 0 execution_count or less than -1 execution_count by default, do not execute
+	if(timer->execution_count == 0 || timer->execution_count < -1)
+		return;
+
+	// add delta time to curr time
+	timer->curr_time += dt;
+	// reset curr time if it hits target time
+	if(timer->curr_time >= timer->target_time)
+	{
+		timer->curr_time = 0.0f;
+
+		// execute timer action
+		if(timer->action)
+			timer->action(timer->args);
+
+		// handle timer execution_count (-1 means loop forever)
+		if(timer->execution_count > 0)
+			// minus one loop from timer
+			timer->execution_count--;
+	}
+}
 void phos_gui_update(float dt)
 {
 	if(!curr_gui)
@@ -4272,6 +4354,23 @@ void phos_gui_update(float dt)
 	// update event listeners
 	for(size_t i = 0; i < curr_gui->num_listeners; ++i)
 		run_event_listener(&curr_gui->listeners[i]);
+
+	// update timers
+	size_t num_timers = curr_gui->num_timers;
+	for(size_t i = 0; i < num_timers; ++i)
+	{
+		phos_gui_timer *timer = &curr_gui->timers[i];
+		// use local copy of curr_gui->num_timers because update_timer(...) modifies curr_gui->num_timers
+		update_timer(timer, dt);
+
+		// check to see if this timer should be removed
+		if(timer->execution_count == 0)
+		{
+			// move all timers after current timer one to left
+			memmove(curr_gui->timers + i, curr_gui->timers + i + 1, (num_timers - i - 1) * sizeof(phos_gui_timer));
+			curr_gui->num_timers--;
+		}
+	}
 
 	// if no elems to update, warn user
 	if(curr_gui->num_elems == 0)
@@ -4502,6 +4601,25 @@ static void render_elem(phos_gui_elem *e)
 				vl_log(VL_ERROR, "Invalid element shape: %d!\n", e->shape);
 				break;
 		}
+	}
+
+	// render progress bar over background immediately
+	phos_gui_value_bar_component *value_bar = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_VALUE_BAR);
+	if(value_bar)
+	{
+		// calculate percentage of progress (curr / max)
+		float max_value = value_bar->max_value;
+		float curr_value = value_bar->curr_value;
+		float percentage_complete = curr_value / max_value;
+
+		/*
+		   draw rectangle starting at same position as element.
+		   it size is equal to 'percentage_complete' *
+		   element's width.
+		   */
+		float value_bar_width = percentage_complete * usable_content_bounds.width;
+
+		DrawRectangle(usable_content_bounds.x, usable_content_bounds.y, value_bar_width, usable_content_bounds.height, value_bar->progress_color);
 	}
 
 	// get mouse listener component
@@ -4852,10 +4970,6 @@ static void render_elem(phos_gui_elem *e)
 			float y = usable_content_bounds.y + ((usable_content_bounds.height - down_arrow->height) / 2.0f);
 			DrawTexture(*down_arrow, x, y, default_theme.icon_color);
 		}
-
-		// render container if necessary
-		//if(drop_down->container && drop_down->expanded)
-			//render_elem(drop_down->container);
 	}
 
 	// render child elements:
@@ -5052,6 +5166,13 @@ void phos_gui_apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
 	{
 		shadow->initial_color = ColorBrightness(theme.window_bg_color, -0.3f);
 		shadow->fade_color = theme.window_bg_color;
+	}
+
+	phos_gui_value_bar_component *value_bar = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_VALUE_BAR);
+	if(value_bar)
+	{
+		value_bar->progress_color = ColorBrightness(ColorContrast(theme.bg_color, 0.6f), -0.2f);
+		value_bar->slider_knob_color = value_bar->progress_color;
 	}
 
 
@@ -5326,4 +5447,9 @@ void phos_gui_set_default_font(const char *file_path)
 Font *phos_gui_get_default_font()
 {
 	return default_font;
+}
+
+float phos_gui_randf(float start, float end)
+{
+	return ((float) rand() / (float) (RAND_MAX)) * (end - start);
 }
