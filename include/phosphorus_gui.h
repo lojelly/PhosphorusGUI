@@ -2029,6 +2029,19 @@ typedef struct phos_gui_value_bar_component
 	*/
 	float slider_knob_corner_radius;
 	/**
+	  The width and height of the slider knob.
+
+	  By default, this is equal to the height of the
+	  element's free content bounds *
+	  3.0f.
+	*/
+	float slider_knob_span;
+	/**
+	  Where the user grabbed the slider knob.
+	*/
+	float slider_knob_grab_offset;
+
+	/**
 	  The color of the slider knob (if the
 	  slider knob is being used).
 
@@ -2037,7 +2050,17 @@ typedef struct phos_gui_value_bar_component
 	  @see slider_knob_shape
 	*/
 	Color slider_knob_color;
+	/**
+	  The color of the slider knob (if the
+	  slider knob is being used) when the
+	  user hovers over or grabs the slider
+	  knob.
 
+	  This is PHOS_GUI_COLOR_GRAY by default.
+
+	  @see slider_knob_shape
+	*/
+	Color slider_knob_focus_color;
 	/**
 	  The color of the current value, or
 	  the progress bar.
@@ -2067,6 +2090,22 @@ typedef struct phos_gui_value_bar_component
 	  By default, this is false.
 	*/
 	bool editable;
+
+	/**
+	  Whether or not the slider knob on the value
+	  bar was grabbed this frame.
+	*/
+	bool slider_knob_grabbed;
+	/**
+	  Whether or not the slider knob on the value
+	  bar was released this frame.
+	*/
+	bool slider_knob_released;
+	/**
+	  Whether or not the sldier knob on the bar
+	  has focus.
+	*/
+	bool slider_knob_has_focus;
 } phos_gui_value_bar_component;
 
 /**
@@ -2400,15 +2439,13 @@ typedef struct phos_gui_event_listener
 	phos_gui_opts opts;
 
 	/**
-	  If listening for a mouse event, this determines
-	  the mouse button to listen for.
+	  Indicates the target button or key the event
+	  listener should listen for.
+
+	  This could be MOUSE_BUTTON_LEFT, KEY_ESCAPE,
+	  etc.
 	*/
-	MouseButton mouse_btn;
-	/**
-	  If listening for a key event, this determines
-	  the key to listen for.
-	*/
-	KeyboardKey key;
+	int target_btn;
 } phos_gui_event_listener;
 
 /**
@@ -3215,6 +3252,22 @@ PHOS_GUI_API phos_gui_elem *phos_gui_get_mouse_target(void);
 */
 PHOS_GUI_API int phos_gui_add_event_listener(phos_gui *gui, phos_gui_event_listener listener);
 /**
+  Creates and adds an event listener to the given phos_gui.
+
+  @param gui The GUI to add the event listener to.
+  @param target_elem Points to the target element
+  if there is one.
+  @param event The event to listen for.
+  @param target_button The target button/key in the event.
+  @param opts Any additional options you want to use
+  in the action function.
+ e@param action The action the event listener should
+  execute when the event occurs.
+
+  @see phos_gui_add_event_listener(phos_gui*, phos_gui_event_listener)
+*/
+PHOS_GUI_API int phos_gui_new_event_listener(phos_gui *gui, phos_gui_elem *target_elem, phos_gui_event_type event, int target_button, phos_gui_opts opts, phos_gui_event_listener_action action);
+/**
   Adds a timer to the given phos_gui.
 
   @return 1 on success, 0 on failure.
@@ -3272,6 +3325,22 @@ PHOS_GUI_API void phos_gui_update(float dt);
   this function automatically renders it.
 */
 PHOS_GUI_API void phos_gui_render(void);
+/**
+  Renders the given shape at the given position
+  and size.
+
+  @note The 'round_rect_corner_radius' and 'outline_thickness'
+  fields are used exclusively for the rounded rectangle shape.
+*/
+PHOS_GUI_API void phos_gui_fill_shape(phos_gui_shape shape, float x, float y, float w, float h, float outline_thickness, float round_rect_corner_radius, Color color);
+/**
+  Renders the outline of the given shape at the
+  given position and size.
+
+  @note The 'round_rect_corner_radius' field is used
+  exclusively for the rounded rectangle shape.
+*/
+PHOS_GUI_API void phos_gui_outline_shape(phos_gui_shape shape, float x, float y, float w, float h, float outline_thickness, float round_rect_corner_radius, Color color);
 /**
   Renders the given element. If the element
   has any children, its children are

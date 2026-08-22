@@ -1,4 +1,4 @@
-#include <float.h>
+#include <time.h>
 #include <math.h>
 #include <ctype.h>
 #include "dynamic_array_spellbook.h"
@@ -610,9 +610,15 @@ static void init_value_bar_component(void *value_bar_component)
 	value_bar->curr_value = 0.0f;
 	value_bar->slider_knob_shape = PHOS_GUI_SHAPE_RECT;
 	value_bar->slider_knob_corner_radius = 0.0f;
+	value_bar->slider_knob_span = phos_gui_get_rect_size(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE)).y * 3.0f;
+	value_bar->slider_knob_grab_offset = 0.0f;
 	value_bar->slider_knob_color = WHITE;
+	value_bar->slider_knob_focus_color = PHOS_GUI_COLOR_GRAY;
 	value_bar->progress_color = PHOS_GUI_COLOR_GREEN;
 	value_bar->editable = false;
+	value_bar->slider_knob_grabbed = false;
+	value_bar->slider_knob_released = false;
+	value_bar->slider_knob_has_focus = false;
 
 	// re-apply default theme to elem
 	phos_gui_apply_theme_to_elem(owner, phos_gui_get_default_theme());
@@ -664,6 +670,9 @@ int phos_gui_init()
 
 	// fill icon map
 	phos_gui_set_icon(PHOS_GUI_ICON_DOWN_ARROW, "icons/down_arrow.png");
+
+	// change seed for rand()
+	srand((unsigned int) time(NULL));
 
 	init = true;
 	vl_log(VL_SUCCESS, "Initialized PhosphorusGUI!\n");
@@ -2793,6 +2802,17 @@ int phos_gui_add_event_listener(phos_gui *gui, phos_gui_event_listener listener)
 
 	return 1;
 }
+int phos_gui_new_event_listener(phos_gui *gui, phos_gui_elem *target_elem, phos_gui_event_type event, int target_button, phos_gui_opts opts, phos_gui_event_listener_action action)
+{
+	phos_gui_event_listener listener = {0};
+	listener.elem = target_elem;
+	listener.event = event;
+	listener.target_btn = target_button;
+	listener.opts = opts;
+	listener.action = action;
+
+	return phos_gui_add_event_listener(gui, listener);
+}
 int phos_gui_add_timer(phos_gui *gui, phos_gui_timer timer)
 {
 	if(!gui)
@@ -3487,6 +3507,39 @@ static float get_elem_total_content_height(phos_gui_elem *e)
 
 	return tch;
 }
+static void get_slider_knob_rect(const phos_gui_value_bar_component *const value_bar, Rectangle *out_rect)
+{
+	if(!out_rect)
+		return;
+
+	// start out with invalid rectangle
+	Rectangle slider_knob = {0};
+	*out_rect = slider_knob;
+
+	// get owner of value bar
+	phos_gui_elem *owner = pluto_cs_get_owner(value_bar);
+	if(!owner)
+		return;
+
+	Rectangle track = owner->content_free_bounds.rect;
+
+	slider_knob.width = value_bar->slider_knob_span;
+	slider_knob.height = slider_knob.width;
+
+	float t = value_bar->curr_value / value_bar->max_value;
+	t = Clamp(t, 0.0f, 1.0f);
+
+	// where to put slider knob horizontally:
+	float half_knob_width = slider_knob.width / 2.0f;
+	float min_center_x = track.x + half_knob_width;
+	float max_center_x = track.x + track.width - half_knob_width;
+	float center_x = min_center_x + t * (max_center_x - min_center_x);
+
+	slider_knob.x = center_x - half_knob_width;
+	slider_knob.y = track.y + ((track.height - slider_knob.height) / 2.0f);
+
+	*out_rect = slider_knob;
+}
 static void get_scroll_bar_rects(const phos_gui_scroll_pane_component *const scroll_pane, Rectangle *out_v_bar, Rectangle *out_v_thumb, Rectangle *out_h_bar, Rectangle *out_h_thumb)
 {
 	// no scrolling enabled, return
@@ -3742,6 +3795,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 	Vector2 mouse_wheel_move = GetMouseWheelMoveV();
 	bool mouse_clicked = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
 	bool mouse_down = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+	bool mouse_released = IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
 	// see if mouse over element (if the current elem is the mouse target, that guarantees that the mouse is over the elem
 	bool mouse_over_elem = e == mouse_target;
 
@@ -3818,7 +3872,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 			if(curr_travel_elem == e)
 			{
 				// if this elem has a text component, hitting enter would insert a new line, and it has focus, ENTER should not act as a mouse-press
-				if(!text && !text->enter_inserts_new_line && !mouse_listener->has_focus)
+				if(text && !text->enter_inserts_new_line && !mouse_listener->has_focus)
 				{
 					if(IsKeyPressed(KEY_ENTER))
 					{
@@ -4121,9 +4175,6 @@ static void update_elem(phos_gui_elem *e, float dt)
 			// only update elements within container if it's expanded
 			if(drop_down->expanded)
 			{
-				// update elements within container
-				//update_elem(drop_down->container, dt);
-
 				// see which element in the container was clicked
 				for(size_t i = 0; i < drop_down->container->num_children; ++i)
 				{
@@ -4176,6 +4227,55 @@ static void update_elem(phos_gui_elem *e, float dt)
 		if(child_text && parent_text)
 			// parent text becomes child text
 			phos_gui_set_text_contents(parent_text, PHOS_GUI_TARGET_MAIN_TEXT, child_text->str, PHOS_GUI_OPTS_NONE);
+	}
+
+	// slider knob logic
+	phos_gui_value_bar_component *value_bar = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_VALUE_BAR);
+	if(value_bar)
+	{
+		// get slider knob rect and check for mouse over it
+		Rectangle slider_knob_rect;
+		get_slider_knob_rect(value_bar, &slider_knob_rect);
+
+		float progress_bar_width = (value_bar->curr_value / value_bar->max_value) * e->content_free_bounds.rect.width;
+
+		// reset focus state
+		value_bar->slider_knob_has_focus = false;
+
+		// same logic as scroll pane (let user grab once and then be able to move mouse anywhere and it remain grabbed)
+		bool mouse_over_slider_knob = phos_gui_is_mouse_over_rect(slider_knob_rect);
+		if(mouse_over_slider_knob)
+			value_bar->slider_knob_has_focus = true;
+
+		// check to see if user lets go of knob
+		value_bar->slider_knob_released = false;
+		if(value_bar->slider_knob_grabbed && mouse_released)
+			value_bar->slider_knob_released = true;
+
+		if(mouse_down && mouse_over_slider_knob || (mouse_down && value_bar->slider_knob_grabbed))
+		{
+			value_bar->slider_knob_has_focus = true;
+
+			if(!value_bar->slider_knob_grabbed)
+			{
+				value_bar->slider_knob_grabbed = true;
+				value_bar->slider_knob_grab_offset = mouse_pos.x - slider_knob_rect.x;
+			}
+
+			float track_x = e->content_free_bounds.rect.x;
+			float knob_travel = e->content_free_bounds.rect.width - slider_knob_rect.width;
+
+			if(knob_travel > 0.0f)
+			{
+				float desired_knob_x = mouse_pos.x - value_bar->slider_knob_grab_offset;
+				float knob_offset = desired_knob_x - track_x;
+				float t = knob_offset / knob_travel;
+				t = Clamp(t, 0.0f, 1.0f);
+				value_bar->curr_value = value_bar->min_value + t * (value_bar->max_value - value_bar->min_value);
+			}
+		}
+		else
+			value_bar->slider_knob_grabbed = false;
 	}
 
 	// update child elements
@@ -4232,11 +4332,11 @@ static bool run_event_listener(phos_gui_event_listener *listener)
 	const phos_gui_mouse_listener_component *const mouse_listener = elem ? pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER) : NULL;
 
 	// check event conditions:
-	bool mouse_clicked = elem && mouse_listener ? mouse_listener->clicked : IsMouseButtonPressed(listener->mouse_btn);
-	bool mouse_down = elem && mouse_listener ? mouse_listener->pressed : IsMouseButtonDown(listener->mouse_btn);
+	bool mouse_clicked = elem && mouse_listener ? mouse_listener->clicked : IsMouseButtonPressed(listener->target_btn);
+	bool mouse_down = elem && mouse_listener ? mouse_listener->pressed : IsMouseButtonDown(listener->target_btn);
 	bool mouse_hovered = elem && mouse_listener ? mouse_listener->hovered : phos_gui_is_mouse_over_rect(window_rect);
-	bool key_clicked = IsKeyPressed(listener->key);
-	bool key_down = IsKeyDown(listener->key);
+	bool key_clicked = IsKeyPressed(listener->target_btn);
+	bool key_down = IsKeyDown(listener->target_btn);
 
 	bool can_execute = false;
 	switch(event)
@@ -4556,10 +4656,6 @@ static void render_elem(phos_gui_elem *e)
 		return;
 	}
 
-	// create elem ellipse info:
-	const float e_rx = e->bounds.width / 2.0f;
-	const float e_ry = e->bounds.height / 2.0f;
-
 	// draw elem texture if it has a texture component and render mode indicates the texture should be rendered
 	phos_gui_texture_component *texture = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXTURE);
 	if(e->render_mode == PHOS_GUI_RENDER_TEXTURE && texture && texture->src && IsTextureValid(*texture->src))
@@ -4576,31 +4672,7 @@ static void render_elem(phos_gui_elem *e)
 		if(primary_color.a == 0)
 			vl_delay_log(VL_WARNING, 5.0f, "Cannot render element with 0 alpha: '%s'!\n", e->ID);
 
-		switch(e->shape)
-		{
-			case PHOS_GUI_SHAPE_RECT:
-				DrawRectanglePro(e->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, primary_color);
-				break;
-			case PHOS_GUI_SHAPE_ELLIPSE:
-				DrawEllipse(e->bounds.x + e_rx, e->bounds.y + e_ry, e_rx, e_ry, primary_color);
-				break;
-			case PHOS_GUI_SHAPE_ROUND_RECT:
-			{
-				Rectangle r = e->bounds;
-				float t = e->outline_thickness;
-
-				r.x += t;
-				r.y += t;
-				r.width -= t * 2.0f;
-				r.height -= t * 2.0f;
-
-				DrawRectangleRounded(r, e->corner_radius, ROUND_RECT_SEGMENTS, primary_color);
-				break;
-			}
-			default:
-				vl_log(VL_ERROR, "Invalid element shape: %d!\n", e->shape);
-				break;
-		}
+		phos_gui_fill_shape(e->shape, e->bounds.x, e->bounds.y, e->bounds.width, e->bounds.height, e->outline_thickness, e->corner_radius, primary_color);
 	}
 
 	// render progress bar over background immediately
@@ -4620,6 +4692,16 @@ static void render_elem(phos_gui_elem *e)
 		float value_bar_width = percentage_complete * usable_content_bounds.width;
 
 		DrawRectangle(usable_content_bounds.x, usable_content_bounds.y, value_bar_width, usable_content_bounds.height, value_bar->progress_color);
+
+		// if value bar is a slider, render slider knob
+		if(value_bar->editable)
+		{
+			Rectangle slider_knob_rect;
+			get_slider_knob_rect(value_bar, &slider_knob_rect);
+
+			Color slider_knob_color = value_bar->slider_knob_has_focus ? value_bar->slider_knob_focus_color : value_bar->slider_knob_color;
+			phos_gui_fill_shape(value_bar->slider_knob_shape, slider_knob_rect.x, slider_knob_rect.y, slider_knob_rect.width, slider_knob_rect.height, 1.0f, value_bar->slider_knob_corner_radius, slider_knob_color);
+		}
 	}
 
 	// get mouse listener component
@@ -4844,31 +4926,7 @@ static void render_elem(phos_gui_elem *e)
 			if(outline_color.a == 0)
 				vl_delay_log(VL_WARNING, 5.0f, "Cannot render element outline with 0 alpha: '%s'!\n", e->ID);
 
-			switch(e->shape)
-			{
-				case PHOS_GUI_SHAPE_RECT:
-					DrawRectangleLinesEx(e->bounds, e->outline_thickness, outline_color);
-					break;
-				case PHOS_GUI_SHAPE_ELLIPSE:
-					render_ellipse_outline(phos_gui_get_rect_pos(e->bounds), e_rx, e_ry, e->outline_thickness, outline_color);
-					break;
-				case PHOS_GUI_SHAPE_ROUND_RECT:
-				{
-					Rectangle r = e->bounds;
-					float t = e->outline_thickness;
-					
-					r.x += t;
-					r.y += t;
-					r.width -= t * 2.0f;
-					r.height -= t * 2.0f;
-
-					DrawRectangleRoundedLinesEx(r, e->corner_radius, ROUND_RECT_SEGMENTS, t, outline_color);
-					break;
-				}
-				default:
-					vl_log(VL_ERROR, "Invalid element shape: %d!\n", e->shape);
-					break;
-			}
+			phos_gui_outline_shape(e->shape, e->bounds.x, e->bounds.y, e->bounds.width, e->bounds.height, e->outline_thickness, e->corner_radius, outline_color);
 		}
 	}
 
@@ -5036,6 +5094,58 @@ void phos_gui_render()
 	if(!ColorIsEqual(screen_tint, BLANK))
 		DrawRectangleRec(PHOS_GUI_WINDOW_RECT, screen_tint);
 }
+void phos_gui_fill_shape(phos_gui_shape shape, float x, float y, float w, float h, float outline_thickness, float round_rect_corner_radius, Color color)
+{
+	Rectangle rect = { x, y, w, h };
+	switch(shape)
+	{
+		case PHOS_GUI_SHAPE_RECT:
+			DrawRectanglePro(rect, PHOS_GUI_WINDOW_ORIGIN, 0.0f, color);
+			break;
+		case PHOS_GUI_SHAPE_ELLIPSE:
+			DrawEllipse(rect.x + rect.width / 2.0f, rect.y + rect.height / 2.0f, rect.width / 2.0f, rect.height / 2.0f, color);
+			break;
+		case PHOS_GUI_SHAPE_ROUND_RECT:
+			{
+				rect.x += outline_thickness;
+				rect.y += outline_thickness;
+				rect.width -= outline_thickness * 2.0f;
+				rect.height -= outline_thickness * 2.0f;
+
+				DrawRectangleRounded(rect, round_rect_corner_radius, ROUND_RECT_SEGMENTS, color);
+				break;
+			}
+		default:
+			vl_log(VL_ERROR, "Cannot render invalid shape: %d!\n", shape);
+			break;
+	}
+}
+void phos_gui_outline_shape(phos_gui_shape shape, float x, float y, float w, float h, float outline_thickness, float round_rect_corner_radius, Color color)
+{
+	Rectangle rect = { x, y, w, h };
+	switch(shape)
+	{
+		case PHOS_GUI_SHAPE_RECT:
+			DrawRectangleLinesEx(rect, outline_thickness, color);
+			break;
+		case PHOS_GUI_SHAPE_ELLIPSE:
+			render_ellipse_outline(phos_gui_get_rect_pos(rect), rect.width / 2.0f, rect.height / 2.0f, outline_thickness, color);
+			break;
+		case PHOS_GUI_SHAPE_ROUND_RECT:
+			{
+				rect.x += outline_thickness;
+				rect.y += outline_thickness;
+				rect.width -= outline_thickness * 2.0f;
+				rect.height -= outline_thickness * 2.0f;
+
+				DrawRectangleRoundedLinesEx(rect, round_rect_corner_radius, ROUND_RECT_SEGMENTS, outline_thickness, color);
+				break;
+			}
+		default:
+			vl_log(VL_ERROR, "Cannot render invalid shape: %d!\n", shape);
+			break;
+	}
+}
 void phos_gui_render_elem(phos_gui_elem *elem)
 {
 	if(!elem)
@@ -5172,7 +5282,8 @@ void phos_gui_apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
 	if(value_bar)
 	{
 		value_bar->progress_color = ColorBrightness(ColorContrast(theme.bg_color, 0.6f), -0.2f);
-		value_bar->slider_knob_color = value_bar->progress_color;
+		value_bar->slider_knob_color = ColorBrightness(value_bar->progress_color, -0.4f);
+		value_bar->slider_knob_focus_color = ColorBrightness(value_bar->progress_color, -0.2f);
 	}
 
 
