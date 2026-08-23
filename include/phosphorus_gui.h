@@ -591,6 +591,10 @@
 */
 #define PHOS_GUI_THEME_ELECTRIC phos_gui_create_theme_basic(PHOS_GUI_COLOR_BRIGHT_YELLOW)
 /**
+  A theme revolving around orange and pink.
+*/
+#define PHOS_GUI_THEME_FLOWERS phos_gui_create_theme_accented(PHOS_GUI_COLOR_BRIGHT_ORANGE, PHOS_GUI_COLOR_BRIGHT_PINK)
+/**
   A theme revolving around green.
 */
 #define PHOS_GUI_THEME_FOREST phos_gui_create_theme_accented(PHOS_GUI_COLOR_DULL_GREEN, PHOS_GUI_COLOR_DARK_GREEN)
@@ -714,6 +718,10 @@
   A theme revolving around marine ecosystems.
 */
 #define PHOS_GUI_THEME_SEAWEED phos_gui_create_theme_full(PHOS_GUI_COLOR_CORAL, PHOS_GUI_COLOR_DULL_GREEN, PHOS_GUI_COLOR_DARK_CRYSTAL, PHOS_GUI_COLOR_DULL_BLUE, PHOS_GUI_COLOR_DARK_SKY_BLUE, PHOS_GUI_COLOR_DARK_TEAL)
+/**
+  A theme revolving around orange and yellow.
+*/
+#define PHOS_GUI_THEME_SUNLIGHT phos_gui_create_theme_accented(PHOS_GUI_COLOR_ORANGE, PHOS_GUI_COLOR_YELLOW)
 /**
   A theme revolving around blue, red, and yellow.
 */

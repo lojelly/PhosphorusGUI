@@ -2015,7 +2015,7 @@ void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y,
 	phos_gui_text_component *text_component = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_TEXT);
 	if(!text_component)
 		phos_gui_exit(EXIT_FAILURE);
-	phos_gui_set_text_contents(text_component, PHOS_GUI_TARGET_MAIN_TEXT, text, PHOS_GUI_OPTS_NONE);
+	phos_gui_set_text_contents(text_component, PHOS_GUI_TARGET_MAIN_TEXT, text, PHOS_GUI_OPTS_FIT_TEXT);
 
 	// create mouse listener component
 	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
