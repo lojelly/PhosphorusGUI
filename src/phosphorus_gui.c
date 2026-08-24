@@ -2841,6 +2841,67 @@ int phos_gui_new_timer(phos_gui *gui, phos_gui_timer_action action, void *args, 
 
 	return phos_gui_add_timer(gui, timer);
 }
+int phos_gui_add_animation(phos_gui *gui, phos_gui_animation animation)
+{
+	if(!gui)
+	{
+		vl_log(VL_ERROR, "To add an animation, the phos_gui cannot be NULL!\n");
+		return 0;
+	}
+	if(!animation.curr_value)
+	{
+		vl_log(VL_ERROR, "Cannot create an animation with a NULL starting value!\n");
+		return 0;
+	}
+	if(animation.duration <= 0.0f)
+	{
+		vl_log(VL_ERROR, "Cannot use an animation with a duration <= 0.0f!\n");
+		return 0;
+	}
+
+	// add the anim to the gui
+	if(gui->num_anims >= PHOS_GUI_MAX_ANIMATIONS)
+	{
+		vl_log(VL_WARNING, "No more animations can be added to this phos_gui: '%s'!\n", gui->ID);
+		return 0;
+	}
+
+	// calculate 'step' field in animation
+	float delta = animation.end_value - *animation.curr_value;
+
+	// no need to animate if nothing changes
+	if(delta == 0.0f)
+	{
+		vl_log(VL_WARNING, "This animation will not result in any changes!\n");
+		return 0;
+	}
+
+	float num_steps = delta / animation.step;
+	animation.target_time = animation.duration / num_steps;
+	animation.curr_time = 0.0f;
+
+	gui->anims[gui->num_anims++] = animation;
+
+	return 1;
+}
+int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, int execution_count)
+{
+	if(!curr_value)
+	{
+		vl_log(VL_ERROR, "Cannot create an animation with a NULL starting value.\n");
+		return 0;
+	}
+
+	phos_gui_animation anim = {0};
+	anim.elem = elem;
+	anim.curr_value = curr_value;
+	anim.end_value = end_value;
+	anim.duration = duration;
+	anim.step = step;
+	anim.execution_count = execution_count;
+
+	return phos_gui_add_animation(gui, anim);
+}
 
 static void backspace(phos_gui_text_component *t)
 {
@@ -4368,22 +4429,16 @@ static bool run_event_listener(phos_gui_event_listener *listener)
 }
 static void update_timer(phos_gui_timer *timer, float dt)
 {
-	if(!timer)
-	{
-		vl_delay_log(VL_ERROR, 3.0f, "Unable to update NULL timer!\n");
-		return;
-	}
-
-	// if timer has 0 execution_count or less than -1 execution_count by default, do not execute
+	// if 'execution_count' is 0 or less than -1, do not execute
 	if(timer->execution_count == 0 || timer->execution_count < -1)
 		return;
 
 	// add delta time to curr time
 	timer->curr_time += dt;
 	// reset curr time if it hits target time
-	if(timer->curr_time >= timer->target_time)
+	if(timer->curr_time >= timer->target_time) // TODO change if to while?
 	{
-		timer->curr_time = 0.0f;
+		timer->curr_time -= timer->target_time;
 
 		// execute timer action
 		if(timer->action)
@@ -4394,6 +4449,31 @@ static void update_timer(phos_gui_timer *timer, float dt)
 			// minus one loop from timer
 			timer->execution_count--;
 	}
+}
+static void update_anim(phos_gui_animation *anim, float dt)
+{
+	// if 'execution_count' is 0 or less than -1, do not animate
+	if(anim->execution_count == 0 || anim->execution_count < -1)
+		return;
+
+	// add delta time to curr time
+	anim->curr_time += dt;
+	while(anim->curr_time >= anim->target_time)
+	{
+		anim->curr_time -= anim->target_time;
+
+		// update animation frame
+		*anim->curr_value += anim->step;
+	}
+
+	// once curr value reaches end value, determine if anim should loop
+	if(*anim->curr_value >= anim->end_value)
+		if(anim->execution_count > 0)
+			anim->execution_count--;
+
+	// should an element be reloaded?
+	if(anim->elem)
+		phos_gui_reload_elem(anim->elem);
 }
 void phos_gui_update(float dt)
 {
@@ -4455,12 +4535,13 @@ void phos_gui_update(float dt)
 	for(size_t i = 0; i < curr_gui->num_listeners; ++i)
 		run_event_listener(&curr_gui->listeners[i]);
 
-	// update timers
+	// update timers:
+
+	// use local copy of curr_gui->num_timers because this loop can decrement curr_gui->num_timers directly
 	size_t num_timers = curr_gui->num_timers;
 	for(size_t i = 0; i < num_timers; ++i)
 	{
 		phos_gui_timer *timer = &curr_gui->timers[i];
-		// use local copy of curr_gui->num_timers because update_timer(...) modifies curr_gui->num_timers
 		update_timer(timer, dt);
 
 		// check to see if this timer should be removed
@@ -4469,6 +4550,24 @@ void phos_gui_update(float dt)
 			// move all timers after current timer one to left
 			memmove(curr_gui->timers + i, curr_gui->timers + i + 1, (num_timers - i - 1) * sizeof(phos_gui_timer));
 			curr_gui->num_timers--;
+		}
+	}
+
+	// update anims:
+
+	// use local copy of curr_gui->num_anims because this loop can decremenet curr_gui->num_anims directly
+	size_t num_anims = curr_gui->num_anims;
+	for(size_t i = 0; i < num_anims; ++i)
+	{
+		phos_gui_animation *anim = &curr_gui->anims[i];
+		update_anim(anim, dt);
+
+		// check to see if this anim should be removed
+		if(anim->execution_count == 0)
+		{
+			// move all anims after current anim one to left
+			memmove(curr_gui->anims + i, curr_gui->anims + i + 1, (num_anims - i - 1) * sizeof(phos_gui_animation));
+			curr_gui->num_anims--;
 		}
 	}
 

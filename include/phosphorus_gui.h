@@ -53,6 +53,12 @@
 #define PHOS_GUI_MAX_TIMERS 32
 
 /**
+  The max number of animations that a single
+  phos_gui can hold.
+*/
+#define PHOS_GUI_MAX_ANIMATIONS 32
+
+/**
   The max length of an element's ID.
 */
 #define PHOS_GUI_MAX_ID_LEN 32
@@ -2512,6 +2518,77 @@ typedef struct phos_gui_timer
 } phos_gui_timer;
 
 /**
+  Animations are used to modify a float value
+  over time.
+*/
+typedef struct phos_gui_animation
+{
+	/**
+	  If this animation modifies
+	  an element directly, make this
+	  point to that element.
+
+	  PhosphorusGUI will need to reload
+	  that element as the animation
+	  modifies it so that all of its
+	  rectangles are updated correctly.
+
+	  If this is NULL, PhosphorusGUI
+	  assumes you are not modifying an element
+	  and therefore no reloading occurs.
+	*/
+	phos_gui_elem *elem;
+
+	/**
+	  The starting float value.
+	*/
+	float *curr_value;
+
+	/**
+	  The target end value.
+	*/
+	float end_value;
+
+	/**
+	  The total amount of seconds that should
+	  elapse during the animation.
+	*/
+	float duration;
+
+	/**
+	  The current time elapsed for this animation.
+
+	  @important Do not modify this value. PhosphorusGUI
+	  automatically updates it and tracks it.
+	*/
+	float curr_time;
+	/**
+	  The amount of time that must pass before an update
+	  to the animation is required.
+
+	  @important Do not modify this value. PhosphorusGUI
+	  automatically updates it and tracks it.
+	*/
+	float target_time;
+	/**
+	  The amount that 'curr_value' changes each frame.
+
+	  @note You can modify this value to tweak how fast
+	  or slow the animation moves.
+	*/
+	float step;
+
+	/**
+	  The number of times this animation
+	  should execute.
+
+	  Set this to -1 to indicate the animation
+	  should loop forever.
+	*/
+	int execution_count;
+} phos_gui_animation;
+
+/**
   The list of different icons for the program.
 
   All icons are stored in the 'icons' directory.
@@ -2631,17 +2708,21 @@ typedef struct phos_gui_theme
 typedef struct phos_gui
 {
 	/**
-	  The elements inside the GUI.
-	*/
-	phos_gui_elem *elems[PHOS_GUI_MAX_ELEMS];
-	/**
 	  The event listeners added to this GUI.
 	*/
 	phos_gui_event_listener listeners[PHOS_GUI_MAX_EVENT_LISTENERS];
 	/**
+	  The elements inside the GUI.
+	*/
+	phos_gui_elem *elems[PHOS_GUI_MAX_ELEMS];
+	/**
 	  The timers added to this GUI.
 	*/
 	phos_gui_timer timers[PHOS_GUI_MAX_TIMERS];
+	/**
+	  The animations added to this GUI.
+	*/
+	phos_gui_animation anims[PHOS_GUI_MAX_ANIMATIONS];
 
 	/**
 	  This GUI's ID.
@@ -2669,6 +2750,10 @@ typedef struct phos_gui
 	  The current amount of timers added to this GUI.
 	*/
 	size_t num_timers;
+	/**
+	  The current amount of animations added to this GUI.
+	*/
+	size_t num_anims;
 } phos_gui;
 
 
@@ -3287,6 +3372,18 @@ PHOS_GUI_API int phos_gui_add_timer(phos_gui *gui, phos_gui_timer timer);
   @see phos_gui_add_timer(phos_gui*, phos_gui_timer)
 */
 PHOS_GUI_API int phos_gui_new_timer(phos_gui *gui, phos_gui_timer_action action, void *args, float target_time, int execution_count);
+/**
+  Adds an animation to the given phos_gui.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_add_animation(phos_gui *gui, phos_gui_animation animation);
+/**
+  Creates and adds an animation to the given phos_gui.
+
+  @see phos_gui_add_animation(phos_gui*, phos_gui_animation)
+*/
+PHOS_GUI_API int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, int execution_count);
 
 /**
   Launches a custom program loop for PhosphorusGUI.
