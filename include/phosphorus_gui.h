@@ -41,6 +41,11 @@
 #define PHOS_GUI_MAX_CHILDREN 48
 
 /**
+  The max number of icons an element can store.
+*/
+#define PHOS_GUI_MAX_ICONS 16
+
+/**
   The max number of event listeners that a
   single phos_gui can hold.
 */
@@ -67,6 +72,12 @@
   The max length of a text component's string.
 */
 #define PHOS_GUI_MAX_TEXT_LEN 256
+
+/**
+  The max number of checkboxes a checkbox
+  list component can use.
+*/
+#define PHOS_GUI_MAX_CHECKBOXES 24
 
 /**
   The default font size for a text component.
@@ -108,6 +119,11 @@
   Largest pre-defined font size in PhosphorusGUI.
 */
 #define PHOS_GUI_FONT_SIZE_LARGEST PHOS_GUI_FONT_SIZE_XGIGANTIC
+
+/**
+  The size of icons in PhosphorusGUI.
+*/
+#define PHOS_GUI_ICON_SIZE 32.0f
 
 /**
   The window's origin.
@@ -1131,6 +1147,11 @@ typedef enum phos_gui_component_type
 	PHOS_GUI_COMPONENT_DROP_DOWN,
 
 	/**
+	  @see phos_gui_checkbox_list_component
+	*/
+	PHOS_GUI_COMPONENT_CHECKBOX_LIST,
+
+	/**
 	  @see phos_gui_value_bar_component
 	*/
 	PHOS_GUI_COMPONENT_VALUE_BAR,
@@ -1149,14 +1170,14 @@ typedef enum phos_gui_component_type
 	  @code
 	  enum my_components
 	  {
-		  C1 = PHOS_GUI_COMPONENT_LAST,
+		  C1 = PHOS_GUI_COMPONENT_MAX,
 		  C2,
 		  C3,
 		  ...
 	  }
 	  @endcode
 	*/
-	PHOS_GUI_COMPONENT_LAST
+	PHOS_GUI_COMPONENT_MAX
 } phos_gui_component_type;
 
 /**
@@ -1968,17 +1989,17 @@ typedef struct phos_gui_drag_pane_component
   A phos_gui_drop_down_component provides an element with the ability
   to have a list of options for the user to select from.
 
-  You should add a drop down component to the element representing
-  the drop down button.
+  You should add a drop-down component to the element representing
+  the drop-down button.
 */
 typedef struct phos_gui_drop_down_component
 {
 	/**
-	  The container the drop down will use.
+	  The container the dropdown will use.
 
 	  @important This should point to a child element
-	  on the drop down representing the main container
-	  holding the drop down's options.
+	  on the dropdown representing the main container
+	  holding the dropdown's options.
 	*/
 	struct phos_gui_elem *container;
 	/**
@@ -1989,11 +2010,52 @@ typedef struct phos_gui_drop_down_component
 	struct phos_gui_elem *selection;
 	
 	/**
-	  Whether or not the drop down is expanded.
+	  Whether or not the dropdown is expanded.
 	  By default, this is false.
 	*/
 	bool expanded;
 } phos_gui_drop_down_component;
+
+/**
+  A phos_gui_checkbox_list_component provides an element
+  with the ability to have a list of options for the
+  user to select from.
+*/
+typedef struct phos_gui_checkbox_list_component
+{
+	/**
+	  The elements in 'container' the user has chosen.
+	*/
+	struct phos_gui_elem *selections[PHOS_GUI_MAX_CHECKBOXES];
+
+	/**
+	  The container the checkbox list will use.
+
+	  @important This should point to a child element
+	  on the checkbox list representing the main
+	  container holding the individual checkbox
+	  elements within the list.
+	*/
+	struct phos_gui_elem *container;
+
+	/**
+	  The number of options the user can select
+	  within the list.
+
+	  By default, this is equal to 1, which means
+	  the user can only select one option at a time.
+
+	  Increase this value to let the user select more
+	  than one option at a time.
+
+	  @see PHOS_GUI_MAX_CHECKBOXES
+	*/
+	size_t num_available_options;
+	/**
+	  The current number of options the user has chosen.
+	*/
+	size_t num_options_selected;
+} phos_gui_checkbox_list_component;
 
 /**
   A phos_gui_value_bar_component provides an element
@@ -2120,7 +2182,66 @@ typedef struct phos_gui_value_bar_component
 	  has focus.
 	*/
 	bool slider_knob_has_focus;
+
+	/**
+	  Whether or not the slider knob
+	  should snap to each individual
+	  value in the value bar.
+
+	  This is false by default.
+	*/
+	bool slider_knob_snapping;
 } phos_gui_value_bar_component;
+
+/**
+  The list of different icons for the program.
+
+  All icons are stored in the 'icons' directory.
+  Because of this, PhosphorusGUI only needs
+  the actual icon file's name, and it automatically
+  looks for that icon in the 'icons' directory.
+*/
+typedef enum phos_gui_icon_id
+{
+	/**
+	  The down arrow icon.
+	*/
+	PHOS_GUI_ICON_ARROW_DOWN = 0,
+	/**
+	  The check mark icon.
+	*/
+	PHOS_GUI_ICON_CHECK_MARK,
+	/**
+	  The max number of icons.
+	*/
+	PHOS_GUI_ICON_MAX
+} phos_gui_icon_id;
+
+/**
+  Represents an actual icon object.
+
+  @see phos_gui_icon_id
+*/
+typedef struct phos_gui_icon
+{
+	/**
+	  The position and size of the icon.
+	*/
+	Rectangle bounds;
+	/**
+	  The icon ID to use.
+	*/
+	phos_gui_icon_id ID;
+	/**
+	  The color of the icon.
+	*/
+	Color color;
+	/**
+	  Whether or not the icon should
+	  be rendered.
+	*/
+	bool auto_render;
+} phos_gui_icon;
 
 /**
   Represents an actual bounding box for an element.
@@ -2161,6 +2282,11 @@ typedef struct phos_gui_elem
 	  This element's children.
 	*/
 	struct phos_gui_elem *children[PHOS_GUI_MAX_CHILDREN];
+
+	/**
+	  This element's icons.
+	*/
+	phos_gui_icon icons[PHOS_GUI_MAX_ICONS];
 
 	/**
 	  This UI element's ID.
@@ -2226,6 +2352,10 @@ typedef struct phos_gui_elem
 	  This element's number of children.
 	*/
 	size_t num_children;
+	/**
+	  This element's number of icons.
+	*/
+	size_t num_icons;
 
 	/**
 	  The type of this element.
@@ -2587,26 +2717,6 @@ typedef struct phos_gui_animation
 	*/
 	int execution_count;
 } phos_gui_animation;
-
-/**
-  The list of different icons for the program.
-
-  All icons are stored in the 'icons' directory.
-  Because of this, PhosphorusGUI only needs
-  the actual icon file's name, and it automatically
-  looks for that icon in the 'icons' directory.
-*/
-typedef enum phos_gui_icon
-{
-	/**
-	  The down arrow icon.
-	*/
-	PHOS_GUI_ICON_DOWN_ARROW = 0,
-	/**
-	  The max number of icons.
-	*/
-	PHOS_GUI_ICON_MAX
-} phos_gui_icon;
 
 /**
   A phos_gui_theme represents a custom and global set of
@@ -3074,6 +3184,13 @@ PHOS_GUI_API void phos_gui_make_text_fit_elem(phos_gui_text_component *text_comp
 PHOS_GUI_API void phos_gui_make_text_fit_rect(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, Rectangle rect);
 
 /**
+  Initializes an icon.
+
+  @note The default size of icons is equal
+  to PHOS_GUI_ICON_SIZE.
+*/
+PHOS_GUI_API void phos_gui_init_icon(phos_gui_icon *icon, phos_gui_icon_id ID, float x, float y);
+/**
   Sets some basic element attributes
   and puts the element in a valid state.
 
@@ -3119,16 +3236,36 @@ PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, 
 */
 PHOS_GUI_API void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui_text_wrap_mode wrap_mode);
 /**
-  Initializes an element and turns it into a drop down menu.
+  Initializes an element and turns it into a drop-down menu.
 
-  By default, drop down elements come with mouse listener components,
-  text components, and drop down components.
+  By default, drop-down elements come with mouse listener components,
+  text components, and drop-down components.
 
-  @note 'container_elem' should point to the container of the drop down menu.
+  @note 'container_elem' should point to the container of the drop-down menu.
 
   @see phos_gui_drop_down_component
 */
 PHOS_GUI_API void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text);
+/**
+  Initializes an element and turns it into a single checkbox.
+
+  By default, checkbox elements come with mouse listener components.
+
+  Additionally, checkbox elements start out a check mark icon in the center
+  of the element.
+
+  @see phos_gui_checkbox_list_component
+*/
+PHOS_GUI_API void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h);
+/**
+  Initializes an element and turns it into a checkbox list.
+
+  By default, checkbox list elements come with just
+  checkbox list components.
+
+  @see phos_gui_checkbox_list_component
+*/
+PHOS_GUI_API void phos_gui_init_checkbox_list(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem);
 
 /**
   Generates the background colors on a mouse listener component using brightness factors.
@@ -3233,6 +3370,29 @@ PHOS_GUI_API int phos_gui_remove_child_id(phos_gui_elem *parent, const char *ID)
   @see phos_gui_layout_component
 */
 PHOS_GUI_API int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts);
+/**
+  Adds an icon to an element.
+
+  @note An element cannot contain duplicate icons.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_add_icon_to_elem(phos_gui_icon icon, phos_gui_elem *elem);
+/**
+  Removes an icon from an element.
+
+  @note This function expects the ID of the
+  icon to remove.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_remove_icon_from_elem(phos_gui_icon_id ID, phos_gui_elem *elem);
+/**
+  Determines if an element contains the given icon,
+  and if it does, it returns a pointer to the icon on the element.
+  If the element does not have the icon, NULL is returned instead.
+*/
+PHOS_GUI_API phos_gui_icon *phos_gui_find_elem_icon(phos_gui_icon_id ID, phos_gui_elem *elem);
 /**
   Obtains a UI element with a specific ID.
 */
@@ -3438,11 +3598,23 @@ PHOS_GUI_API void phos_gui_fill_shape(phos_gui_shape shape, float x, float y, fl
 */
 PHOS_GUI_API void phos_gui_outline_shape(phos_gui_shape shape, float x, float y, float w, float h, float outline_thickness, float round_rect_corner_radius, Color color);
 /**
+  Updates the given element. If the element
+  has any children, its children are automatically
+  updated.
+*/
+PHOS_GUI_API void phos_gui_update_elem(phos_gui_elem *elem, float dt);
+/**
   Renders the given element. If the element
   has any children, its children are
   automatically rendered.
 */
 PHOS_GUI_API void phos_gui_render_elem(phos_gui_elem *elem);
+/**
+  Renders the given icon.
+
+  @see phos_gui_icon
+*/
+PHOS_GUI_API void phos_gui_render_icon(phos_gui_icon *icon);
 /**
   Generates a random color.
 */
@@ -3593,17 +3765,17 @@ PHOS_GUI_API Texture2D *phos_gui_load_texture(const char *file_path);
   @see phos_gui_load_texture(const char*)
   @see phos_gui_get_icon_str(const char*)
 */
-PHOS_GUI_API Texture2D *phos_gui_get_icon_id(phos_gui_icon icon);
+PHOS_GUI_API Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon);
 /**
   Obtains a texture for a specific icon using an icon string.
 
   For example, if you were obtaining the down arrow icon using its
-  ID, you would use phos_gui_get_icon_id(PHOS_GUI_ICON_DOWN_ARROW).
+  ID, you would use phos_gui_get_icon_id(PHOS_GUI_ICON_ARROW_DOWN).
   But this function expects a special string that matches the icon ID.
-  For PHOS_GUI_ICON_DOWN_ARROW, you could pass in "<icon_id=0>," or you
+  For PHOS_GUI_ICON_ARROW_DOWN, you could pass in "<icon_id=0>," or you
   could also pass in "<icon=DOWN_ARROW>." When using 'icon_id' you must
   pass in the ID of the icon, and in this case 0 corresponds to
-  PHOS_GUI_ICON_DOWN_ARROW. If using just 'icon' you must use the name
+  PHOS_GUI_ICON_ARROW_DOWN. If using just 'icon' you must use the name
   of the icon but omit the 'PHOS_GUI_' part of the name. This technique
   also works in text components. Just insert the same type of string
   into a text component's string and the icon will be rendered there
@@ -3621,7 +3793,7 @@ PHOS_GUI_API Texture2D *phos_gui_get_icon_id(phos_gui_icon icon);
   can directly edit the texture or use this function to use
   a different file entirely.
 */
-PHOS_GUI_API void phos_gui_set_icon(phos_gui_icon icon, const char *file_path);
+PHOS_GUI_API void phos_gui_set_icon(phos_gui_icon_id icon, const char *file_path);
 
 /**
   Loads a font.
@@ -3649,10 +3821,3 @@ PHOS_GUI_API void phos_gui_set_default_font(const char *file_path);
   Returns the defualt font or NULL if one was never set.
 */
 PHOS_GUI_API Font *phos_gui_get_default_font(void);
-
-/**
-  Returns a random float value in the range given.
-
-  @note The range is inclusive.
-*/
-PHOS_GUI_API float phos_gui_randf(float start, float end);

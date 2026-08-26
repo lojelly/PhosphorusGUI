@@ -82,7 +82,7 @@ typedef struct gui_arr
 // icon registry:
 typedef struct icon_map
 {
-	phos_gui_icon *keys;
+	phos_gui_icon_id *keys;
 	const char **values;
 	size_t size, capacity;
 } icon_map;
@@ -586,6 +586,17 @@ static void init_drop_down_component(void *drop_down_component)
 	drop_down->selection = NULL;
 	drop_down->expanded = false;
 }
+static void init_checkbox_list_component(void *checkbox_list_component)
+{
+	if(!checkbox_list_component)
+		return;
+
+	phos_gui_checkbox_list_component *list = checkbox_list_component;
+
+	list->container = NULL;
+	list->num_available_options = 1;
+	list->num_options_selected = 0;
+}
 static void init_value_bar_component(void *value_bar_component)
 {
 	if(!value_bar_component)
@@ -615,6 +626,7 @@ static void init_value_bar_component(void *value_bar_component)
 	value_bar->slider_knob_grabbed = false;
 	value_bar->slider_knob_released = false;
 	value_bar->slider_knob_has_focus = false;
+	value_bar->slider_knob_snapping = false;
 
 	// re-apply default theme to elem
 	phos_gui_apply_theme_to_elem(owner, phos_gui_get_default_theme());
@@ -659,13 +671,15 @@ int phos_gui_init()
 	pluto_cs_register(PHOS_GUI_COMPONENT_SCROLL_PANE, sizeof(phos_gui_scroll_pane_component), init_scroll_pane_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_DRAG_PANE, sizeof(phos_gui_drag_pane_component), init_drag_pane_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_DROP_DOWN, sizeof(phos_gui_drop_down_component), init_drop_down_component, NULL);
+	pluto_cs_register(PHOS_GUI_COMPONENT_CHECKBOX_LIST, sizeof(phos_gui_checkbox_list_component), init_checkbox_list_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_VALUE_BAR, sizeof(phos_gui_value_bar_component), init_value_bar_component, NULL);
 
 	// set default theme
 	default_theme = PHOS_GUI_THEME_MONOTONE;
 
 	// fill icon map
-	phos_gui_set_icon(PHOS_GUI_ICON_DOWN_ARROW, "icons/down_arrow.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_ARROW_DOWN, "icons/down_arrow.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_CHECK_MARK, "icons/check_mark.png");
 
 	// change seed for rand()
 	srand((unsigned int) time(NULL));
@@ -1956,6 +1970,22 @@ void phos_gui_make_text_fit_rect(phos_gui_text_component *text_component, phos_g
 	use_largest_possible_font_size(text_component, target_str, rect);
 }
 
+void phos_gui_init_icon(phos_gui_icon *icon, phos_gui_icon_id ID, float x, float y)
+{
+	if(!icon)
+	{
+		vl_log(VL_ERROR, "Cannot intitialize a null icon!\n");
+		return;
+	}
+
+	icon->bounds.width = PHOS_GUI_ICON_SIZE;
+	icon->bounds.height = PHOS_GUI_ICON_SIZE;
+	icon->bounds.x = x;
+	icon->bounds.y = y;
+	icon->ID = ID;
+	icon->color = default_theme.icon_color;
+	icon->auto_render = true;
+}
 void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h)
 {
 	if(!elem)
@@ -1974,6 +2004,7 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 	elem->gui = NULL;
 	elem->parent = NULL;
 	elem->num_children = 0;
+	elem->num_icons = 0;
 	elem->type = type;
 	elem->shape = PHOS_GUI_SHAPE_RECT;
 	elem->render_mode = render_mode;
@@ -2107,20 +2138,20 @@ void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float
 	}
 	if(!container_elem)
 	{
-		vl_log(VL_ERROR, "Cannot initialize a drop down with a NULL container element!\n");
+		vl_log(VL_ERROR, "Cannot initialize a dropdown with a NULL container element!\n");
 		return;
 	}
 
 	// first init elem as a button
 	phos_gui_init_button(elem, ID, x, y, w, h, text);
 
-	// add drop down component
+	// add drop-down component
 	phos_gui_drop_down_component *drop_down = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_DROP_DOWN);
 	if(!drop_down)
 		phos_gui_exit(EXIT_FAILURE);
 	// container element becomes a child to elem
 	phos_gui_add_child_to_elem(container_elem, elem, PHOS_GUI_OPTS_NONE);
-	// and point to the container elem in the drop down
+	// and point to the container elem in the dropdown
 	drop_down->container = container_elem;
 
 	// re-align text to inner left
@@ -2130,6 +2161,59 @@ void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float
 
 	// move container to elem pos
 	phos_gui_set_elem_pos(container_elem, elem->bounds.x, elem->bounds.y + elem->bounds.height, PHOS_GUI_OPTS_NONE);
+}
+void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot initialize a NULL element!\n");
+		return;
+	}
+
+	// first init elem as a button
+	phos_gui_init_button(elem, ID, x, y, w, h, " ");
+	// remove text component
+	pluto_cs_remove_component(elem, PHOS_GUI_COMPONENT_TEXT);
+
+	// make button only use outline (make outline thinner too)
+	elem->render_mode = PHOS_GUI_RENDER_OUTLINE;
+	elem->outline_thickness = 2.5f;
+
+	// add check mark icon to checkbox
+	phos_gui_icon check_mark = {0};
+	phos_gui_init_icon(&check_mark, PHOS_GUI_ICON_CHECK_MARK, elem->bounds.x + (elem->bounds.width - PHOS_GUI_ICON_SIZE) / 2.0f, elem->bounds.y + (elem->bounds.height - PHOS_GUI_ICON_SIZE) / 2.0f);
+	phos_gui_add_icon_to_elem(check_mark, elem);
+
+	// add way to toggle check mark
+	//TODO:
+	//phos_gui_event_listener listener = {0};
+}
+void phos_gui_init_checkbox_list(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot intialize a NULL element!\n");
+		return;
+	}
+	if(!container_elem)
+	{
+		vl_log(VL_ERROR, "Cannot initialize a checkbox list with a NULL container element!\n");
+		return;
+	}
+
+	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_INTERACTIVE, PHOS_GUI_RENDER_FILL_OUTLINE, x, y, w, h);
+
+	// add checkbox list component
+	phos_gui_checkbox_list_component *list = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_CHECKBOX_LIST);
+	if(!list)
+		phos_gui_exit(EXIT_FAILURE);
+	// container elem becomes a child to elem
+	phos_gui_add_child_to_elem(container_elem, elem, PHOS_GUI_OPTS_NONE);
+	// and point to the container elem in the checkbox list
+	list->container = container_elem;
+
+	// move container to elem pos
+	phos_gui_set_elem_pos(container_elem, elem->bounds.x, elem->bounds.y, PHOS_GUI_OPTS_NONE);
 }
 
 void phos_gui_gen_bg_colors(phos_gui_mouse_listener_component *mouse_listener, float hover_color_factor, float press_color_factor, float focus_color_factor)
@@ -2565,6 +2649,75 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 	}
 
 	return 1;
+}
+int phos_gui_add_icon_to_elem(phos_gui_icon icon, phos_gui_elem *elem)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Unable to add icon to NULL element!\n");
+		return 0;
+	}
+
+	if(elem->num_icons >= PHOS_GUI_MAX_ICONS)
+	{
+		vl_log(VL_ERROR, "This element cannot contain any more icons: '%s'!\n", elem->ID);
+		return 0;
+	}
+
+	// see if this would be a duplicate icon
+	if(phos_gui_find_elem_icon(icon.ID, elem))
+	{
+		vl_log(VL_ERROR, "This element '%s' already has this icon: %d!\n", elem->ID, icon.ID);
+		return 0;
+	}
+
+	elem->icons[elem->num_icons++] = icon;
+
+	vl_log(VL_SUCCESS, "Icon %d added to element '%s'!\n", icon.ID, elem->ID);
+
+	return 1;
+}
+int phos_gui_remove_icon_from_elem(phos_gui_icon_id ID, phos_gui_elem *elem)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot remove an icon from a NULL element!\n");
+		return 0;
+	}
+
+	// find icon in icons array
+	for(size_t i = 0; i < elem->num_icons; ++i)
+	{
+		phos_gui_icon *icon = &elem->icons[i];
+
+		if(icon->ID == ID)
+		{
+			// shift all icons to left
+			memmove(elem->icons + i, elem->icons + i + 1, (elem->num_icons - i - 1) * sizeof(phos_gui_icon));
+			elem->num_icons--;
+
+			vl_log(VL_SUCCESS, "Removed icon %d from element '%s'!\n", ID, elem->ID);
+			return 1;
+		}
+	}
+
+	// no match found
+	vl_log(VL_ERROR, "Failed to remove this icon %d from the element '%s'!\n", ID, elem->ID);
+	return 0;
+}
+phos_gui_icon *phos_gui_find_elem_icon(phos_gui_icon_id ID, phos_gui_elem *elem)
+{
+	if(!elem)
+	{
+		vl_delay_log(VL_ERROR, 5.0f, "Cannot determine if a NULL element has an icon!\n");
+		return NULL;
+	}
+
+	for(size_t i = 0; i < elem->num_icons; ++i)
+		if(elem->icons[i].ID == ID)
+			return &elem->icons[i];
+
+	return NULL;
 }
 phos_gui_elem *phos_gui_get_elem(const char *ID)
 {
@@ -4195,17 +4348,17 @@ static void update_elem(phos_gui_elem *e, float dt)
 			drag_pane->grabbed = false;
 	}
 
-	// drop down logic for the drop down button (must be combined with mouse listener to be interacted with)
+	// dropdown logic for the drop-down button (must be combined with mouse listener to be interacted with)
 	phos_gui_drop_down_component *drop_down = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_DROP_DOWN);
 	if(drop_down && mouse_listener)
 	{
-		// see if button was clicked, and if so, toggle drop down's expanded state
+		// see if button was clicked, and if so, toggle dropdown's expanded state
 		if(mouse_listener->clicked)
 			drop_down->expanded = !drop_down->expanded;
 
 		bool selection_made = false;
 
-		// see if the drop down was supplied a container
+		// see if the dropdown was supplied a container
 		if(drop_down->container)
 		{
 			// reset scroll amounts on scroll pane if necessary
@@ -4220,7 +4373,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 				container_scroll_pane->scroll_y = 0.0f;
 			}
 
-			// the container will render if the drop down is expanded
+			// the container will render if the dropdown is expanded
 			drop_down->container->auto_render = drop_down->expanded;
 
 			// only update elements within container if it's expanded
@@ -4247,12 +4400,12 @@ static void update_elem(phos_gui_elem *e, float dt)
 			// see if an element was chosen by user
 			if(drop_down->selection && selection_made)
 			{
-				// modify contents of drop down button to match selection's text
+				// modify contents of drop-down button to match selection's text
 				phos_gui_text_component *container_option_elem_text = pluto_cs_get_component(drop_down->selection, PHOS_GUI_COMPONENT_TEXT);
 				if(container_option_elem_text && text)
 					phos_gui_set_text_contents(text, PHOS_GUI_TARGET_MAIN_TEXT, container_option_elem_text->str, PHOS_GUI_OPTS_NONE);
 
-				// collapse drop down list
+				// collapse drop-down list
 				drop_down->expanded = false;
 				// the container is guaranteed to be a valid pointer because 'selection_made' is true
 				drop_down->container->auto_render = false;
@@ -4260,11 +4413,11 @@ static void update_elem(phos_gui_elem *e, float dt)
 		}
 	}
 
-	// drop down logic for the container (parent of 'e' must have a drop down component)
+	// dropdown logic for the container (parent of 'e' must have a drop-down component)
 	phos_gui_drop_down_component *parent_drop_down = NULL;
 	if(e->parent)
 		parent_drop_down = pluto_cs_get_component(e->parent, PHOS_GUI_COMPONENT_DROP_DOWN);
-	// see if the parent has a drop down and 'e' has a mouse listener
+	// see if the parent has a dropdown and 'e' has a mouse listener
 	if(parent_drop_down && mouse_listener)
 	{
 		// if 'e' was clicked, that means the selected elem in 'parent_drop_down' becomes 'e'
@@ -4323,6 +4476,11 @@ static void update_elem(phos_gui_elem *e, float dt)
 				float t = knob_offset / knob_travel;
 				t = Clamp(t, 0.0f, 1.0f);
 				value_bar->curr_value = value_bar->min_value + t * (value_bar->max_value - value_bar->min_value);
+
+				// see if slider knob has snapping enabled
+				if(value_bar->slider_knob_snapping)
+					// round up to next value
+					value_bar->curr_value = (int) (value_bar->curr_value + 0.5f);
 			}
 		}
 		else
@@ -4704,10 +4862,27 @@ static Color resolve_elem_outline_color(const phos_gui_elem *const e)
 }
 
 static void render_children(phos_gui_elem *e, phos_gui_elem_bounding_box bounds);
+static void render_icon(phos_gui_icon *icon)
+{
+	// skip icons that should not auto-render
+	if(!icon->auto_render)
+		return;
+
+	// try to obtain icon texture
+	Texture2D *tex = phos_gui_get_icon_id(icon->ID);
+	if(!tex)
+	{
+		vl_delay_log(VL_ERROR, 5.0f, "Failed to render icon with ID: %d!\n", icon->ID);
+		return;
+	}
+
+	Rectangle src_rect = { 0, 0, PHOS_GUI_ICON_SIZE, PHOS_GUI_ICON_SIZE };
+	DrawTexturePro(*tex, src_rect, icon->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, icon->color);
+}
 static void render_elem(phos_gui_elem *e)
 {
-	// if elem should not be auto-rendered, skip it
-	if(!e->auto_render)
+	// skip disabled elems or elems that should not be auto-rendered
+	if(e->disabled || !e->auto_render)
 		return;
 
 	// cannot render invalid elements
@@ -4752,7 +4927,8 @@ static void render_elem(phos_gui_elem *e)
 		if(primary_color.a == 0)
 			vl_delay_log(VL_WARNING, 5.0f, "Cannot render element with 0 alpha: '%s'!\n", e->ID);
 
-		DrawTextureV(*texture->src, phos_gui_get_rect_pos(e->bounds), primary_color);
+		Rectangle src_rect = { 0, 0, texture->src->width, texture->src->height };
+		DrawTexturePro(*texture->src, src_rect, e->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, primary_color);
 	}
 	// else just draw base shape (if set)
 	else if(e->render_mode == PHOS_GUI_RENDER_FILL_OUTLINE || e->render_mode == PHOS_GUI_RENDER_FILL)
@@ -5107,24 +5283,13 @@ static void render_elem(phos_gui_elem *e)
 		}
 	}
 
-	// see if this elem has a drop down component
-	phos_gui_drop_down_component *drop_down = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_DROP_DOWN);
-	if(drop_down)
-	{
-		// render down arrow icon on drop down button when it's not expanded
-		Texture2D* down_arrow = phos_gui_get_icon_id(PHOS_GUI_ICON_DOWN_ARROW);
-		if(!drop_down->expanded && down_arrow)
-		{
-			// add extra spacing on right side by multiplying icon width by 1.25f
-			float x = usable_content_bounds.x + usable_content_bounds.width - down_arrow->width * 1.25f;
-			float y = usable_content_bounds.y + ((usable_content_bounds.height - down_arrow->height) / 2.0f);
-			DrawTextureV(*down_arrow, (Vector2) { x, y }, default_theme.icon_color);
-		}
-	}
-
 	// render child elements:
 	render_children:
 	render_children(e, child_clip_bounds);
+
+	// render icons on the element:
+	for(size_t i = 0; i < e->num_icons; ++i)
+		render_icon(&e->icons[i]);
 }
 static void render_children(phos_gui_elem *e, phos_gui_elem_bounding_box bounds)
 {
@@ -5238,6 +5403,16 @@ void phos_gui_outline_shape(phos_gui_shape shape, float x, float y, float w, flo
 			break;
 	}
 }
+void phos_gui_update_elem(phos_gui_elem *elem, float dt)
+{
+	if(!elem)
+	{
+		vl_delay_log(VL_ERROR, 3.0f, "Cannot update NULL element!\n");
+		return;
+	}
+
+	update_elem(elem, dt);
+}
 void phos_gui_render_elem(phos_gui_elem *elem)
 {
 	if(!elem)
@@ -5247,6 +5422,16 @@ void phos_gui_render_elem(phos_gui_elem *elem)
 	}
 
 	render_elem(elem);
+}
+void phos_gui_render_icon(phos_gui_icon *icon)
+{
+	if(!icon)
+	{
+		vl_delay_log(VL_ERROR, 3.0f, "Cannot render NULL icon!\n");
+		return;
+	}
+
+	render_icon(icon);
 }
 Color phos_gui_random_color()
 {
@@ -5270,7 +5455,7 @@ phos_gui_theme phos_gui_create_theme_basic(Color base_color)
 	theme.outline_focus_color = theme.outline_color;
 	theme.decoration_color = ColorContrast(base_color, -0.3f);
 	theme.text_color = ColorBrightness(base_color, -0.75f);
-	theme.icon_color = ColorContrast(base_color, 0.5f);
+	theme.icon_color = ColorContrast(base_color, -0.5f);
 	theme.window_bg_color = ColorBrightness(base_color, -0.9f);
 	theme.outline_thickness = 5.0f;
 
@@ -5290,7 +5475,7 @@ phos_gui_theme phos_gui_create_theme_accented(Color base_color, Color accent_col
 	theme.outline_focus_color = theme.outline_color;
 	theme.decoration_color = ColorContrast(accent_color, -0.3f);
 	theme.text_color = ColorBrightness(accent_color, -0.75f);
-	theme.icon_color = ColorContrast(accent_color, 0.5f);
+	theme.icon_color = ColorContrast(accent_color, -0.5f);
 	theme.window_bg_color = PHOS_GUI_COLOR_MIX(ColorContrast(accent_color, -0.65f), ColorBrightness(accent_color, -0.8f));
 	theme.outline_thickness = 5.0f;
 
@@ -5378,6 +5563,12 @@ void phos_gui_apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
 		value_bar->slider_knob_focus_color = ColorBrightness(value_bar->progress_color, -0.2f);
 	}
 
+	// apply icon color to all icons in the elem
+	for(size_t i = 0; i < elem->num_icons; ++i)
+	{
+		phos_gui_icon *icon = &elem->icons[i];
+		icon->color = theme.icon_color;
+	}
 
 	// force recalculation of elem rects because outline thickness changed:
 	force_calculate_elem_rects(elem);
@@ -5525,7 +5716,7 @@ Texture2D *phos_gui_load_texture(const char *file_path)
 
 	return &textures.data[textures.size - 1].tex;
 }
-Texture2D *phos_gui_get_icon_id(phos_gui_icon icon)
+Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon)
 {
 	// return loaded texture at icon's file path in the icon map
 	const char **icon_file_path_value = NULL;
@@ -5588,7 +5779,7 @@ Texture2D *phos_gui_get_icon_id(phos_gui_icon icon)
 
 		// parse name
 		if(strcmp(icon_name, "DOWN_ARROW"))
-			return phos_gui_get_icon_id(PHOS_GUI_ICON_DOWN_ARROW);
+			return phos_gui_get_icon_id(PHOS_GUI_ICON_ARROW_DOWN);
 		else
 		{
 			vl_log(VL_ERROR, "Invalid icon name given: '%s'!\n", icon_name);
@@ -5599,7 +5790,7 @@ Texture2D *phos_gui_get_icon_id(phos_gui_icon icon)
 	// unable to parse because an invalid string was given
 	return NULL;
 }*/
-void phos_gui_set_icon(phos_gui_icon icon, const char *file_path)
+void phos_gui_set_icon(phos_gui_icon_id icon, const char *file_path)
 {
 	map_add(&icons, icon, file_path);
 	vl_log(VL_INFO, "Icon %d loaded with texture '%s'!\n", icon, file_path);
@@ -5650,9 +5841,4 @@ void phos_gui_set_default_font(const char *file_path)
 Font *phos_gui_get_default_font()
 {
 	return default_font;
-}
-
-float phos_gui_randf(float start, float end)
-{
-	return ((float) rand() / (float) (RAND_MAX)) * (end - start);
 }
