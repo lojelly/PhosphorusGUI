@@ -3189,8 +3189,8 @@ PHOS_GUI_API int phos_gui_remove_elem_from_gui_id(const char *ID, phos_gui *gui)
 
   @important This function expects the child's position
   to be relative to the parent's position. For example, a child with
-  a position of (0, 0) indicates it's top left corner is at the same
-  position as the parent's top left corner.
+  a position of (0, 0) indicates it's top-left corner is at the same
+  position as the parent's top-left corner.
 
   @return 1 on success, 0 on failure.
 
@@ -3300,18 +3300,6 @@ PHOS_GUI_API void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID
   @return 1 on success, 0 on failure.
 */
 PHOS_GUI_API int phos_gui_init_window(const char *title, int width, int height, unsigned int flags);
-/**
-  Sets the global window scale in PhosphorusGUI.
-
-  If your window is using a custom aspect ratio or
-  scaling method, the mouse information PhosphorusGUI
-  reads may be incorrect. This function will let
-  PhosphorusGUI know more about the window and your
-  program.
-
-  @note This function does not affect the window.
-*/
-PHOS_GUI_API void phos_gui_set_window_scale(float x, float y);
 
 /**
   Obtains the current mouse position. This function
@@ -3436,6 +3424,9 @@ PHOS_GUI_API void phos_gui_render(void);
 
   @note The 'round_rect_corner_radius' and 'outline_thickness'
   fields are used exclusively for the rounded rectangle shape.
+  PhosphorusGUI renders and handles rounded rectangles a little
+  differently than Raylib, which requires outline thickness
+  for this function.
 */
 PHOS_GUI_API void phos_gui_fill_shape(phos_gui_shape shape, float x, float y, float w, float h, float outline_thickness, float round_rect_corner_radius, Color color);
 /**

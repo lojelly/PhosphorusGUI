@@ -133,10 +133,6 @@ static phos_gui *curr_gui = NULL;
 static phos_gui_elem *curr_travel_elem = NULL;
 static bool resolve_focus_on_start_elem = false;
 
-// window info:
-static float win_scale_x = 1.0f;
-static float win_scale_y = 1.0f;
-
 static Font *default_font = NULL;
 
 // clip regions:
@@ -2754,11 +2750,6 @@ int phos_gui_init_window(const char *title, int width, int height, unsigned int 
 
 	return 1;
 }
-void phos_gui_set_window_scale(float x, float y)
-{
-	win_scale_x = x;
-	win_scale_y = y;
-}
 
 Vector2 phos_gui_get_mouse_pos()
 {
@@ -2766,17 +2757,16 @@ Vector2 phos_gui_get_mouse_pos()
 	Vector2 mouse_pos = GetMousePosition();
 
 	// window scale
-	mouse_pos.x /= win_scale_x;
-	mouse_pos.y /= win_scale_y;
+	float scale_x = (float) GetScreenWidth() / GetRenderWidth();
+	float scale_y = (float) GetScreenHeight() / GetRenderHeight();
+	mouse_pos.x /= scale_x;
+	mouse_pos.y /= scale_y;
 
 	return mouse_pos;
 }
 bool phos_gui_is_mouse_over_rect(Rectangle r)
 {
-	// get mouse pos
 	Vector2 mouse_pos = phos_gui_get_mouse_pos();
-
-	// is mouse pos within the rectangle?
 	return CheckCollisionPointRec(mouse_pos, r);
 }
 phos_gui_elem *phos_gui_get_mouse_target()
@@ -4762,8 +4752,7 @@ static void render_elem(phos_gui_elem *e)
 		if(primary_color.a == 0)
 			vl_delay_log(VL_WARNING, 5.0f, "Cannot render element with 0 alpha: '%s'!\n", e->ID);
 
-		Rectangle src_rect = { 0, 0, texture->src->width, texture->src->height };
-		DrawTexturePro(*texture->src, src_rect, e->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, primary_color);
+		DrawTextureV(*texture->src, phos_gui_get_rect_pos(e->bounds), primary_color);
 	}
 	// else just draw base shape (if set)
 	else if(e->render_mode == PHOS_GUI_RENDER_FILL_OUTLINE || e->render_mode == PHOS_GUI_RENDER_FILL)
@@ -4790,7 +4779,9 @@ static void render_elem(phos_gui_elem *e)
 		   */
 		float value_bar_width = percentage_complete * usable_content_bounds.width;
 
-		DrawRectangle(usable_content_bounds.x, usable_content_bounds.y, value_bar_width, usable_content_bounds.height, value_bar->progress_color);
+		Rectangle progress_bar_rect = usable_content_bounds;
+		progress_bar_rect.width = value_bar_width;
+		DrawRectangleRec(progress_bar_rect, value_bar->progress_color);
 
 		// if value bar is a slider, render slider knob
 		if(value_bar->editable)
@@ -4843,7 +4834,8 @@ static void render_elem(phos_gui_elem *e)
 					if(strlen(text->str) > 0 && text->editable && mouse_listener && mouse_listener->has_focus)
 					{
 						Vector2 cursor_pos = get_cursor_draw_pos(text, scroll_pane);
-						DrawRectangle(cursor_pos.x, cursor_pos.y, CURSOR_WIDTH, text->font_size, text->color);
+						Rectangle cursor_rect = { cursor_pos.x, cursor_pos.y, CURSOR_WIDTH, text->font_size };
+						DrawRectangleRec(cursor_rect, text->color);
 					}
 
 					// end clip
@@ -5068,7 +5060,7 @@ static void render_elem(phos_gui_elem *e)
 			switch(scroll_pane->v_bar.thumb_shape)
 			{
 				case PHOS_GUI_SHAPE_RECT:
-					DrawRectanglePro(v_thumb, PHOS_GUI_WINDOW_ORIGIN, 0.0f, v_thumb_color);
+					DrawRectangleRec(v_thumb, v_thumb_color);
 					break;
 				case PHOS_GUI_SHAPE_ELLIPSE:
 					{
@@ -5095,7 +5087,7 @@ static void render_elem(phos_gui_elem *e)
 			switch(scroll_pane->h_bar.thumb_shape)
 			{
 				case PHOS_GUI_SHAPE_RECT:
-					DrawRectanglePro(h_thumb, PHOS_GUI_WINDOW_ORIGIN, 0.0f, h_thumb_color);
+					DrawRectangleRec(h_thumb, h_thumb_color);
 					break;
 				case PHOS_GUI_SHAPE_ELLIPSE:
 					{
@@ -5123,9 +5115,10 @@ static void render_elem(phos_gui_elem *e)
 		Texture2D* down_arrow = phos_gui_get_icon_id(PHOS_GUI_ICON_DOWN_ARROW);
 		if(!drop_down->expanded && down_arrow)
 		{
+			// add extra spacing on right side by multiplying icon width by 1.25f
 			float x = usable_content_bounds.x + usable_content_bounds.width - down_arrow->width * 1.25f;
 			float y = usable_content_bounds.y + ((usable_content_bounds.height - down_arrow->height) / 2.0f);
-			DrawTexture(*down_arrow, x, y, default_theme.icon_color);
+			DrawTextureV(*down_arrow, (Vector2) { x, y }, default_theme.icon_color);
 		}
 	}
 
@@ -5199,7 +5192,7 @@ void phos_gui_fill_shape(phos_gui_shape shape, float x, float y, float w, float 
 	switch(shape)
 	{
 		case PHOS_GUI_SHAPE_RECT:
-			DrawRectanglePro(rect, PHOS_GUI_WINDOW_ORIGIN, 0.0f, color);
+			DrawRectangleRec(rect, color);
 			break;
 		case PHOS_GUI_SHAPE_ELLIPSE:
 			DrawEllipse(rect.x + rect.width / 2.0f, rect.y + rect.height / 2.0f, rect.width / 2.0f, rect.height / 2.0f, color);
