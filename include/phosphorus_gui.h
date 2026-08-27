@@ -722,7 +722,7 @@
 /**
   A theme revolving around retro terminals.
 */
-#define PHOS_GUI_THEME_RETRO_TERMINAL (phos_gui_theme) { \
+#define PHOS_GUI_THEME_RETRO_TERMINAL phos_gui_saturate_theme((phos_gui_theme) { \
 	.bg_color = PHOS_GUI_COLOR_DULL_GREEN, \
 	.outline_color = PHOS_GUI_COLOR_DARK_GREEN, \
 	.bg_hover_color = ColorBrightness(PHOS_GUI_COLOR_DULL_GREEN, -0.1f), \
@@ -735,7 +735,7 @@
 	.text_color = ColorBrightness(PHOS_GUI_COLOR_DARK_GREEN, -0.2f), \
 	.icon_color = ColorContrast(PHOS_GUI_COLOR_DARK_GREEN, -0.2f), \
 	.window_bg_color = ColorBrightness(PHOS_GUI_COLOR_DARK_GREEN, -0.5f), \
-	.outline_thickness = 5.0f }
+	.outline_thickness = 5.0f }, 0.05f)
 /**
   A theme revolving around marine ecosystems.
 */
@@ -1317,9 +1317,6 @@ typedef struct phos_gui_mouse_listener_component
 	  The background hover color.
 
 	  This color is used when the mouse is hovering over the element.
-
-	  @important When the mouse listener's type is PHOS_GUI_MOUSE_LISTENER_TOGGLED,
-	  this color is used to tint the current color of the element.
 	*/
 	Color bg_hover_color;
 	/**
@@ -1327,18 +1324,12 @@ typedef struct phos_gui_mouse_listener_component
 
 	  This color is used when the mouse is held down while hovered over
 	  the element.
-
-	  @important When the mouse listener's type is PHOS_GUI_MOUSE_LISTENER_TOGGLED,
-	  this color is used to tint the current color of the element.
 	*/
 	Color bg_press_color;
 	/**
 	  The background focus color.
 
 	  This color is used when the element currently has focus.
-
-	  @important When the mouse listener's type is PHOS_GUI_MOUSE_LISTENER_TOGGLED,
-	  this color represents the toggled-on color.
 	*/
 	Color bg_focus_color;
 
@@ -1346,9 +1337,6 @@ typedef struct phos_gui_mouse_listener_component
 	  The outline hover color.
 
 	  This color is used when the mouse is hovering over the element.
-
-	  @important When the mouse listener's type is PHOS_GUI_MOUSE_LISTENER_TOGGLED,
-	  this color is used to tint the current color of the element.
 	*/
 	Color outline_hover_color;
 	/**
@@ -1356,44 +1344,39 @@ typedef struct phos_gui_mouse_listener_component
 
 	  This color is used when the mouse is held down while hovered over
 	  the element.
-
-	  @important When the mouse listener's type is PHOS_GUI_MOUSE_LISTENER_TOGGLED,
-	  this color is used to tint the current color of the element.
 	*/
 	Color outline_press_color;
 	/**
 	  The outline focus color.
 
 	  This color is used when the element currently has focus.
-
-	  @important When the mouse listener's type is PHOS_GUI_MOUSE_LISTENER_TOGGLED,
-	  this color represents the toggled-on color.
 	*/
 	Color outline_focus_color;
 
 	/**
 	  Whether or not the element was clicked this frame.
-
-	  @note This value is only modified when the mouse listener
-	  uses the PHOS_GUI_MOUSE_LISTENER_DEFAULT type.
 	*/
 	bool clicked;
 	/**
 	  Whether or not the element is being held down.
-
-	  This value is used no matter what the type of the mouse
-	  listener is.
 	*/
 	bool pressed;
+	/**
+	  Whether or not the element was released this frame.
+	*/
+	bool released;
 	/**
 	  Whether or not the element was toggled this frame.
 
 	  @note For a mouse listener to be toggled on/off, set the mouse listeners's
-	  type to PHOS_GUI_BUTTON_TOGGLED.
+	  type to PHOS_GUI_MOUSE_LISTENER_TOGGLED.
 	*/
 	bool toggled;
 	/**
 	  Whether or not the element is toggled on.
+
+	  @note For a mouse listener to be toggled on/off, set the mouse listener's
+	  type to PHOS_GUI_MOUSE_LISTENER_TOGGLED.
 	*/
 	bool toggled_on;
 	/**
@@ -2523,6 +2506,10 @@ typedef enum phos_gui_event_type
 	*/
 	PHOS_GUI_EVENT_MOUSE_DOWN,
 	/**
+	  Used to listen for the mouse being released.
+	*/
+	PHOS_GUI_EVENT_MOUSE_RELEASE,
+	/**
 	  Used to listen for a single key press.
 	*/
 	PHOS_GUI_EVENT_KEY_CLICK,
@@ -3197,7 +3184,7 @@ PHOS_GUI_API void phos_gui_init_icon(phos_gui_icon *icon, phos_gui_icon_id ID, f
   @note The element uses the default theme of PhosphorusGUI
   when initialized.
 */
-PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h);
+PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h, phos_gui *gui);
 /**
   Initializes an element and turns it into a button element.
 
@@ -3205,7 +3192,7 @@ PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_g
   and text components. The text component is initialized with the
   'text' string given.
 */
-PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text);
+PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text, phos_gui *gui);
 /**
   Initializes an element and turns it into a text field element.
 
@@ -3217,7 +3204,7 @@ PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, floa
   @important If a placeholder string is given, then this function
   will make the placeholder text fit the element.
 */
-PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text);
+PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui *gui);
 /**
   Initializes an element and turns it into a text area element.
 
@@ -3234,7 +3221,7 @@ PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, 
 
   @see phos_gui_init_text_field(phos_gui_elem*, phos_gui_elem*, const char*, float, float, float, float, const char*, const char*)
 */
-PHOS_GUI_API void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui_text_wrap_mode wrap_mode);
+PHOS_GUI_API void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui_text_wrap_mode wrap_mode, phos_gui *gui);
 /**
   Initializes an element and turns it into a drop-down menu.
 
@@ -3245,7 +3232,7 @@ PHOS_GUI_API void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, f
 
   @see phos_gui_drop_down_component
 */
-PHOS_GUI_API void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text);
+PHOS_GUI_API void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text, phos_gui *gui);
 /**
   Initializes an element and turns it into a single checkbox.
 
@@ -3256,7 +3243,7 @@ PHOS_GUI_API void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, f
 
   @see phos_gui_checkbox_list_component
 */
-PHOS_GUI_API void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h);
+PHOS_GUI_API void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui *gui);
 /**
   Initializes an element and turns it into a checkbox list.
 
@@ -3265,7 +3252,26 @@ PHOS_GUI_API void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, fl
 
   @see phos_gui_checkbox_list_component
 */
-PHOS_GUI_API void phos_gui_init_checkbox_list(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem);
+PHOS_GUI_API void phos_gui_init_checkbox_list(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, phos_gui *gui);
+/**
+  Initializes an element and turns it into a simple value bar.
+
+  By default, value bar elements come with just
+  value bar components.
+
+  @see phos_gui_value_bar_component
+*/
+PHOS_GUI_API void phos_gui_init_value_bar(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value, phos_gui *gui);
+/**
+  Initializes an element and turns it into a slider using a
+  value bar component.
+
+  By default, slider elements come with just
+  value bar components.
+
+  @see phos_gui_value_bar_component
+*/
+PHOS_GUI_API void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value, phos_gui *gui);
 
 /**
   Generates the background colors on a mouse listener component using brightness factors.
@@ -3377,7 +3383,7 @@ PHOS_GUI_API int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts o
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_add_icon_to_elem(phos_gui_icon icon, phos_gui_elem *elem);
+PHOS_GUI_API int phos_gui_add_elem_icon(phos_gui_elem *elem, phos_gui_icon icon);
 /**
   Removes an icon from an element.
 
@@ -3386,13 +3392,13 @@ PHOS_GUI_API int phos_gui_add_icon_to_elem(phos_gui_icon icon, phos_gui_elem *el
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_remove_icon_from_elem(phos_gui_icon_id ID, phos_gui_elem *elem);
+PHOS_GUI_API int phos_gui_remove_elem_icon(phos_gui_elem *elem, phos_gui_icon_id ID);
 /**
   Determines if an element contains the given icon,
   and if it does, it returns a pointer to the icon on the element.
   If the element does not have the icon, NULL is returned instead.
 */
-PHOS_GUI_API phos_gui_icon *phos_gui_find_elem_icon(phos_gui_icon_id ID, phos_gui_elem *elem);
+PHOS_GUI_API phos_gui_icon *phos_gui_find_elem_icon(phos_gui_elem *elem, phos_gui_icon_id ID);
 /**
   Obtains a UI element with a specific ID.
 */

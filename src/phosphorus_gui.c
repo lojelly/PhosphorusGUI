@@ -243,6 +243,7 @@ static void init_mouse_listener_component(void *mouse_listener_component)
 
 	listener->clicked = false;
 	listener->pressed = false;
+	listener->released = false;
 	listener->toggled = false;
 	listener->toggled_on = false;
 	listener->hovered = false;
@@ -1986,7 +1987,7 @@ void phos_gui_init_icon(phos_gui_icon *icon, phos_gui_icon_id ID, float x, float
 	icon->color = default_theme.icon_color;
 	icon->auto_render = true;
 }
-void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h)
+void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h, phos_gui *gui)
 {
 	if(!elem)
 	{
@@ -2026,8 +2027,10 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 	phos_gui_apply_theme_to_elem(elem, phos_gui_get_default_theme());
 
 	prepare_elem_rects_for_caching(elem);
+
+	phos_gui_add_elem_to_gui(elem, gui);
 }
-void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text)
+void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text, phos_gui *gui)
 {
 	if(!elem)
 	{
@@ -2036,7 +2039,7 @@ void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y,
 	}
 
 	// init element's basic attributes first
-	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_INTERACTIVE, PHOS_GUI_RENDER_FILL_OUTLINE, x, y, w, h);
+	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_INTERACTIVE, PHOS_GUI_RENDER_FILL_OUTLINE, x, y, w, h, gui);
 
 	// create text component
 	phos_gui_text_component *text_component = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_TEXT);
@@ -2049,7 +2052,7 @@ void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y,
 	if(!mouse_listener)
 		phos_gui_exit(EXIT_FAILURE);
 }
-void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text)
+void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui *gui)
 {
 	if(!elem)
 	{
@@ -2058,7 +2061,7 @@ void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, floa
 	}
 
 	// first, init elem as a button
-	phos_gui_init_button(elem, ID, x, y, w, h, main_text);
+	phos_gui_init_button(elem, ID, x, y, w, h, main_text, gui);
 
 	// now obtain text component and modify it so that element becomes a text field
 	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
@@ -2090,7 +2093,7 @@ void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, floa
 	text->alignment = PHOS_GUI_ALIGN_INNER_LEFT;
 	phos_gui_realign_elem_text(text);
 }
-void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui_text_wrap_mode wrap_mode)
+void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui_text_wrap_mode wrap_mode, phos_gui *gui)
 {
 	if(!elem)
 	{
@@ -2099,7 +2102,7 @@ void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float
 	}
 
 	// first, init elem as text field
-	phos_gui_init_text_field(elem, ID, x, y, w, h, main_text, placeholder_text);
+	phos_gui_init_text_field(elem, ID, x, y, w, h, main_text, placeholder_text, gui);
 
 	// check which wrap mode the user gave:
 	if(wrap_mode == PHOS_GUI_TEXT_WRAP_NONE)
@@ -2129,7 +2132,7 @@ void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float
 	text->font_size = PHOS_GUI_FONT_SIZE_MED;
 	phos_gui_realign_elem_text(text);
 }
-void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text)
+void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text, phos_gui *gui)
 {
 	if(!elem)
 	{
@@ -2143,7 +2146,7 @@ void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float
 	}
 
 	// first init elem as a button
-	phos_gui_init_button(elem, ID, x, y, w, h, text);
+	phos_gui_init_button(elem, ID, x, y, w, h, text, gui);
 
 	// add drop-down component
 	phos_gui_drop_down_component *drop_down = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_DROP_DOWN);
@@ -2162,7 +2165,14 @@ void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float
 	// move container to elem pos
 	phos_gui_set_elem_pos(container_elem, elem->bounds.x, elem->bounds.y + elem->bounds.height, PHOS_GUI_OPTS_NONE);
 }
-void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h)
+static void toggle_checkbox(phos_gui_elem *elem, phos_gui_opts opts)
+{
+	// first, ensure elem has check mark icon
+	phos_gui_icon *check_mark_icon = phos_gui_find_elem_icon(elem, PHOS_GUI_ICON_CHECK_MARK);
+	if(check_mark_icon)
+		check_mark_icon->auto_render = !check_mark_icon->auto_render;
+}
+void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui *gui)
 {
 	if(!elem)
 	{
@@ -2171,7 +2181,7 @@ void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float 
 	}
 
 	// first init elem as a button
-	phos_gui_init_button(elem, ID, x, y, w, h, " ");
+	phos_gui_init_button(elem, ID, x, y, w, h, " ", gui);
 	// remove text component
 	pluto_cs_remove_component(elem, PHOS_GUI_COMPONENT_TEXT);
 
@@ -2182,13 +2192,27 @@ void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float 
 	// add check mark icon to checkbox
 	phos_gui_icon check_mark = {0};
 	phos_gui_init_icon(&check_mark, PHOS_GUI_ICON_CHECK_MARK, elem->bounds.x + (elem->bounds.width - PHOS_GUI_ICON_SIZE) / 2.0f, elem->bounds.y + (elem->bounds.height - PHOS_GUI_ICON_SIZE) / 2.0f);
-	phos_gui_add_icon_to_elem(check_mark, elem);
+	phos_gui_add_elem_icon(elem, check_mark);
 
 	// add way to toggle check mark
-	//TODO:
-	//phos_gui_event_listener listener = {0};
+	phos_gui_event_listener listener = {0};
+	listener.elem = elem;
+	listener.event = PHOS_GUI_EVENT_MOUSE_CLICK;
+	listener.target_btn = MOUSE_BUTTON_LEFT;
+	listener.action = toggle_checkbox;
+	listener.opts = PHOS_GUI_OPTS_NONE;
+	phos_gui_add_event_listener(gui, listener);
+
+	// make mouse listener a toggle mouse listener
+	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+	mouse_listener->type = PHOS_GUI_MOUSE_LISTENER_TOGGLED;
+	phos_gui_gen_outline_colors(mouse_listener, -0.1f, -0.2f, 0.0f);
+
+	// checkbox is not selected by default
+	check_mark.auto_render = false;
+	mouse_listener->toggled_on = false;
 }
-void phos_gui_init_checkbox_list(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem)
+void phos_gui_init_checkbox_list(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, phos_gui *gui)
 {
 	if(!elem)
 	{
@@ -2201,7 +2225,7 @@ void phos_gui_init_checkbox_list(phos_gui_elem *elem, const char *ID, float x, f
 		return;
 	}
 
-	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_INTERACTIVE, PHOS_GUI_RENDER_FILL_OUTLINE, x, y, w, h);
+	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_INTERACTIVE, PHOS_GUI_RENDER_FILL_OUTLINE, x, y, w, h, gui);
 
 	// add checkbox list component
 	phos_gui_checkbox_list_component *list = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_CHECKBOX_LIST);
@@ -2214,6 +2238,40 @@ void phos_gui_init_checkbox_list(phos_gui_elem *elem, const char *ID, float x, f
 
 	// move container to elem pos
 	phos_gui_set_elem_pos(container_elem, elem->bounds.x, elem->bounds.y, PHOS_GUI_OPTS_NONE);
+}
+void phos_gui_init_value_bar(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value, phos_gui *gui)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot initialize a NULL element!\n");
+		return;
+	}
+
+	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_INTERACTIVE, PHOS_GUI_RENDER_FILL, x, y, w, h, gui);
+
+	// add value bar component
+	phos_gui_value_bar_component *value_bar = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_VALUE_BAR);
+	if(!value_bar)
+		phos_gui_exit(EXIT_FAILURE);
+	value_bar->min_value = min_value;
+	value_bar->max_value = max_value;
+	value_bar->curr_value = curr_value;
+}
+void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value, phos_gui *gui)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot initialize a NULL element!\n");
+		return;
+	}
+
+	phos_gui_init_value_bar(elem, ID, x, y, w, h, min_value, max_value, curr_value, gui);
+
+	// turn value bar into slider
+	phos_gui_value_bar_component *value_bar = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_VALUE_BAR);
+	value_bar->editable = true;
+	value_bar->slider_knob_shape = PHOS_GUI_SHAPE_ELLIPSE;
+	value_bar->slider_knob_snapping = true;
 }
 
 void phos_gui_gen_bg_colors(phos_gui_mouse_listener_component *mouse_listener, float hover_color_factor, float press_color_factor, float focus_color_factor)
@@ -2650,7 +2708,7 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 
 	return 1;
 }
-int phos_gui_add_icon_to_elem(phos_gui_icon icon, phos_gui_elem *elem)
+int phos_gui_add_elem_icon(phos_gui_elem *elem, phos_gui_icon icon)
 {
 	if(!elem)
 	{
@@ -2665,7 +2723,7 @@ int phos_gui_add_icon_to_elem(phos_gui_icon icon, phos_gui_elem *elem)
 	}
 
 	// see if this would be a duplicate icon
-	if(phos_gui_find_elem_icon(icon.ID, elem))
+	if(phos_gui_find_elem_icon(elem, icon.ID))
 	{
 		vl_log(VL_ERROR, "This element '%s' already has this icon: %d!\n", elem->ID, icon.ID);
 		return 0;
@@ -2677,7 +2735,7 @@ int phos_gui_add_icon_to_elem(phos_gui_icon icon, phos_gui_elem *elem)
 
 	return 1;
 }
-int phos_gui_remove_icon_from_elem(phos_gui_icon_id ID, phos_gui_elem *elem)
+int phos_gui_remove_icon_from_elem(phos_gui_elem *elem, phos_gui_icon_id ID)
 {
 	if(!elem)
 	{
@@ -2705,7 +2763,7 @@ int phos_gui_remove_icon_from_elem(phos_gui_icon_id ID, phos_gui_elem *elem)
 	vl_log(VL_ERROR, "Failed to remove this icon %d from the element '%s'!\n", ID, elem->ID);
 	return 0;
 }
-phos_gui_icon *phos_gui_find_elem_icon(phos_gui_icon_id ID, phos_gui_elem *elem)
+phos_gui_icon *phos_gui_find_elem_icon(phos_gui_elem *elem, phos_gui_icon_id ID)
 {
 	if(!elem)
 	{
@@ -4024,6 +4082,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 		mouse_listener->hovered = false;
 		mouse_listener->pressed = false;
 		mouse_listener->clicked = false;
+		mouse_listener->released = mouse_released;
 
 		if(mouse_over_elem)
 		{
@@ -4049,6 +4108,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 			{
 				if(mouse_clicked)
 				{
+					mouse_listener->clicked = true;
 					mouse_listener->toggled = true;
 					mouse_listener->toggled_on = !mouse_listener->toggled_on;
 					mouse_listener->has_focus = true;
@@ -4517,7 +4577,7 @@ void phos_gui_launch()
 	}
 }
 // return true on action executed, false on failure
-static bool run_event_listener(phos_gui_event_listener *listener)
+static void run_event_listener(phos_gui_event_listener *listener)
 {
 	phos_gui_event_type event = listener->event;
 	phos_gui_elem *elem = listener->elem;
@@ -4527,12 +4587,12 @@ static bool run_event_listener(phos_gui_event_listener *listener)
 	if(event == PHOS_GUI_EVENT_NONE)
 	{
 		vl_log(VL_ERROR, "Invalid event listener event: %d!\n", event);
-		return false;
+		return;
 	}
 	if(!action)
 	{
 		vl_log(VL_WARNING, "This event listener has a null action!\n");
-		return false;
+		return;
 	}
 
 	Rectangle window_rect = { 0, 0, GetRenderWidth(), GetRenderHeight() };
@@ -4543,6 +4603,7 @@ static bool run_event_listener(phos_gui_event_listener *listener)
 	// check event conditions:
 	bool mouse_clicked = elem && mouse_listener ? mouse_listener->clicked : IsMouseButtonPressed(listener->target_btn);
 	bool mouse_down = elem && mouse_listener ? mouse_listener->pressed : IsMouseButtonDown(listener->target_btn);
+	bool mouse_released = elem && mouse_listener ? mouse_listener->released : IsMouseButtonReleased(listener->target_btn);
 	bool mouse_hovered = elem && mouse_listener ? mouse_listener->hovered : phos_gui_is_mouse_over_rect(window_rect);
 	bool key_clicked = IsKeyPressed(listener->target_btn);
 	bool key_down = IsKeyDown(listener->target_btn);
@@ -4555,6 +4616,9 @@ static bool run_event_listener(phos_gui_event_listener *listener)
 			break;
 		case PHOS_GUI_EVENT_MOUSE_DOWN:
 			can_execute = mouse_down;
+			break;
+		case PHOS_GUI_EVENT_MOUSE_RELEASE:
+			can_execute = mouse_released;
 			break;
 		case PHOS_GUI_EVENT_KEY_CLICK:
 			can_execute = key_clicked;
@@ -4572,8 +4636,6 @@ static bool run_event_listener(phos_gui_event_listener *listener)
 	// execute action if conditions are true
 	if(can_execute)
 		action(elem, listener->opts);
-
-	return can_execute;
 }
 static void update_timer(phos_gui_timer *timer, float dt)
 {
@@ -4742,46 +4804,6 @@ static Color resolve_elem_bg_color(const phos_gui_elem *const e)
 	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
 	if(mouse_listener)
 	{
-		// first see if the mouse listener is using toggle style
-		if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_TOGGLED)
-		{
-			// see if it's on/off
-			if(mouse_listener->toggled_on)
-			{
-				// check to see if mouse button held down over element
-				if(mouse_listener->pressed)
-					color = ColorTint(mouse_listener->bg_focus_color, mouse_listener->bg_press_color);
-				// check to see if they only have the mouse over the element
-				else if(mouse_listener->hovered)
-					color = ColorTint(mouse_listener->bg_focus_color, mouse_listener->bg_hover_color);
-				else if(!mouse_listener->toggled_on)
-					// elem's primary bg color is the toggled-off color
-					color = e->bg_color;
-				// check to see if the elem has focus
-				else if(mouse_listener->has_focus)
-					color = mouse_listener->bg_focus_color;
-
-				return color;
-			}
-			else
-			{
-				// check to see if mouse button held down over element
-				if(mouse_listener->pressed)
-					color = ColorTint(e->bg_color, mouse_listener->bg_press_color);
-				// check to see if they only have the mouse over the element
-				else if(mouse_listener->hovered)
-					color = ColorTint(e->bg_color, mouse_listener->bg_hover_color);
-				else if(!mouse_listener->toggled_on)
-					// elem's primary bg color is the toggled-off color
-					color = e->bg_color;
-				// check to see if the elem has focus
-				else if(mouse_listener->has_focus)
-					color = ColorTint(e->bg_color, mouse_listener->bg_focus_color);
-
-				return color;
-			}
-		}
-
 		// check to see if mouse button held down over element
 		if(mouse_listener->pressed)
 			color = mouse_listener->bg_press_color;
@@ -4807,46 +4829,6 @@ static Color resolve_elem_outline_color(const phos_gui_elem *const e)
 	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
 	if(mouse_listener)
 	{
-		// first see if the mouse listener is using toggle style
-		if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_TOGGLED)
-		{
-			// see if it's on/off
-			if(mouse_listener->toggled_on)
-			{
-				// check to see if mouse button held down over element
-				if(mouse_listener->pressed)
-					color = ColorTint(mouse_listener->outline_focus_color, mouse_listener->outline_press_color);
-				// check to see if they only have the mouse over the element
-				else if(mouse_listener->hovered)
-					color = ColorTint(mouse_listener->outline_focus_color, mouse_listener->outline_hover_color);
-				else if(!mouse_listener->toggled_on)
-					// elem's primary bg color is the toggled-off color
-					color = e->outline_color;
-				// check to see if the elem has focus
-				else if(mouse_listener->has_focus)
-					color = mouse_listener->outline_focus_color;
-
-				return color;
-			}
-			else
-			{
-				// check to see if mouse button held down over element
-				if(mouse_listener->pressed)
-					color = ColorTint(e->outline_color, mouse_listener->outline_press_color);
-				// check to see if they only have the mouse over the element
-				else if(mouse_listener->hovered)
-					color = ColorTint(e->outline_color, mouse_listener->outline_hover_color);
-				else if(!mouse_listener->toggled_on)
-					// elem's primary bg color is the toggled-off color
-					color = e->outline_color;
-				// check to see if the elem has focus
-				else if(mouse_listener->has_focus)
-					color = ColorTint(e->outline_color, mouse_listener->outline_focus_color);
-
-				return color;
-			}
-		}
-
 		// check to see if mouse button held down over element
 		if(mouse_listener->pressed)
 			color = mouse_listener->outline_press_color;
