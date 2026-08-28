@@ -1125,32 +1125,30 @@ typedef enum phos_gui_component_type
 	  @see phos_gui_placeholder_text_extension
 	*/
 	PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT,
-
+	/**
+	  @see phos_gui_label_component
+	*/
+	PHOS_GUI_COMPONENT_LABEL,
 	/**
 	  @see phos_gui_layout_component
 	*/
 	PHOS_GUI_COMPONENT_LAYOUT,
-
 	/**
 	  @see phos_gui_scroll_pane_component
 	*/
 	PHOS_GUI_COMPONENT_SCROLL_PANE,
-
 	/**
 	  @see phos_gui_drag_pane_component
 	*/
 	PHOS_GUI_COMPONENT_DRAG_PANE,
-
 	/**
 	  @see phos_gui_drop_down_component
 	*/
 	PHOS_GUI_COMPONENT_DROP_DOWN,
-
 	/**
 	  @see phos_gui_checkbox_list_component
 	*/
 	PHOS_GUI_COMPONENT_CHECKBOX_LIST,
-
 	/**
 	  @see phos_gui_value_bar_component
 	*/
@@ -1658,6 +1656,52 @@ typedef struct phos_gui_placeholder_text_extension
 	*/
 	Color color;
 } phos_gui_placeholder_text_extension;
+
+/**
+  A phos_gui_label_component is very similar
+  to a text component but the text is never editable
+  and can reside outside of an element's content bounds.
+*/
+typedef struct phos_gui_label_component
+{
+	/**
+	  The label's text.
+	*/
+	char str[PHOS_GUI_MAX_TEXT_LEN + 1];
+
+	/**
+	  This label component's font.
+
+	  @important If you load the font yourself,
+	  it is up to you to unload it later. However,
+	  if you use phos_gui_load_font(...) instead,
+	  PhosphorusGUI will handle it all for you.
+	*/
+	Font *font;
+
+	/**
+	  The position of this label relative to its owner.
+	*/
+	Vector2 offset;
+
+	/**
+	  The size of the label's font.
+	*/
+	float font_size;
+
+	/**
+	  The alignment of the label.
+
+	  This is equal to PHOS_GUI_ALIGN_LEFT
+	  by default.
+	*/
+	phos_gui_alignment alignment;
+
+	/**
+	  The color of the label.
+	*/
+	Color color;
+} phos_gui_label_component;
 
 /**
   Indicates how layouts should resolve row and column
@@ -2635,6 +2679,31 @@ typedef struct phos_gui_timer
 } phos_gui_timer;
 
 /**
+  The different interpretations of an animation's
+  end value.
+*/
+typedef enum phos_gui_animation_end_value_interpretation
+{
+	/**
+	  The default interpretation.
+
+	  Indicates that the end value is absolute,
+	  meaning the end value is exactly what the
+	  user sets on the animation.
+	*/
+	PHOS_GUI_ANIMATION_END_VALUE_ABSOLUTE,
+	/**
+	  Indicates the end value is relative
+	  to the starting value.
+
+	  For example, if the starting value is 100 and the
+	  end value is 200, the actual end value
+	  is 300.
+	*/
+	PHOS_GUI_ANIMATION_END_VALUE_RELATIVE
+} phos_gui_animation_end_value_interpretation;
+
+/**
   Animations are used to modify a float value
   over time.
 */
@@ -3117,6 +3186,18 @@ PHOS_GUI_API Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_comp
 */
 PHOS_GUI_API Vector2 phos_gui_realign_elem_text(phos_gui_text_component *text_component);
 /**
+  Similar to phos_gui_align_elem_text(...) but is used for label components instead.
+
+  @note When aligning a label, the element's total bounds are used (includes the element's margins).
+*/
+PHOS_GUI_API Vector2 phos_gui_align_elem_label(phos_gui_label_component *label_component, phos_gui_alignment alignment);
+/**
+  Similar to phos_gui_realign_elem_text(...) but is used for label components instead.
+
+  @see phos_gui_align_elem_label(phos_gui_label_component*, phos_gui_alignment)
+*/
+PHOS_GUI_API Vector2 phos_gui_realign_elem_label(phos_gui_label_component *label_component);
+/**
   Calculates the position of 'target_elem' if it were aligned with 'reference_elem'
   using the given alignment, and then uses the calculated position to properly
   move 'target_elem.'
@@ -3537,7 +3618,7 @@ PHOS_GUI_API int phos_gui_add_animation(phos_gui *gui, phos_gui_animation animat
 
   @see phos_gui_add_animation(phos_gui*, phos_gui_animation)
 */
-PHOS_GUI_API int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, int execution_count);
+PHOS_GUI_API int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, int execution_count, phos_gui_animation_end_value_interpretation end_value_interpretation);
 
 /**
   Launches a custom program loop for PhosphorusGUI.

@@ -267,6 +267,7 @@ static void init_text_component(void *text_component)
 		return;
 	}
 
+	snprintf(text->str, sizeof(text->str), "");
 	text->font = default_font;
 	text->max_len = PHOS_GUI_MAX_TEXT_LEN;
 	text->curr_line_len = 0;
@@ -289,10 +290,6 @@ static void init_text_component(void *text_component)
 	text->accept_specials = true;
 	text->enter_inserts_new_line = false;
 	text->auto_indent = false;
-	snprintf(text->str, sizeof(text->str), "");
-
-	// enforce no additional text line spacing
-	SetTextLineSpacing(0);
 
 	// re-apply default theme to element
 	phos_gui_apply_theme_to_elem(owner, phos_gui_get_default_theme());
@@ -318,6 +315,7 @@ static void init_placeholder_text_extension(void *placeholder_text_component)
 		return;
 	}
 
+	snprintf(placeholder_text->str, sizeof(placeholder_text->str), "");
 	placeholder_text->host = host_text;
 
 	// match owners
@@ -327,7 +325,29 @@ static void init_placeholder_text_extension(void *placeholder_text_component)
 		return;
 	}
 
-	snprintf(placeholder_text->str, sizeof(placeholder_text->str), "");
+	// re-apply default theme to element
+	phos_gui_apply_theme_to_elem(elem, phos_gui_get_default_theme());
+}
+static void init_label_component(void *label_component)
+{
+	if(!label_component)
+		return;
+
+	phos_gui_label_component *label = label_component;
+
+	phos_gui_elem *elem = pluto_cs_get_owner(label);
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "No owner on label component!\n");
+		return;
+	}
+
+	snprintf(label->str, sizeof(label->str), "");
+	label->font = default_font;
+	label->offset = Vector2Zero();
+	label->font_size = PHOS_GUI_FONT_SIZE_DEFAULT;
+	label->alignment = PHOS_GUI_ALIGN_LEFT;
+	label->color = PHOS_GUI_COLOR_BLACK;
 
 	// re-apply default theme to element
 	phos_gui_apply_theme_to_elem(elem, phos_gui_get_default_theme());
@@ -668,6 +688,7 @@ int phos_gui_init()
 	pluto_cs_register(PHOS_GUI_COMPONENT_MOUSE_LISTENER, sizeof(phos_gui_mouse_listener_component), init_mouse_listener_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_TEXT, sizeof(phos_gui_text_component), init_text_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT, sizeof(phos_gui_placeholder_text_extension), init_placeholder_text_extension, NULL);
+	pluto_cs_register(PHOS_GUI_COMPONENT_LABEL, sizeof(phos_gui_label_component), init_label_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_LAYOUT, sizeof(phos_gui_layout_component), init_layout_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_SCROLL_PANE, sizeof(phos_gui_scroll_pane_component), init_scroll_pane_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_DRAG_PANE, sizeof(phos_gui_drag_pane_component), init_drag_pane_component, NULL);
@@ -684,6 +705,9 @@ int phos_gui_init()
 
 	// change seed for rand()
 	srand((unsigned int) time(NULL));
+
+	// enforce no additional text line spacing
+	SetTextLineSpacing(0);
 
 	init = true;
 	vl_log(VL_SUCCESS, "Initialized PhosphorusGUI!\n");
@@ -945,14 +969,14 @@ static Vector2 get_proposed_align_pos(Vector2 target_object_size, phos_gui_align
 	Rectangle whole_rect = get_calculated_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_TOTAL);
 	Rectangle whole_content_rect = get_calculated_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
 
-	// keep track of position of the whole space rect
-	Vector2 v = phos_gui_get_rect_pos(whole_rect);
-
 	// define bounds
-	float outer_left = v.x;
-	float outer_top = v.y;
+	float outer_left = whole_rect.x;
+	float outer_top = whole_rect.y;
 	float outer_right = outer_left + whole_rect.width;
 	float outer_bottom = outer_top + whole_rect.height;
+
+	float outer_center_x = outer_left + (whole_rect.width - target_object_size.x) / 2.0f;
+	float outer_center_y = outer_top + (whole_rect.height - target_object_size.y) / 2.0f;
 
 	float inner_left = whole_content_rect.x;
 	float inner_top = whole_content_rect.y;
@@ -961,6 +985,8 @@ static Vector2 get_proposed_align_pos(Vector2 target_object_size, phos_gui_align
 
 	float inner_center_x = inner_left + (whole_content_rect.width - target_object_size.x) / 2.0f;
 	float inner_center_y = inner_top + (whole_content_rect.height - target_object_size.y) / 2.0f;
+
+	Vector2 v = {0};
 
 	switch(alignment)
 	{
@@ -1002,18 +1028,18 @@ static Vector2 get_proposed_align_pos(Vector2 target_object_size, phos_gui_align
 			break;
 		case PHOS_GUI_ALIGN_LEFT:
 			v.x = outer_left - target_object_size.x;
-			v.y = inner_center_y;
+			v.y = outer_center_y;
 			break;
 		case PHOS_GUI_ALIGN_TOP:
-			v.x = inner_center_x;
+			v.x = outer_center_x;
 			v.y = outer_top - target_object_size.y;
 			break;
 		case PHOS_GUI_ALIGN_RIGHT:
 			v.x = outer_right;
-			v.y = inner_center_y;
+			v.y = outer_center_y;
 			break;
 		case PHOS_GUI_ALIGN_BOTTOM:
-			v.x = inner_center_x;
+			v.x = outer_center_x;
 			v.y = outer_bottom;
 			break;
 		case PHOS_GUI_ALIGN_TOP_LEFT:
@@ -1213,6 +1239,20 @@ static Vector2 get_text_draw_pos(const phos_gui_text_component *const text, cons
 
 	return text_pos;
 }
+static Vector2 get_label_draw_pos(const phos_gui_label_component *const label)
+{
+	// get initial pos of text and owner
+	phos_gui_elem *owner = pluto_cs_get_owner(label);
+	if(!label)
+		return Vector2Zero();
+
+	// add label offset
+	Vector2 label_elem_pos = phos_gui_get_rect_pos(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_TOTAL));
+	Vector2 label_pos = Vector2Add(label_elem_pos, label->offset);
+
+	return label_pos;
+}
+
 void phos_gui_get_text_bounds(const phos_gui_text_component *const text_component, Rectangle *out_main_bounds, Rectangle *out_placeholder_bounds)
 {
 	if(!out_main_bounds && !out_placeholder_bounds)
@@ -1679,7 +1719,6 @@ void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gu
 			return;
 	}
 
-	// use hardcoded size from string buffers:
 	snprintf(dest, PHOS_GUI_MAX_TEXT_LEN + 1, "%s", new_contents);
 
 	// only modify cursor pos if targeting main string
@@ -1707,22 +1746,19 @@ void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gu
 	phos_gui_realign_elem_text(text_component);
 }
 
-/*
-   IMPORTANT: even though the owner of the text component could be obtained, and the 'elem' argument could be taken out,
-   other functions rely on copies of text components
-*/
 static Vector2 resolve_elem_text_bounds(const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str)
 {
+	Vector2 text_bounds = {0};
+
 	// get owner of text component
 	const phos_gui_elem *const elem = pluto_cs_get_owner(text_component);
 	if(!elem)
-		return Vector2Zero();
+		return text_bounds; 
 
 	// get placeholder text data
 	phos_gui_placeholder_text_extension *placeholder_text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
 	
 	// measure text bounds
-	Vector2 text_bounds = {0};
 	switch(target_str)
 	{
 		case PHOS_GUI_TARGET_MAIN_TEXT:
@@ -1801,6 +1837,49 @@ Vector2 phos_gui_realign_elem_text(phos_gui_text_component *text_component)
 	}
 	
 	return phos_gui_align_elem_text(text_component, PHOS_GUI_TARGET_AUTO_TEXT, text_component->alignment);
+}
+Vector2 phos_gui_align_elem_label(phos_gui_label_component *label_component, phos_gui_alignment alignment)
+{
+	Vector2 v = {0};
+
+	if(!label_component)
+	{
+		vl_delay_log(VL_ERROR, 2.0f, "Cannot align NULL label component!\n");
+		return v;
+	}
+	if(!label_component->font)
+	{
+		vl_log(VL_ERROR, "To align a label component, its font must be set first!\n");
+		return v;
+	}
+
+	// get owner of label component
+	phos_gui_elem *owner = pluto_cs_get_owner(label_component);
+	if(!owner)
+	{
+		vl_delay_log(VL_ERROR, 2.0f, "Cannot align the given label because its owner is NULL!\n");
+		return v;
+	}
+
+	Vector2 label_bounds = MeasureTextEx(*label_component->font, label_component->str, label_component->font_size, 0.0f);
+
+	v = get_proposed_align_pos(label_bounds, alignment, owner);
+
+	// position label component relative to owner's total bounds
+	label_component->offset = Vector2Subtract(v, phos_gui_get_rect_pos(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_TOTAL)));
+	label_component->alignment = alignment;
+
+	return v;
+}
+Vector2 phos_gui_realign_elem_label(phos_gui_label_component *label_component)
+{
+	if(!label_component)
+	{
+		vl_delay_log(VL_ERROR, 2.0f, "Cannot realign NULL label component!\n");
+		return Vector2Zero();
+	}
+
+	return phos_gui_align_elem_label(label_component, label_component->alignment);
 }
 Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment alignment, phos_gui_elem *reference_elem, phos_gui_opts opts)
 {
@@ -3085,7 +3164,7 @@ int phos_gui_add_animation(phos_gui *gui, phos_gui_animation animation)
 
 	return 1;
 }
-int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, int execution_count)
+int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, int execution_count, phos_gui_animation_end_value_interpretation end_value_interpretation)
 {
 	if(!curr_value)
 	{
@@ -3096,7 +3175,18 @@ int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value
 	phos_gui_animation anim = {0};
 	anim.elem = elem;
 	anim.curr_value = curr_value;
-	anim.end_value = end_value;
+
+	// determine how end value should be interpreted
+	switch(end_value_interpretation)
+	{
+		case PHOS_GUI_ANIMATION_END_VALUE_ABSOLUTE:
+			anim.end_value = end_value;
+			break;
+		case PHOS_GUI_ANIMATION_END_VALUE_RELATIVE:
+			anim.end_value = *curr_value + end_value;
+			break;
+	};
+
 	anim.duration = duration;
 	anim.step = step;
 	anim.execution_count = execution_count;
@@ -5002,7 +5092,22 @@ static void render_elem(phos_gui_elem *e)
 			}
 		}
 		else
-			vl_delay_log(VL_WARNING, 5.0f, "Cannot render text component on element '%s' because it does not have a valid font!!\n", e->ID);
+			vl_delay_log(VL_ERROR, 5.0f, "Cannot render text component on element '%s' because it does not have a valid font!\n", e->ID);
+	}
+
+	// render label component of element (if valid):
+	const phos_gui_label_component *const label = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_LABEL);
+	if(label)
+	{
+		if(label->font && IsFontValid(*label->font))
+		{
+			if(label->font_size <= 0.0f || ColorIsEqual(label->color, BLANK))
+				vl_delay_log(VL_WARNING, 1.0f, "This element's ('%s') label component will not render correctly due to invalid font size, or the color's alpha is 0!\n", e->ID);
+			else
+				DrawTextEx(*label->font, label->str, get_label_draw_pos(label), label->font_size, 0.0f, label->color);
+		}
+		else
+			vl_delay_log(VL_ERROR, 5.0f, "Cannot render label component on element '%s' because it does not have a valid font!\n");
 	}
 
 	// see if this elem has a shadow component
@@ -5517,6 +5622,10 @@ void phos_gui_apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
 	phos_gui_placeholder_text_extension *placeholder_text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
 	if(placeholder_text)
 		placeholder_text->color = ColorContrast(theme.text_color, -0.3f);
+
+	phos_gui_label_component *label = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_LABEL);
+	if(label)
+		label->color = theme.text_color;
 
 	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 	if(scroll_pane)
