@@ -99,7 +99,7 @@ static tex_arr textures;
 static icon_map icons;
 static font_arr fonts;
 
-// for objects with ID="auto":
+// for objects with ID="<auto>":
 static size_t elem_auto_id = 0;
 static size_t blueprint_auto_id = 0;
 static size_t gui_auto_id = 0;
@@ -144,7 +144,7 @@ static phos_gui_elem *mouse_target = NULL;
 
 static Color screen_tint = BLANK;
 static Color window_bg_color = WHITE;
-static phos_gui_theme default_theme = {0};
+static phos_gui_theme curr_theme = {0};
 
 #define assert_obj_ptr(obj, ptr, ...) \
 	do { \
@@ -199,7 +199,7 @@ static void init_shadow_component(void *shadow_component)
 	shadow->fade_color = PHOS_GUI_COLOR_LIGHT_GRAY;
 
 	// re-apply default theme to elem
-	phos_gui_apply_theme_to_elem(owner, phos_gui_get_default_theme());
+	phos_gui_apply_theme_to_elem(owner, phos_gui_get_theme());
 }
 static void init_texture_component(void *texture_component)
 {
@@ -218,7 +218,7 @@ static void init_texture_component(void *texture_component)
 	texture->src = NULL;
 
 	// re-apply default theme to elem
-	phos_gui_apply_theme_to_elem(owner, phos_gui_get_default_theme());
+	phos_gui_apply_theme_to_elem(owner, phos_gui_get_theme());
 }
 static void init_mouse_listener_component(void *mouse_listener_component)
 {
@@ -236,11 +236,6 @@ static void init_mouse_listener_component(void *mouse_listener_component)
 	}
 
 	listener->type = PHOS_GUI_MOUSE_LISTENER_DEFAULT;
-
-	// generate colors for the listener:
-	phos_gui_gen_bg_colors(listener, -0.2f, -0.3f, 0.0f);
-	phos_gui_gen_outline_colors(listener, 0.0f, 0.0f, 0.0f);
-
 	listener->clicked = false;
 	listener->pressed = false;
 	listener->released = false;
@@ -250,6 +245,9 @@ static void init_mouse_listener_component(void *mouse_listener_component)
 	listener->has_focus = false;
 	listener->gained_focus = false;
 	listener->focus_on_start = false;
+
+	// re-apply theme to elem
+	phos_gui_apply_theme_to_elem(owner, phos_gui_get_theme());
 }
 static void force_calculate_elem_rects(phos_gui_elem *elem);
 static void init_text_component(void *text_component)
@@ -267,7 +265,7 @@ static void init_text_component(void *text_component)
 		return;
 	}
 
-	snprintf(text->str, sizeof(text->str), "");
+	phos_gui_write_str(text->str, "");
 	text->font = default_font;
 	text->max_len = PHOS_GUI_MAX_TEXT_LEN;
 	text->curr_line_len = 0;
@@ -292,7 +290,7 @@ static void init_text_component(void *text_component)
 	text->auto_indent = false;
 
 	// re-apply default theme to element
-	phos_gui_apply_theme_to_elem(owner, phos_gui_get_default_theme());
+	phos_gui_apply_theme_to_elem(owner, phos_gui_get_theme());
 }
 static void init_placeholder_text_extension(void *placeholder_text_component)
 {
@@ -315,7 +313,7 @@ static void init_placeholder_text_extension(void *placeholder_text_component)
 		return;
 	}
 
-	snprintf(placeholder_text->str, sizeof(placeholder_text->str), "");
+	phos_gui_write_str(placeholder_text->str, "");
 	placeholder_text->host = host_text;
 
 	// match owners
@@ -326,7 +324,7 @@ static void init_placeholder_text_extension(void *placeholder_text_component)
 	}
 
 	// re-apply default theme to element
-	phos_gui_apply_theme_to_elem(elem, phos_gui_get_default_theme());
+	phos_gui_apply_theme_to_elem(elem, phos_gui_get_theme());
 }
 static void init_label_component(void *label_component)
 {
@@ -342,7 +340,7 @@ static void init_label_component(void *label_component)
 		return;
 	}
 
-	snprintf(label->str, sizeof(label->str), "");
+	phos_gui_write_str(label->str, "");
 	label->font = default_font;
 	label->offset = Vector2Zero();
 	label->font_size = PHOS_GUI_FONT_SIZE_DEFAULT;
@@ -350,7 +348,7 @@ static void init_label_component(void *label_component)
 	label->color = PHOS_GUI_COLOR_BLACK;
 
 	// re-apply default theme to element
-	phos_gui_apply_theme_to_elem(elem, phos_gui_get_default_theme());
+	phos_gui_apply_theme_to_elem(elem, phos_gui_get_theme());
 }
 static void init_layout_component(void *layout_component)
 {
@@ -554,7 +552,7 @@ static void init_scroll_pane_component(void *scroll_pane_component)
 	force_calculate_elem_rects(owner);
 
 	// re-apply default theme to elem
-	phos_gui_apply_theme_to_elem(owner, phos_gui_get_default_theme());
+	phos_gui_apply_theme_to_elem(owner, phos_gui_get_theme());
 }
 static void init_drag_pane_component(void *drag_pane_component)
 {
@@ -586,7 +584,7 @@ static void init_drag_pane_component(void *drag_pane_component)
 	force_calculate_elem_rects(owner);
 
 	// re-apply default theme to elem
-	phos_gui_apply_theme_to_elem(owner, phos_gui_get_default_theme());
+	phos_gui_apply_theme_to_elem(owner, phos_gui_get_theme());
 }
 static void init_drop_down_component(void *drop_down_component)
 {
@@ -650,7 +648,7 @@ static void init_value_bar_component(void *value_bar_component)
 	value_bar->slider_knob_snapping = false;
 
 	// re-apply default theme to elem
-	phos_gui_apply_theme_to_elem(owner, phos_gui_get_default_theme());
+	phos_gui_apply_theme_to_elem(owner, phos_gui_get_theme());
 }
 
 int phos_gui_init()
@@ -697,7 +695,7 @@ int phos_gui_init()
 	pluto_cs_register(PHOS_GUI_COMPONENT_VALUE_BAR, sizeof(phos_gui_value_bar_component), init_value_bar_component, NULL);
 
 	// set default theme
-	default_theme = PHOS_GUI_THEME_MONOTONE;
+	curr_theme = PHOS_GUI_THEME_MONOTONE;
 
 	// fill icon map
 	phos_gui_set_icon(PHOS_GUI_ICON_ARROW_DOWN, "icons/down_arrow.png");
@@ -767,9 +765,7 @@ void phos_gui_exit(int exit_code)
 
 static void auto_gen_id(const char *ID, char *target, size_t target_size, const char *prefix, size_t *generator)
 {
-	if(strcmp(ID, "!auto") == 0)
-		snprintf(target, target_size, "!auto");
-	else if(strcmp(ID, "auto") == 0)
+	if(strcmp(ID, PHOS_GUI_AUTO_ID) == 0)
 		snprintf(target, target_size, "%s_#%zu", prefix, (*generator)++);
 }
 static int search_for_duplicate_id(const char *ID)
@@ -882,7 +878,7 @@ void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vector2 size)
 	phos_gui_set_elem_bounds(elem, elem_centered.x, elem_centered.y, elem->bounds.width, elem->bounds.height, PHOS_GUI_OPTS_NONE);
 }
 
-void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts opts)
+void phos_gui_move_elem(phos_gui_elem *elem, float x, float y, phos_gui_opts opts)
 {
 	if(!elem)
 	{
@@ -957,7 +953,7 @@ void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 	// if no collision occurred on the parent, its children can move
 	else
 		for(size_t i = 0; i < elem->num_children; ++i)
-			phos_gui_move_elem_xy(elem->children[i], x, y, opts);
+			phos_gui_move_elem(elem->children[i], x, y, opts);
 
 	// calculate all rects of elem in update loop
 	prepare_elem_rects_for_caching(elem);
@@ -1042,21 +1038,37 @@ static Vector2 get_proposed_align_pos(Vector2 target_object_size, phos_gui_align
 			v.x = outer_center_x;
 			v.y = outer_bottom;
 			break;
-		case PHOS_GUI_ALIGN_TOP_LEFT:
+		case PHOS_GUI_ALIGN_TOP_LEFT_CORNER:
 			v.x = outer_left - target_object_size.x;
 			v.y = outer_top - target_object_size.y;
 			break;
-		case PHOS_GUI_ALIGN_TOP_RIGHT:
+		case PHOS_GUI_ALIGN_TOP_RIGHT_CORNER:
 			v.x = outer_right;
 			v.y = outer_top - target_object_size.y;
 			break;
-		case PHOS_GUI_ALIGN_BOTTOM_LEFT:
+		case PHOS_GUI_ALIGN_BOTTOM_LEFT_CORNER:
 			v.x = outer_left - target_object_size.x;
-			v.y = outer_bottom;
+			v.y = outer_bottom + target_object_size.y;
 			break;
-		case PHOS_GUI_ALIGN_BOTTOM_RIGHT:
+		case PHOS_GUI_ALIGN_BOTTOM_RIGHT_CORNER:
 			v.x = outer_right;
-			v.y = outer_bottom;
+			v.y = outer_bottom + target_object_size.y;
+			break;
+		case PHOS_GUI_ALIGN_TOP_LEFT_EDGE:
+			v.x = outer_left;
+			v.y = outer_top - target_object_size.y;
+			break;
+		case PHOS_GUI_ALIGN_TOP_RIGHT_EDGE:
+			v.x = outer_right - target_object_size.x;
+			v.y = outer_top - target_object_size.y;
+			break;
+		case PHOS_GUI_ALIGN_BOTTOM_LEFT_EDGE:
+			v.x = outer_left;
+			v.y = outer_bottom + target_object_size.y;
+			break;
+		case PHOS_GUI_ALIGN_BOTTOM_RIGHT_EDGE:
+			v.x = outer_right - target_object_size.x;
+			v.y = outer_bottom + target_object_size.y;
 			break;
 		default:
 			vl_log(VL_ERROR, "Invalid alignment: %d!\n", alignment);
@@ -1066,12 +1078,17 @@ static Vector2 get_proposed_align_pos(Vector2 target_object_size, phos_gui_align
 	return v;
 }
 
-static void resize_single_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
+static void realign_elem_texts(phos_gui_elem *elem)
 {
-	// if resizing by 0 pixels, exit early
-	if(w == 0.0f && h == 0.0f)
-		return;
-
+	phos_gui_text_component *child_text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	if(child_text)
+		phos_gui_realign_elem_text(child_text);
+	phos_gui_label_component *child_label = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_LABEL);
+	if(child_label)
+		phos_gui_realign_elem_label(child_label);
+}
+static void resize_single_elem(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
+{
 	// first see what new elem size would be
 	float new_w = elem->bounds.width + w;
 	float new_h = elem->bounds.height + h;
@@ -1102,8 +1119,28 @@ static void resize_single_elem_wh(phos_gui_elem *elem, float w, float h, phos_gu
 		// then realign text no matter what
 		phos_gui_realign_elem_text(elem_tx);
 	}
+	phos_gui_label_component *elem_label = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_LABEL);
+	if(elem_label)
+		phos_gui_realign_elem_label(elem_label);
 }
-void phos_gui_resize_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
+static void resize_icon(phos_gui_icon *icon, float w, float h)
+{
+	// see what new icon size would be
+	float new_w = icon->bounds.width + w;
+	float new_h = icon->bounds.height + h;
+
+	// see if size is now negative
+	if(new_w <= 0.0f || new_h <= 0.0f)
+	{
+		vl_log(VL_ERROR, "Cannot shrink this icon anymore, its size cannot be <= 0.0f!\n");
+		return;
+	}
+
+	// apply new size to icon
+	icon->bounds.width = new_w;
+	icon->bounds.height = new_h;
+}
+void phos_gui_resize_elem(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
 {
 	if(!elem)
 	{
@@ -1111,25 +1148,45 @@ void phos_gui_resize_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opt
 		return;
 	}
 
+	// no change needed, exit early
+	if(w == 0.0f && h == 0.0f)
+		return;
+
 	// resize the given elem
-	resize_single_elem_wh(elem, w, h, opts);
+	resize_single_elem(elem, w, h, opts);
 
 	// pass changes down to children
-	if(elem->num_children > 0)
+	for(size_t i = 0; i < elem->num_children; ++i)
 	{
-		for(size_t i = 0; i < elem->num_children; ++i)
-		{
-			phos_gui_elem *child = elem->children[i];
+		phos_gui_elem *child = elem->children[i];
 
-			// resize child same amount of pixels as parent
-			phos_gui_resize_elem_wh(child, w, h, opts);
+		// resize child same amount of pixels as parent
+		phos_gui_resize_elem(child, w, h, opts);
 
-			// but always realign text
-			phos_gui_text_component *child_text = pluto_cs_get_component(child, PHOS_GUI_COMPONENT_TEXT);
-			if(child_text)
-				phos_gui_realign_elem_text(child_text);
-		}
+		// but always realign text
+		realign_elem_texts(child);
 	}
+
+	// pass changes down to icons
+	for(size_t i = 0; i < elem->num_icons; ++i)
+		resize_icon(&elem->icons[i], w, h);
+}
+void phos_gui_scale_elem(phos_gui_elem *elem, float scale, phos_gui_opts opts)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot scale NULL element!\n");
+		return;
+	}
+
+	// check for no scale
+	if(scale == 0.0f)
+		return;
+
+	// calculate difference in pixels and use phos_gui_resize_elem(...) internally
+	float w = scale * elem->bounds.width;
+	float h = scale * elem->bounds.height;
+	phos_gui_resize_elem(elem, w, h, opts);
 }
 
 Vector2 phos_gui_get_elem_center(phos_gui_elem *elem)
@@ -1201,6 +1258,12 @@ void phos_gui_reload_elem(phos_gui_elem *elem)
 }
 void phos_gui_reload_gui(phos_gui *gui)
 {
+	if(!gui)
+	{
+		vl_log(VL_ERROR, "Cannot reload NULL GUI!\n");
+		return;
+	}
+
 	// reload all parent and child elems
 	for(size_t i = 0; i < gui->num_elems; ++i)
 	{
@@ -1214,6 +1277,20 @@ void phos_gui_reload_gui(phos_gui *gui)
 		}
 
 		phos_gui_reload_elem(elem);
+	}
+}
+void phos_gui_scale_gui(phos_gui *gui, float scale, phos_gui_opts opts)
+{
+	if(!gui)
+	{
+		vl_log(VL_ERROR, "Cannot scale NULL GUI!\n");
+		return;
+	}
+
+	for(size_t i = 0; i < gui->num_elems; ++i)
+	{
+		phos_gui_elem *elem = gui->elems[i];
+		phos_gui_scale_elem(elem, scale, opts);
 	}
 }
 
@@ -1248,9 +1325,7 @@ static Vector2 get_label_draw_pos(const phos_gui_label_component *const label)
 
 	// add label offset
 	Vector2 label_elem_pos = phos_gui_get_rect_pos(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_TOTAL));
-	Vector2 label_pos = Vector2Add(label_elem_pos, label->offset);
-
-	return label_pos;
+	return Vector2Add(label_elem_pos, label->offset);
 }
 
 void phos_gui_get_text_bounds(const phos_gui_text_component *const text_component, Rectangle *out_main_bounds, Rectangle *out_placeholder_bounds)
@@ -1515,7 +1590,7 @@ void phos_gui_init_text(phos_gui_text_component *text, const char *str, float fo
 		return;
 	}
 
-	snprintf(text->str, sizeof(text->str), "%s", str);
+	phos_gui_write_str(text->str, "%s", str);
 	text->len = strlen(str);
 	text->max_len = PHOS_GUI_MAX_TEXT_LEN;
 	text->color = color;
@@ -1543,7 +1618,7 @@ void phos_gui_init_placeholder_text(phos_gui_placeholder_text_extension *placeho
 		return;
 	}
 
-	snprintf(placeholder_text->str, sizeof(placeholder_text->str), "%s", str);
+	phos_gui_write_str(placeholder_text->str, "%s", str);
 	placeholder_text->color = color;
 }
 
@@ -1574,7 +1649,7 @@ void phos_gui_set_elem_pos(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 	float y_diff = y - elem->bounds.y;
 
 	// move based on difference
-	phos_gui_move_elem_xy(elem, x_diff, y_diff, opts);
+	phos_gui_move_elem(elem, x_diff, y_diff, opts);
 }
 void phos_gui_set_elem_size(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
 {
@@ -1589,7 +1664,7 @@ void phos_gui_set_elem_size(phos_gui_elem *elem, float w, float h, phos_gui_opts
 	float y_diff = h - elem->bounds.height;
 
 	// resize elem and fix text
-	phos_gui_resize_elem_wh(elem, x_diff, y_diff, opts);
+	phos_gui_resize_elem(elem, x_diff, y_diff, opts);
 }
 void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, float h, phos_gui_opts opts)
 {
@@ -1743,7 +1818,7 @@ void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gu
 	if(opts & PHOS_GUI_OPTS_FIT_TEXT)
 		phos_gui_make_text_fit_elem(text_component, target_str);
 	// realign text no matter what
-	phos_gui_realign_elem_text(text_component);
+	realign_elem_texts(owner);
 }
 
 static Vector2 resolve_elem_text_bounds(const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str)
@@ -2063,7 +2138,7 @@ void phos_gui_init_icon(phos_gui_icon *icon, phos_gui_icon_id ID, float x, float
 	icon->bounds.x = x;
 	icon->bounds.y = y;
 	icon->ID = ID;
-	icon->color = default_theme.icon_color;
+	icon->color = phos_gui_get_theme().icon_color;
 	icon->auto_render = true;
 }
 void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h, phos_gui *gui)
@@ -2103,7 +2178,7 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 	elem->clipped = false;
 
 	// apply default theme to element
-	phos_gui_apply_theme_to_elem(elem, phos_gui_get_default_theme());
+	phos_gui_apply_theme_to_elem(elem, phos_gui_get_theme());
 
 	prepare_elem_rects_for_caching(elem);
 
@@ -2120,11 +2195,14 @@ void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y,
 	// init element's basic attributes first
 	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_INTERACTIVE, PHOS_GUI_RENDER_FILL_OUTLINE, x, y, w, h, gui);
 
-	// create text component
-	phos_gui_text_component *text_component = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_TEXT);
-	if(!text_component)
-		phos_gui_exit(EXIT_FAILURE);
-	phos_gui_set_text_contents(text_component, PHOS_GUI_TARGET_MAIN_TEXT, text, PHOS_GUI_OPTS_FIT_TEXT);
+	// create text component only if str is not "<no-text>"
+	if(strcmp(text, PHOS_GUI_NO_TEXT) != 0)
+	{
+		phos_gui_text_component *text_component = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_TEXT);
+		if(!text_component)
+			phos_gui_exit(EXIT_FAILURE);
+		phos_gui_set_text_contents(text_component, PHOS_GUI_TARGET_MAIN_TEXT, text, PHOS_GUI_OPTS_FIT_TEXT);
+	}
 
 	// create mouse listener component
 	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
@@ -2142,20 +2220,6 @@ void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, floa
 	// first, init elem as a button
 	phos_gui_init_button(elem, ID, x, y, w, h, main_text, gui);
 
-	// now obtain text component and modify it so that element becomes a text field
-	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
-	text->editable = true;
-
-	// add placeholder text component
-	phos_gui_placeholder_text_extension *placeholder_text_component = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
-	if(!placeholder_text_component)
-		phos_gui_exit(EXIT_FAILURE);
-	phos_gui_set_text_contents(text, PHOS_GUI_TARGET_PLACEHOLDER_TEXT, placeholder_text, PHOS_GUI_OPTS_NONE);
-
-	// make placeholder text fit elem if necessary
-	if(strlen(placeholder_text) > 0)
-		phos_gui_make_text_fit_elem(text, PHOS_GUI_TARGET_PLACEHOLDER_TEXT);
-
 	// add scroll pane component TO THE TEXT CONTAINER so text scrolls as user types
 	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 	if(!scroll_pane)
@@ -2168,9 +2232,26 @@ void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, floa
 	// mouse wheel cannot scroll the text
 	scroll_pane->use_mouse_wheel_input = false;
 
-	// change alignment and realign
-	text->alignment = PHOS_GUI_ALIGN_INNER_LEFT;
-	phos_gui_realign_elem_text(text);
+	// now obtain text component and modify it so that element becomes a text field
+	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	if(text)
+	{
+		text->editable = true;
+
+		// add placeholder text component
+		phos_gui_placeholder_text_extension *placeholder_text_component = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
+		if(!placeholder_text_component)
+			phos_gui_exit(EXIT_FAILURE);
+		phos_gui_set_text_contents(text, PHOS_GUI_TARGET_PLACEHOLDER_TEXT, placeholder_text, PHOS_GUI_OPTS_NONE);
+
+		// make placeholder text fit elem if necessary
+		if(strlen(placeholder_text) > 0)
+			phos_gui_make_text_fit_elem(text, PHOS_GUI_TARGET_PLACEHOLDER_TEXT);
+
+		// align text
+		text->alignment = PHOS_GUI_ALIGN_INNER_LEFT;
+		phos_gui_realign_elem_text(text);
+	}
 }
 void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui_text_wrap_mode wrap_mode, phos_gui *gui)
 {
@@ -2196,20 +2277,21 @@ void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float
 		scroll_pane->v_bar.rendered = true;
 	}
 	else
-	{
 		// no need for scroll pane component since text wraps
 		pluto_cs_remove_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
-	}
 
 	// set wrap mode of text component
 	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
-	text->wrap_mode = wrap_mode;
-	text->enter_inserts_new_line = true;
+	if(text)
+	{
+		text->wrap_mode = wrap_mode;
+		text->enter_inserts_new_line = true;
 
-	// start text at top left of text area and go back to default font size
-	text->alignment = PHOS_GUI_ALIGN_INNER_TOP_LEFT;
-	text->font_size = PHOS_GUI_FONT_SIZE_MED;
-	phos_gui_realign_elem_text(text);
+		// start text at top left of text area and go back to default font size
+		text->alignment = PHOS_GUI_ALIGN_INNER_TOP_LEFT;
+		text->font_size = PHOS_GUI_FONT_SIZE_MED;
+		phos_gui_realign_elem_text(text);
+	}
 }
 void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text, phos_gui *gui)
 {
@@ -2238,8 +2320,11 @@ void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float
 
 	// re-align text to inner left
 	phos_gui_text_component *text_component = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
-	text_component->alignment = PHOS_GUI_ALIGN_INNER_LEFT;
-	phos_gui_realign_elem_text(text_component);
+	if(text_component)
+	{
+		text_component->alignment = PHOS_GUI_ALIGN_INNER_LEFT;
+		phos_gui_realign_elem_text(text_component);
+	}
 
 	// move container to elem pos
 	phos_gui_set_elem_pos(container_elem, elem->bounds.x, elem->bounds.y + elem->bounds.height, PHOS_GUI_OPTS_NONE);
@@ -2251,7 +2336,7 @@ static void toggle_checkbox(phos_gui_elem *elem, phos_gui_opts opts)
 	if(check_mark_icon)
 		check_mark_icon->auto_render = !check_mark_icon->auto_render;
 }
-void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui *gui)
+void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *label_text, phos_gui *gui)
 {
 	if(!elem)
 	{
@@ -2259,18 +2344,14 @@ void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float 
 		return;
 	}
 
-	// first init elem as a button
-	phos_gui_init_button(elem, ID, x, y, w, h, " ", gui);
-	// remove text component
-	pluto_cs_remove_component(elem, PHOS_GUI_COMPONENT_TEXT);
-
-	// make button only use outline (make outline thinner too)
-	elem->render_mode = PHOS_GUI_RENDER_OUTLINE;
-	elem->outline_thickness = 2.5f;
+	// first init elem as a button (without text component)
+	phos_gui_init_button(elem, ID, x, y, w, h, PHOS_GUI_NO_TEXT, gui);
 
 	// add check mark icon to checkbox
 	phos_gui_icon check_mark = {0};
 	phos_gui_init_icon(&check_mark, PHOS_GUI_ICON_CHECK_MARK, elem->bounds.x + (elem->bounds.width - PHOS_GUI_ICON_SIZE) / 2.0f, elem->bounds.y + (elem->bounds.height - PHOS_GUI_ICON_SIZE) / 2.0f);
+	// checkbox is not selected by default
+	check_mark.auto_render = false;
 	phos_gui_add_elem_icon(elem, check_mark);
 
 	// add way to toggle check mark
@@ -2285,11 +2366,22 @@ void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float 
 	// make mouse listener a toggle mouse listener
 	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
 	mouse_listener->type = PHOS_GUI_MOUSE_LISTENER_TOGGLED;
-	phos_gui_gen_outline_colors(mouse_listener, -0.1f, -0.2f, 0.0f);
 
-	// checkbox is not selected by default
-	check_mark.auto_render = false;
-	mouse_listener->toggled_on = false;
+	// add label component if label text is not equal to "<no-text>"
+	if(strcmp(label_text, PHOS_GUI_NO_TEXT) != 0)
+	{
+		phos_gui_label_component *label = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_LABEL);
+		if(!label)
+			phos_gui_exit(EXIT_FAILURE);
+		phos_gui_write_str(label->str, "%s", label_text);
+		phos_gui_realign_elem_label(label);
+	}
+
+	// make button only use outline (make outline thinner too)
+	elem->render_mode = PHOS_GUI_RENDER_OUTLINE;
+
+	// generate outline colors for checkbox after theme applied
+	phos_gui_gen_outline_colors(mouse_listener, -0.1f, -0.2f, 0.0f);
 }
 void phos_gui_init_checkbox_list(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, phos_gui *gui)
 {
@@ -2336,7 +2428,7 @@ void phos_gui_init_value_bar(phos_gui_elem *elem, const char *ID, float x, float
 	value_bar->max_value = max_value;
 	value_bar->curr_value = curr_value;
 }
-void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value, phos_gui *gui)
+void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value, const char *label_text, phos_gui *gui)
 {
 	if(!elem)
 	{
@@ -2351,6 +2443,14 @@ void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y,
 	value_bar->editable = true;
 	value_bar->slider_knob_shape = PHOS_GUI_SHAPE_ELLIPSE;
 	value_bar->slider_knob_snapping = true;
+
+	// add label
+	phos_gui_label_component *label = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_LABEL);
+	if(!label)
+		phos_gui_exit(EXIT_FAILURE);
+	phos_gui_write_str(label->str, "%s", label_text);
+	label->font_size = PHOS_GUI_FONT_SIZE_MED;
+	phos_gui_align_elem_label(label, PHOS_GUI_ALIGN_TOP_LEFT_EDGE);
 }
 
 void phos_gui_gen_bg_colors(phos_gui_mouse_listener_component *mouse_listener, float hover_color_factor, float press_color_factor, float focus_color_factor)
@@ -2566,7 +2666,7 @@ int phos_gui_add_child_to_elem(phos_gui_elem *child, phos_gui_elem *parent, phos
 	// handle child opts:
 	if(child_opts & PHOS_GUI_OPTS_CHILD_MAXIMIZED)
 	{
-		phos_gui_resize_elem_wh(child, parent->bounds.width, parent->bounds.height, child_opts);
+		phos_gui_resize_elem(child, parent->bounds.width, parent->bounds.height, child_opts);
 
 		// remove maximized option
 		child_opts &= ~PHOS_GUI_OPTS_CHILD_MAXIMIZED;
@@ -2590,7 +2690,7 @@ int phos_gui_add_child_to_elem(phos_gui_elem *child, phos_gui_elem *parent, phos
 	prepare_elem_rects_for_caching(child);
 
 	// apply theme to child
-	phos_gui_apply_theme_to_elem(child, phos_gui_get_default_theme());
+	phos_gui_apply_theme_to_elem(child, phos_gui_get_theme());
 
 	vl_log(VL_SUCCESS, "Element '%s' added to parent element '%s'!\n", child->ID, parent->ID);
 
@@ -2923,7 +3023,7 @@ static int create_blueprint(phos_gui_elem *elem, const char *ID, blueprint *bp)
 		}
 	}
 
-	snprintf(new_bp.ID, sizeof(new_bp.ID), "%s", ID);
+	phos_gui_write_str(new_bp.ID, "%s", ID);
 	new_bp.elem = elem;
 
 	// no duplicate, blueprint can be created and saved
@@ -2982,7 +3082,7 @@ void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID)
 
 	// start creating new instance (with an auto-generated ID)
 	*target_elem = *bp->elem; // 'num_children' value is copied into 'target_elem'
-	auto_gen_id("auto", target_elem->ID, sizeof(target_elem->ID), "elem", &elem_auto_id);
+	auto_gen_id(PHOS_GUI_AUTO_ID, target_elem->ID, sizeof(target_elem->ID), "elem", &elem_auto_id);
 
 	// assert no duplicate IDs
 	if(search_for_duplicate_id(target_elem->ID) != -1)
@@ -3001,8 +3101,8 @@ void phos_gui_init_clone(phos_gui_elem *target_elem, const char *ID)
 
 			// clone the child
 			phos_gui_elem *child_clone = target_elem->children[i];
-			phos_gui_write_str(child_clone->ID, "auto");
-			auto_gen_id("auto", child_clone->ID, sizeof(child_clone->ID), "elem", &elem_auto_id);
+			phos_gui_write_str(child_clone->ID, PHOS_GUI_AUTO_ID);
+			auto_gen_id(PHOS_GUI_AUTO_ID, child_clone->ID, sizeof(child_clone->ID), "elem", &elem_auto_id);
 
 			// clone elements from child onto child_clone
 			if(pluto_cs_clone_all_components(child, child_clone) == 0)
@@ -4439,7 +4539,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 
 		// translate children based on scroll pane translation (only if user scrolled)
 		for(size_t i = 0; i < e->num_children; ++i)
-			phos_gui_move_elem_xy(e->children[i], -delta_x, -delta_y, PHOS_GUI_OPTS_NONE);
+			phos_gui_move_elem(e->children[i], -delta_x, -delta_y, PHOS_GUI_OPTS_NONE);
 	}
 
 	// check for drag pane component
@@ -4469,7 +4569,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 					drag_pane->drag_delta = mouse_delta;
 
 					// add to elem pos based on mouse delta
-					phos_gui_move_elem_xy(e, mouse_delta.x, mouse_delta.y, drag_pane->drag_opts);
+					phos_gui_move_elem(e, mouse_delta.x, mouse_delta.y, drag_pane->drag_opts);
 
 					// move drag bar based on mouse delta
 					/*drag_pane->drag_bar_pos.x += mouse_delta.x;
@@ -4489,7 +4589,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 					drag_pane->drag_delta = mouse_delta;
 
 					// add to elem pos based on mouse delta
-					phos_gui_move_elem_xy(e, mouse_delta.x, mouse_delta.y, drag_pane->drag_opts);
+					phos_gui_move_elem(e, mouse_delta.x, mouse_delta.y, drag_pane->drag_opts);
 				}
 			}
 		}
@@ -4517,7 +4617,7 @@ static void update_elem(phos_gui_elem *e, float dt)
 			{
 				// reset positions of children
 				for(size_t i = 0; i < drop_down->container->num_children; ++i)
-					phos_gui_move_elem_xy(drop_down->container->children[i], container_scroll_pane->scroll_x, container_scroll_pane->scroll_y, PHOS_GUI_OPTS_NONE);
+					phos_gui_move_elem(drop_down->container->children[i], container_scroll_pane->scroll_x, container_scroll_pane->scroll_y, PHOS_GUI_OPTS_NONE);
 				// reset scroll values to 0
 				container_scroll_pane->scroll_x = 0.0f;
 				container_scroll_pane->scroll_y = 0.0f;
@@ -4894,18 +4994,50 @@ static Color resolve_elem_bg_color(const phos_gui_elem *const e)
 	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
 	if(mouse_listener)
 	{
-		// check to see if mouse button held down over element
-		if(mouse_listener->pressed)
-			color = mouse_listener->bg_press_color;
-		// check to see if they only have the mouse over the element
-		else if(mouse_listener->hovered)
-			color = mouse_listener->bg_hover_color;
-		// check to see if the elem has focus
-		else if(mouse_listener->has_focus)
-			color = mouse_listener->bg_focus_color;
+		// see if mouse listener uses toggle style
+		if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_TOGGLED)
+		{
+			if(mouse_listener->toggled_on)
+			{
+				// default color for on state is press color
+				color = mouse_listener->bg_press_color;
+
+				// check to see if mouse button held down over element
+				if(mouse_listener->pressed)
+					color = e->bg_color;
+				// check to see if they only have the mouse over the element
+				else if(mouse_listener->hovered)
+					color = mouse_listener->bg_hover_color;
+
+				return color;
+			}
+			else
+			{
+				// check to see if mouse button held down over element
+				if(mouse_listener->pressed)
+					color = mouse_listener->bg_press_color;
+				// check to see if they only have the mouse over the element
+				else if(mouse_listener->hovered)
+					color = mouse_listener->bg_hover_color;
+
+				return color;
+			}
+		}
+		else
+		{
+			// check to see if mouse button held down over element
+			if(mouse_listener->pressed)
+				color = mouse_listener->bg_press_color;
+			// check to see if they only have the mouse over the element
+			else if(mouse_listener->hovered)
+				color = mouse_listener->bg_hover_color;
+			// check to see if the elem has focus
+			else if(mouse_listener->has_focus)
+				color = mouse_listener->bg_focus_color;
+		}
 	}
 
-	return color;
+	return color;	
 }
 static Color resolve_elem_outline_color(const phos_gui_elem *const e)
 {
@@ -4919,18 +5051,50 @@ static Color resolve_elem_outline_color(const phos_gui_elem *const e)
 	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
 	if(mouse_listener)
 	{
-		// check to see if mouse button held down over element
-		if(mouse_listener->pressed)
-			color = mouse_listener->outline_press_color;
-		// check to see if they only have the mouse over the element
-		else if(mouse_listener->hovered)
-			color = mouse_listener->outline_hover_color;
-		// check to see if the elem has focus
-		else if(mouse_listener->has_focus)
-			color = mouse_listener->outline_focus_color;
+		// see if mouse listener uses toggle style
+		if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_TOGGLED)
+		{
+			if(mouse_listener->toggled_on)
+			{
+				// default color for on state is press color
+				color = mouse_listener->outline_press_color;
+
+				// check to see if mouse button held down over element
+				if(mouse_listener->pressed)
+					color = e->outline_color;
+				// check to see if they only have the mouse over the element
+				else if(mouse_listener->hovered)
+					color = mouse_listener->outline_hover_color;
+
+				return color;
+			}
+			else
+			{
+				// check to see if mouse button held down over element
+				if(mouse_listener->pressed)
+					color = mouse_listener->outline_press_color;
+				// check to see if they only have the mouse over the element
+				else if(mouse_listener->hovered)
+					color = mouse_listener->outline_hover_color;
+
+				return color;
+			}
+		}
+		else
+		{
+			// check to see if mouse button held down over element
+			if(mouse_listener->pressed)
+				color = mouse_listener->outline_press_color;
+			// check to see if they only have the mouse over the element
+			else if(mouse_listener->hovered)
+				color = mouse_listener->outline_hover_color;
+			// check to see if the elem has focus
+			else if(mouse_listener->has_focus)
+				color = mouse_listener->outline_focus_color;
+		}
 	}
 
-	return color;
+	return color;	
 }
 
 static void render_children(phos_gui_elem *e, phos_gui_elem_bounding_box bounds);
@@ -5524,9 +5688,9 @@ Color phos_gui_random_color()
 {
 	return (Color) { GetRandomValue(0, 255), GetRandomValue(0, 255), GetRandomValue(0, 255), 255 };
 }
-phos_gui_theme phos_gui_get_default_theme()
+phos_gui_theme phos_gui_get_theme()
 {
-	return default_theme;
+	return curr_theme;
 }
 phos_gui_theme phos_gui_create_theme_basic(Color base_color)
 {
@@ -5541,10 +5705,10 @@ phos_gui_theme phos_gui_create_theme_basic(Color base_color)
 	theme.outline_press_color = theme.outline_color;
 	theme.outline_focus_color = theme.outline_color;
 	theme.decoration_color = ColorContrast(base_color, -0.3f);
-	theme.text_color = ColorBrightness(base_color, -0.75f);
+	theme.text_color = ColorBrightness(base_color, -0.6f);
 	theme.icon_color = ColorContrast(base_color, -0.5f);
 	theme.window_bg_color = ColorBrightness(base_color, -0.9f);
-	theme.outline_thickness = 5.0f;
+	theme.outline_thickness = PHOS_GUI_THEME_DEFAULT_OUTLINE_THICKNESS;
 
 	return theme;
 }
@@ -5564,7 +5728,7 @@ phos_gui_theme phos_gui_create_theme_accented(Color base_color, Color accent_col
 	theme.text_color = ColorBrightness(accent_color, -0.75f);
 	theme.icon_color = ColorContrast(accent_color, -0.5f);
 	theme.window_bg_color = PHOS_GUI_COLOR_MIX(ColorContrast(accent_color, -0.65f), ColorBrightness(accent_color, -0.8f));
-	theme.outline_thickness = 5.0f;
+	theme.outline_thickness = PHOS_GUI_THEME_DEFAULT_OUTLINE_THICKNESS;
 
 	return theme;
 }
@@ -5668,9 +5832,9 @@ void phos_gui_apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
 
 	phos_gui_set_window_bg_color(theme.window_bg_color);
 }
-void phos_gui_set_default_theme(phos_gui_theme theme)
+void phos_gui_set_theme(phos_gui_theme theme)
 {
-	default_theme = theme;
+	curr_theme = theme;
 }
 phos_gui_theme phos_gui_brighten_theme(phos_gui_theme theme, float factor)
 {

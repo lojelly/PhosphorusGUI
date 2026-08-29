@@ -69,6 +69,24 @@
 #define PHOS_GUI_MAX_ID_LEN 32
 
 /**
+  Alias for "<auto>" ID.
+
+  Use this to auto-generate an objects ID.
+*/
+#define PHOS_GUI_AUTO_ID "<auto>"
+/**
+  Alias for "<no-text>" modifier.
+
+  The "<no-text>" modifier is used when
+  initializing elements with possible
+  text or label components, and it
+  indicates the element should not
+  be initialized with the text/label
+  component.
+*/
+#define PHOS_GUI_NO_TEXT "<no-text>"
+
+/**
   The max length of a text component's string.
 */
 #define PHOS_GUI_MAX_TEXT_LEN 256
@@ -121,7 +139,7 @@
 #define PHOS_GUI_FONT_SIZE_LARGEST PHOS_GUI_FONT_SIZE_XGIGANTIC
 
 /**
-  The size of icons in PhosphorusGUI.
+  The default size of icons in PhosphorusGUI.
 */
 #define PHOS_GUI_ICON_SIZE 32.0f
 
@@ -534,6 +552,12 @@
 // pre-built themes:
 
 /**
+  The default outline thickness
+  for pre-built themes in PhosphorusGUI.
+*/
+#define PHOS_GUI_THEME_DEFAULT_OUTLINE_THICKNESS 2.5f
+
+/**
   A theme built around Autumn colors.
 */
 #define PHOS_GUI_THEME_AUTUMN (phos_gui_theme) { \
@@ -549,7 +573,7 @@
 	.text_color = ColorBrightness(PHOS_GUI_COLOR_DULL_RED, -0.5f), \
 	.icon_color = PHOS_GUI_COLOR_DULL_RED, \
 	.window_bg_color = ColorBrightness(PHOS_GUI_COLOR_YELLOW, -0.2f), \
-	.outline_thickness = 5.0f }
+	.outline_thickness = PHOS_GUI_THEME_DEFAULT_OUTLINE_THICKNESS }
 /**
   A theme similar to PHOS_GUI_THEME_AUTUMN but includes green.
 */
@@ -582,7 +606,7 @@
 	.text_color = PHOS_GUI_COLOR_DARK_RED, \
 	.icon_color = PHOS_GUI_COLOR_DULL_RED, \
 	.window_bg_color = ColorContrast(PHOS_GUI_COLOR_DULL_PINK, -0.1f), \
-	.outline_thickness = 5.0f }
+	.outline_thickness = PHOS_GUI_THEME_DEFAULT_OUTLINE_THICKNESS }
 /**
   A theme built around blue and white.
 */
@@ -643,7 +667,7 @@
 /**
   A theme built on crystal and indigo.
 */
-#define PHOS_GUI_THEME_INDIGO_COSMOS phos_gui_create_theme_accented(PHOS_GUI_COLOR_CRYSTAL, PHOS_GUI_COLOR_INDIGO)
+#define PHOS_GUI_THEME_INDIGO_COSMOS phos_gui_create_theme_accented(PHOS_GUI_COLOR_LIGHT_BLUE, PHOS_GUI_COLOR_DULL_VIOLET)
 /**
   A theme built on red and yellow.
 */
@@ -710,7 +734,7 @@
 	.text_color = PHOS_GUI_COLOR_YELLOW, \
 	.icon_color = PHOS_GUI_COLOR_BRIGHT_INDIGO, \
 	.window_bg_color = ColorContrast(PHOS_GUI_COLOR_DULL_CYAN, -0.15f), \
-	.outline_thickness = 5.0f }
+	.outline_thickness = PHOS_GUI_THEME_DEFAULT_OUTLINE_THICKNESS }
 /**
   A theme revolving around dull blues.
 */
@@ -735,7 +759,7 @@
 	.text_color = ColorBrightness(PHOS_GUI_COLOR_DARK_GREEN, -0.2f), \
 	.icon_color = ColorContrast(PHOS_GUI_COLOR_DARK_GREEN, -0.2f), \
 	.window_bg_color = ColorBrightness(PHOS_GUI_COLOR_DARK_GREEN, -0.5f), \
-	.outline_thickness = 5.0f }, 0.05f)
+	.outline_thickness = PHOS_GUI_THEME_DEFAULT_OUTLINE_THICKNESS }, 0.05f)
 /**
   A theme revolving around marine ecosystems.
 */
@@ -760,7 +784,7 @@
 	.text_color = PHOS_GUI_COLOR_DARK_TEAL, \
 	.icon_color = ColorContrast(PHOS_GUI_COLOR_DULL_CRYSTAL, 0.2f), \
 	.window_bg_color = GetColor(0x4F6D7AFF), \
-	.outline_thickness = 5.0f }
+	.outline_thickness = PHOS_GUI_THEME_DEFAULT_OUTLINE_THICKNESS }
 /**
   A theme revolving around violet and pink.
 */
@@ -968,22 +992,42 @@ typedef enum phos_gui_alignment
 	  Indicates the targeted item should be placed in the outer top-left
 	  corner of an element.
 	*/
-	PHOS_GUI_ALIGN_TOP_LEFT,
+	PHOS_GUI_ALIGN_TOP_LEFT_CORNER,
 	/**
 	  Indicates the targeted item should be placed in the outer top-right
 	  corner of an element.
 	*/
-	PHOS_GUI_ALIGN_TOP_RIGHT,
+	PHOS_GUI_ALIGN_TOP_RIGHT_CORNER,
 	/**
 	  Indicates the targeted item should be placed in the outer bottom-left
 	  corner of an element.
 	*/
-	PHOS_GUI_ALIGN_BOTTOM_LEFT,
+	PHOS_GUI_ALIGN_BOTTOM_LEFT_CORNER,
 	/**
 	  Indicates the targeted item should be placed in the outer bottom-right
 	  corner of an element.
 	*/
-	PHOS_GUI_ALIGN_BOTTOM_RIGHT,
+	PHOS_GUI_ALIGN_BOTTOM_RIGHT_CORNER,
+	/**
+	  Indicates the targeted item should be placed in the outer top-left
+	  corner of the element, but with aligned left edges.
+	*/
+	PHOS_GUI_ALIGN_TOP_LEFT_EDGE,
+	/**
+	  Indicates the targeted item should be placed in the outer top-right
+	  corner of the element, but with aligned right edges.
+	*/
+	PHOS_GUI_ALIGN_TOP_RIGHT_EDGE,
+	/**
+	  Indicates the targeted item should be placed in the outer bottom-left
+	  corner of the element, but with aligned left edges.
+	*/
+	PHOS_GUI_ALIGN_BOTTOM_LEFT_EDGE,
+	/**
+	  Indicates the targeted item should be placed in the outer bottom-right
+	  corner of the element, but with aligned right edges.
+	*/
+	PHOS_GUI_ALIGN_BOTTOM_RIGHT_EDGE
 } phos_gui_alignment;
 
 /**
@@ -1291,6 +1335,12 @@ typedef enum phos_gui_mouse_listener_component_type
 	/**
 	  Results in the mouse listener being toggled
 	  on/off instead of being clicked.
+
+	  @note When using the toggle-style mouse listener,
+	  the colors of the element are used differently.
+	  The element's normal colors indicate that it is
+	  toggled off. The colors on the mouse listener
+	  indicate that it is toggled on.
 	*/
 	PHOS_GUI_MOUSE_LISTENER_TOGGLED
 } phos_gui_mouse_listener_component_type;
@@ -1328,6 +1378,9 @@ typedef struct phos_gui_mouse_listener_component
 	  The background focus color.
 
 	  This color is used when the element currently has focus.
+
+	  @important This color is not used on toggle-style
+	  mouse listeners.
 	*/
 	Color bg_focus_color;
 
@@ -1348,6 +1401,9 @@ typedef struct phos_gui_mouse_listener_component
 	  The outline focus color.
 
 	  This color is used when the element currently has focus.
+
+	  @important This color is not used on toggle-style
+	  mouse listeners.
 	*/
 	Color outline_focus_color;
 
@@ -1375,6 +1431,8 @@ typedef struct phos_gui_mouse_listener_component
 
 	  @note For a mouse listener to be toggled on/off, set the mouse listener's
 	  type to PHOS_GUI_MOUSE_LISTENER_TOGGLED.
+
+	  This is false by default.
 	*/
 	bool toggled_on;
 	/**
@@ -2299,7 +2357,7 @@ typedef struct phos_gui_elem_rect
   @important When modifying an element, you should
   use any functions available to do so. For example, to move
   an element, do not directly modify its 'bounds' field. Instead
-  use phos_gui_move_elem_xy(...) or phos_gui_set_elem_pos(...), etc.
+  use phos_gui_move_elem(...) or phos_gui_set_elem_pos(...), etc.
   These functions will automatically calculate all of the element's
   rectangles, whereas directly changing its position won't.
 */
@@ -2321,11 +2379,9 @@ typedef struct phos_gui_elem
 	  The ID should be unique.
 
 	  @important If you assign the ID to
-	  'auto' then PhosphorusGUI will
+	  '<auto>' then PhosphorusGUI will
 	  automatically generate an ID for
-	  the element. If you want the element to
-	  actually have the ID 'auto,' then set the
-	  ID to '!auto' and it will be properly set.
+	  the element.
 	*/
 	char ID[PHOS_GUI_MAX_ID_LEN + 1];
 
@@ -2782,8 +2838,7 @@ typedef struct phos_gui_animation
   theme first, then use phos_gui_apply_theme_to_gui(phos_gui*, phos_gui_theme)
   to use it.
 
-  PhosphorusGUI does supply a default theme that you can obtain
-  with phos_gui_get_default_theme().
+  PHOS_GUI_THEME_MONOTONE is the default theme of PhosphorusGUI.
 */
 typedef struct phos_gui_theme
 {
@@ -2896,11 +2951,9 @@ typedef struct phos_gui
 	  The ID should be unique.
 
 	  @important If you assign the ID to
-	  'auto' then PhosphorusGUI will
+	  '<auto>' then PhosphorusGUI will
 	  automatically generate an ID for
-	  the element. If you want the element to
-	  actually have the ID 'auto,' then set the
-	  ID to '!auto' and it will be properly set. 
+	  the element.
 	*/
 	char ID[PHOS_GUI_MAX_ID_LEN + 1];
 
@@ -3009,7 +3062,7 @@ PHOS_GUI_API void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vect
 /**
   Moves an element x pixels horizontally and y pixels vertically.
 */
-PHOS_GUI_API void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, phos_gui_opts opts);
+PHOS_GUI_API void phos_gui_move_elem(phos_gui_elem *elem, float x, float y, phos_gui_opts opts);
 /**
   Resizes an element by w pixels horizontally and h pixels vertically.
 
@@ -3022,7 +3075,18 @@ PHOS_GUI_API void phos_gui_move_elem_xy(phos_gui_elem *elem, float x, float y, p
   @param opts Any additional optional arguments you want to pass.
   To add additional arguments, use OPT1 | OPT2 | OPT3... and so on.
 */
-PHOS_GUI_API void phos_gui_resize_elem_wh(phos_gui_elem *elem, float w, float h, phos_gui_opts opts);
+PHOS_GUI_API void phos_gui_resize_elem(phos_gui_elem *elem, float w, float h, phos_gui_opts opts);
+/**
+  Resizes an element by a percentage instead of direct pixels.
+
+  @note A percentage of 0.0f results in no change for the element,
+  while a percentage of 1.0f results in the element's size being
+  doubled. A percentage above 1.0f results in an even larger element
+  size.
+
+  @see phos_gui_resize_elem(phos_gui_elem*, float, float, phos_gui_opts)
+*/
+PHOS_GUI_API void phos_gui_scale_elem(phos_gui_elem *elem, float percentage, phos_gui_opts opts);
 
 /**
   Returns the center of an element.
@@ -3049,6 +3113,12 @@ PHOS_GUI_API void phos_gui_reload_elem(phos_gui_elem *elem);
   @see phos_gui_reload_elem(phos_gui_elem*)
 */
 PHOS_GUI_API void phos_gui_reload_gui(phos_gui *gui);
+/**
+  Scales all elements within a GUI by the scale factor given.
+
+  @see phos_gui_scale_elem(phos_gui_elem*, float, phos_gui_opts)
+*/
+PHOS_GUI_API void phos_gui_scale_gui(phos_gui *gui, float scale, phos_gui_opts opts);
 
 /**
   Returns the bounds of a text component.
@@ -3262,7 +3332,7 @@ PHOS_GUI_API void phos_gui_init_icon(phos_gui_icon *icon, phos_gui_icon_id ID, f
   Sets some basic element attributes
   and puts the element in a valid state.
 
-  @note The element uses the default theme of PhosphorusGUI
+  @note The element uses the current theme of PhosphorusGUI
   when initialized.
 */
 PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h, phos_gui *gui);
@@ -3272,6 +3342,9 @@ PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_g
   By default, button elements come with mouse listener components
   and text components. The text component is initialized with the
   'text' string given.
+
+  @important If the string given is equal to "<no-text>" then
+  the button will not have a text component.
 */
 PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text, phos_gui *gui);
 /**
@@ -3309,6 +3382,10 @@ PHOS_GUI_API void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, f
   By default, drop-down elements come with mouse listener components,
   text components, and drop-down components.
 
+  @important Just like phos_gui_init_button(...), the 'text' string
+  can be equal to "<no-text>" to remove the text component from
+  the drop-down button.
+
   @note 'container_elem' should point to the container of the drop-down menu.
 
   @see phos_gui_drop_down_component
@@ -3317,14 +3394,19 @@ PHOS_GUI_API void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, f
 /**
   Initializes an element and turns it into a single checkbox.
 
-  By default, checkbox elements come with mouse listener components.
+  By default, checkbox elements come with mouse listener components
+  and label components.
 
   Additionally, checkbox elements start out a check mark icon in the center
   of the element.
 
+  @important Just like phos_gui_init_button(...), the 'label_text' string
+  can be equal to "<no-text>" to remove the label component
+  from the checkbox element.
+
   @see phos_gui_checkbox_list_component
 */
-PHOS_GUI_API void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui *gui);
+PHOS_GUI_API void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *label_text, phos_gui *gui);
 /**
   Initializes an element and turns it into a checkbox list.
 
@@ -3347,12 +3429,16 @@ PHOS_GUI_API void phos_gui_init_value_bar(phos_gui_elem *elem, const char *ID, f
   Initializes an element and turns it into a slider using a
   value bar component.
 
-  By default, slider elements come with just
-  value bar components.
+  By default, slider elements come with value bar
+  components and label components.
+
+  @important Just like phos_gui_init_button(...), the 'label_text' string can
+  be equal to "<no-text>" to remove the label component
+  from the slider element.
 
   @see phos_gui_value_bar_component
 */
-PHOS_GUI_API void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value, phos_gui *gui);
+PHOS_GUI_API void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value, const char *label_text, phos_gui *gui);
 
 /**
   Generates the background colors on a mouse listener component using brightness factors.
@@ -3707,9 +3793,9 @@ PHOS_GUI_API void phos_gui_render_icon(phos_gui_icon *icon);
 */
 PHOS_GUI_API Color phos_gui_random_color(void);
 /**
-  Obtains the default theme for PhosphorusGUI.
+  Obtains the current theme for PhosphorusGUI.
 */
-PHOS_GUI_API phos_gui_theme phos_gui_get_default_theme(void);
+PHOS_GUI_API phos_gui_theme phos_gui_get_theme(void);
 /**
   Creates a theme based on a single starting color.
 
@@ -3744,8 +3830,8 @@ PHOS_GUI_API phos_gui_theme phos_gui_create_theme_full(Color base_color, Color a
   It only applies the theme to the current elements
   in the phos_gui.
 
-  To set the default theme of PhosphorusGUI, use
-  phos_gui_set_default_theme(...) instead.
+  To set the current theme of PhosphorusGUI, use
+  phos_gui_set_theme(...) instead.
 */
 PHOS_GUI_API void phos_gui_apply_theme_to_gui(phos_gui *gui, phos_gui_theme theme);
 /**
@@ -3755,17 +3841,17 @@ PHOS_GUI_API void phos_gui_apply_theme_to_gui(phos_gui *gui, phos_gui_theme them
 */
 PHOS_GUI_API void phos_gui_apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme);
 /**
-  Sets the default theme of PhosphorusGUI.
+  Sets the current theme of PhosphorusGUI.
 
   Unlike phos_gui_apply_theme(...) this function
-  sets the global default theme of the program.
+  sets the global current theme of the program.
 
-  When setting the default theme, all elements
+  When setting the current theme, all elements
   created with phos_gui_init_elem(...) start
   out with this theme, and you do not have to
   apply it later.
 */
-PHOS_GUI_API void phos_gui_set_default_theme(phos_gui_theme theme);
+PHOS_GUI_API void phos_gui_set_theme(phos_gui_theme theme);
 /**
   Brightens a theme by the given percentage and
   returns the new theme created.
