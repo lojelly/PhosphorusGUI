@@ -612,7 +612,6 @@ static void init_checkbox_list_component(void *checkbox_list_component)
 
 	phos_gui_checkbox_list_component *list = checkbox_list_component;
 
-	list->container = NULL;
 	list->num_available_options = 1;
 	list->num_options_selected = 0;
 }
@@ -649,6 +648,15 @@ static void init_value_bar_component(void *value_bar_component)
 
 	// re-apply default theme to elem
 	phos_gui_apply_theme_to_elem(owner, phos_gui_get_theme());
+}
+static void init_icon_list_component(void *icon_list_component)
+{
+	if(!icon_list_component)
+		return;
+
+	phos_gui_icon_list_component *icon_list = icon_list_component;
+
+	icon_list->num_icons = 0;
 }
 
 int phos_gui_init()
@@ -693,6 +701,7 @@ int phos_gui_init()
 	pluto_cs_register(PHOS_GUI_COMPONENT_DROP_DOWN, sizeof(phos_gui_drop_down_component), init_drop_down_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_CHECKBOX_LIST, sizeof(phos_gui_checkbox_list_component), init_checkbox_list_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_VALUE_BAR, sizeof(phos_gui_value_bar_component), init_value_bar_component, NULL);
+	pluto_cs_register(PHOS_GUI_COMPONENT_ICON_LIST, sizeof(phos_gui_icon_list_component), init_icon_list_component, NULL);
 
 	// set default theme
 	curr_theme = PHOS_GUI_THEME_MONOTONE;
@@ -878,6 +887,11 @@ void phos_gui_center_elem(phos_gui_elem *elem, Vector2 origin, Vector2 size)
 	phos_gui_set_elem_bounds(elem, elem_centered.x, elem_centered.y, elem->bounds.width, elem->bounds.height, PHOS_GUI_OPTS_NONE);
 }
 
+static void move_icon(phos_gui_icon *icon, float x, float y)
+{
+	icon->bounds.x += x;
+	icon->bounds.y += y;
+}
 void phos_gui_move_elem(phos_gui_elem *elem, float x, float y, phos_gui_opts opts)
 {
 	if(!elem)
@@ -952,8 +966,18 @@ void phos_gui_move_elem(phos_gui_elem *elem, float x, float y, phos_gui_opts opt
 	}
 	// if no collision occurred on the parent, its children can move
 	else
+	{
 		for(size_t i = 0; i < elem->num_children; ++i)
 			phos_gui_move_elem(elem->children[i], x, y, opts);
+
+		// pass changes down to icons as well
+		phos_gui_icon_list_component *icon_list = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
+		if(icon_list)
+		{
+			for(size_t i = 0; i < icon_list->num_icons; ++i)
+				move_icon(&icon_list->icons[i], x, y);
+		}
+	}
 
 	// calculate all rects of elem in update loop
 	prepare_elem_rects_for_caching(elem);
@@ -1168,8 +1192,12 @@ void phos_gui_resize_elem(phos_gui_elem *elem, float w, float h, phos_gui_opts o
 	}
 
 	// pass changes down to icons
-	for(size_t i = 0; i < elem->num_icons; ++i)
-		resize_icon(&elem->icons[i], w, h);
+	phos_gui_icon_list_component *icon_list = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
+	if(icon_list)
+	{
+		for(size_t i = 0; i < icon_list->num_icons; ++i)
+			resize_icon(&icon_list->icons[i], w, h);
+	}
 }
 void phos_gui_scale_elem(phos_gui_elem *elem, float scale, phos_gui_opts opts)
 {
@@ -2139,9 +2167,9 @@ void phos_gui_init_icon(phos_gui_icon *icon, phos_gui_icon_id ID, float x, float
 	icon->bounds.y = y;
 	icon->ID = ID;
 	icon->color = phos_gui_get_theme().icon_color;
-	icon->auto_render = true;
+	icon->visible = true;
 }
-void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h, phos_gui *gui)
+void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h)
 {
 	if(!elem)
 	{
@@ -2156,10 +2184,8 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 	elem->total_bounds.rect = bounds;
 	elem->content_total_bounds.rect = bounds;
 	elem->content_free_bounds.rect = bounds;
-	elem->gui = NULL;
 	elem->parent = NULL;
 	elem->num_children = 0;
-	elem->num_icons = 0;
 	elem->type = type;
 	elem->shape = PHOS_GUI_SHAPE_RECT;
 	elem->render_mode = render_mode;
@@ -2174,17 +2200,15 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 	elem->left_padding = elem->top_padding = elem->right_padding = elem->bottom_padding = 0.0f;
 	elem->left_margin = elem->top_margin = elem->right_margin = elem->bottom_margin = 0.0f;
 	elem->disabled = false;
-	elem->auto_render = true;
+	elem->visible = true;
 	elem->clipped = false;
 
 	// apply default theme to element
 	phos_gui_apply_theme_to_elem(elem, phos_gui_get_theme());
 
 	prepare_elem_rects_for_caching(elem);
-
-	phos_gui_add_elem_to_gui(elem, gui);
 }
-void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text, phos_gui *gui)
+void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text)
 {
 	if(!elem)
 	{
@@ -2193,7 +2217,7 @@ void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y,
 	}
 
 	// init element's basic attributes first
-	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_INTERACTIVE, PHOS_GUI_RENDER_FILL_OUTLINE, x, y, w, h, gui);
+	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_INTERACTIVE, PHOS_GUI_RENDER_FILL_OUTLINE, x, y, w, h);
 
 	// create text component only if str is not "<no-text>"
 	if(strcmp(text, PHOS_GUI_NO_TEXT) != 0)
@@ -2209,7 +2233,7 @@ void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y,
 	if(!mouse_listener)
 		phos_gui_exit(EXIT_FAILURE);
 }
-void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui *gui)
+void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text)
 {
 	if(!elem)
 	{
@@ -2218,7 +2242,7 @@ void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, floa
 	}
 
 	// first, init elem as a button
-	phos_gui_init_button(elem, ID, x, y, w, h, main_text, gui);
+	phos_gui_init_button(elem, ID, x, y, w, h, main_text);
 
 	// add scroll pane component TO THE TEXT CONTAINER so text scrolls as user types
 	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
@@ -2253,7 +2277,7 @@ void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, floa
 		phos_gui_realign_elem_text(text);
 	}
 }
-void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui_text_wrap_mode wrap_mode, phos_gui *gui)
+void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui_text_wrap_mode wrap_mode)
 {
 	if(!elem)
 	{
@@ -2262,7 +2286,7 @@ void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float
 	}
 
 	// first, init elem as text field
-	phos_gui_init_text_field(elem, ID, x, y, w, h, main_text, placeholder_text, gui);
+	phos_gui_init_text_field(elem, ID, x, y, w, h, main_text, placeholder_text);
 
 	// check which wrap mode the user gave:
 	if(wrap_mode == PHOS_GUI_TEXT_WRAP_NONE)
@@ -2293,7 +2317,7 @@ void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float
 		phos_gui_realign_elem_text(text);
 	}
 }
-void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text, phos_gui *gui)
+void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text)
 {
 	if(!elem)
 	{
@@ -2307,7 +2331,7 @@ void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float
 	}
 
 	// first init elem as a button
-	phos_gui_init_button(elem, ID, x, y, w, h, text, gui);
+	phos_gui_init_button(elem, ID, x, y, w, h, text);
 
 	// add drop-down component
 	phos_gui_drop_down_component *drop_down = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_DROP_DOWN);
@@ -2329,12 +2353,69 @@ void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float
 	// move container to elem pos
 	phos_gui_set_elem_pos(container_elem, elem->bounds.x, elem->bounds.y + elem->bounds.height, PHOS_GUI_OPTS_NONE);
 }
+static void select_checkbox(phos_gui_elem *checkbox, phos_gui_checkbox_list_component *list, phos_gui_icon *check_mark_icon)
+{
+	if(list->num_options_selected >= list->num_available_options || list->num_options_selected >= PHOS_GUI_MAX_CHECKBOXES)
+		return;
+
+	list->selections[list->num_options_selected++] = checkbox;
+	check_mark_icon->visible = true;
+}
+static void unselect_first_checkbox(phos_gui_checkbox_list_component *list)
+{
+	if(list->num_options_selected == 0)
+		return;
+	
+	// get oldest checkbox in the list
+	phos_gui_elem *first = list->selections[0];
+
+	// stop rendering its check mark icon
+	phos_gui_icon *check_mark_icon = phos_gui_find_elem_icon(first, PHOS_GUI_ICON_CHECK_MARK);
+	if(check_mark_icon)
+		check_mark_icon->visible = false;
+
+	// remove first elem
+	memmove(list->selections, list->selections + 1, (list->num_options_selected - 1) * sizeof(phos_gui_elem*));
+	list->num_options_selected--;
+}
+static void unselect_checkbox(phos_gui_elem *checkbox, phos_gui_checkbox_list_component *list, phos_gui_icon *check_mark_icon)
+{
+	for(size_t i = 0; i < list->num_options_selected; ++i)
+	{
+		if(list->selections[i] == checkbox)
+		{
+			memmove(list->selections + i, list->selections + i + 1, (list->num_options_selected - i - 1) * sizeof(phos_gui_elem*));
+			list->num_options_selected--;
+			check_mark_icon->visible = false;
+			return;
+		}
+	}
+}
 static void toggle_checkbox(phos_gui_elem *elem, phos_gui_opts opts)
 {
 	// first, ensure elem has check mark icon
 	phos_gui_icon *check_mark_icon = phos_gui_find_elem_icon(elem, PHOS_GUI_ICON_CHECK_MARK);
-	if(check_mark_icon)
-		check_mark_icon->auto_render = !check_mark_icon->auto_render;
+	if(!check_mark_icon)
+		return;
+
+	// see if elem belongs to a checkbox list
+	phos_gui_checkbox_list_component *checkbox_list = NULL;
+	if(elem->parent)
+		checkbox_list = pluto_cs_get_component(elem->parent, PHOS_GUI_COMPONENT_CHECKBOX_LIST);
+	if(checkbox_list)
+	{
+		if(check_mark_icon->visible)
+			unselect_checkbox(elem, checkbox_list, check_mark_icon);
+		else
+		{
+			if(checkbox_list->num_options_selected == checkbox_list->num_available_options)
+				unselect_first_checkbox(checkbox_list);
+
+			select_checkbox(elem, checkbox_list, check_mark_icon);
+		}
+	}
+	else
+		check_mark_icon->visible = !check_mark_icon->visible;
 }
 void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *label_text, phos_gui *gui)
 {
@@ -2345,23 +2426,32 @@ void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float 
 	}
 
 	// first init elem as a button (without text component)
-	phos_gui_init_button(elem, ID, x, y, w, h, PHOS_GUI_NO_TEXT, gui);
+	phos_gui_init_button(elem, ID, x, y, w, h, PHOS_GUI_NO_TEXT);
 
 	// add check mark icon to checkbox
 	phos_gui_icon check_mark = {0};
 	phos_gui_init_icon(&check_mark, PHOS_GUI_ICON_CHECK_MARK, elem->bounds.x + (elem->bounds.width - PHOS_GUI_ICON_SIZE) / 2.0f, elem->bounds.y + (elem->bounds.height - PHOS_GUI_ICON_SIZE) / 2.0f);
 	// checkbox is not selected by default
-	check_mark.auto_render = false;
-	phos_gui_add_elem_icon(elem, check_mark);
+	check_mark.visible= false;
+
+	phos_gui_icon_list_component *icon_list = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
+	if(!icon_list)
+		phos_gui_exit(EXIT_FAILURE);
+	phos_gui_add_icon(icon_list, check_mark);
 
 	// add way to toggle check mark
-	phos_gui_event_listener listener = {0};
-	listener.elem = elem;
-	listener.event = PHOS_GUI_EVENT_MOUSE_CLICK;
-	listener.target_btn = MOUSE_BUTTON_LEFT;
-	listener.action = toggle_checkbox;
-	listener.opts = PHOS_GUI_OPTS_NONE;
-	phos_gui_add_event_listener(gui, listener);
+	if(gui)
+	{
+		phos_gui_event_listener listener = {0};
+		listener.elem = elem;
+		listener.event = PHOS_GUI_EVENT_MOUSE_CLICK;
+		listener.target_btn = MOUSE_BUTTON_LEFT;
+		listener.action = toggle_checkbox;
+		listener.opts = PHOS_GUI_OPTS_NONE;
+		phos_gui_add_event_listener(gui, listener);
+	}
+	else
+		vl_log(VL_ERROR, "A checkbox must be created with a phos_gui to properly work!\n");
 
 	// make mouse listener a toggle mouse listener
 	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
@@ -2383,34 +2473,23 @@ void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float 
 	// generate outline colors for checkbox after theme applied
 	phos_gui_gen_outline_colors(mouse_listener, -0.1f, -0.2f, 0.0f);
 }
-void phos_gui_init_checkbox_list(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, phos_gui *gui)
+void phos_gui_init_checkbox_list(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h)
 {
 	if(!elem)
 	{
 		vl_log(VL_ERROR, "Cannot intialize a NULL element!\n");
 		return;
 	}
-	if(!container_elem)
-	{
-		vl_log(VL_ERROR, "Cannot initialize a checkbox list with a NULL container element!\n");
-		return;
-	}
 
-	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_INTERACTIVE, PHOS_GUI_RENDER_FILL_OUTLINE, x, y, w, h, gui);
+	// TODO fix outlines around elems with labels?
+	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_INTERACTIVE, PHOS_GUI_RENDER_BLANK, x, y, w, h);
 
 	// add checkbox list component
 	phos_gui_checkbox_list_component *list = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_CHECKBOX_LIST);
 	if(!list)
 		phos_gui_exit(EXIT_FAILURE);
-	// container elem becomes a child to elem
-	phos_gui_add_child_to_elem(container_elem, elem, PHOS_GUI_OPTS_NONE);
-	// and point to the container elem in the checkbox list
-	list->container = container_elem;
-
-	// move container to elem pos
-	phos_gui_set_elem_pos(container_elem, elem->bounds.x, elem->bounds.y, PHOS_GUI_OPTS_NONE);
 }
-void phos_gui_init_value_bar(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value, phos_gui *gui)
+void phos_gui_init_value_bar(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value)
 {
 	if(!elem)
 	{
@@ -2418,7 +2497,7 @@ void phos_gui_init_value_bar(phos_gui_elem *elem, const char *ID, float x, float
 		return;
 	}
 
-	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_INTERACTIVE, PHOS_GUI_RENDER_FILL, x, y, w, h, gui);
+	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_INTERACTIVE, PHOS_GUI_RENDER_FILL, x, y, w, h);
 
 	// add value bar component
 	phos_gui_value_bar_component *value_bar = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_VALUE_BAR);
@@ -2428,7 +2507,7 @@ void phos_gui_init_value_bar(phos_gui_elem *elem, const char *ID, float x, float
 	value_bar->max_value = max_value;
 	value_bar->curr_value = curr_value;
 }
-void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value, const char *label_text, phos_gui *gui)
+void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value, const char *label_text)
 {
 	if(!elem)
 	{
@@ -2436,7 +2515,7 @@ void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y,
 		return;
 	}
 
-	phos_gui_init_value_bar(elem, ID, x, y, w, h, min_value, max_value, curr_value, gui);
+	phos_gui_init_value_bar(elem, ID, x, y, w, h, min_value, max_value, curr_value);
 
 	// turn value bar into slider
 	phos_gui_value_bar_component *value_bar = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_VALUE_BAR);
@@ -2619,7 +2698,7 @@ int phos_gui_remove_elem_from_gui(phos_gui_elem *elem, phos_gui *gui)
 			}
 
 			// otherwise, shift all elements to the left and decrement num_elems:
-			memmove(gui->elems[i], gui->elems[i + 1], (gui->num_elems - i - 1) * sizeof(phos_gui_elem*));
+			memmove(gui->elems + i, gui->elems + i + 1, (gui->num_elems - i - 1) * sizeof(phos_gui_elem*));
 			gui->num_elems--;
 
 			vl_log(VL_SUCCESS, "Removed element '%s' from GUI '%s'!\n", e->ID, gui->ID);
@@ -2890,15 +2969,23 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 
 	return 1;
 }
-int phos_gui_add_elem_icon(phos_gui_elem *elem, phos_gui_icon icon)
+int phos_gui_add_icon(phos_gui_icon_list_component *icon_list, phos_gui_icon icon)
 {
-	if(!elem)
+	if(!icon_list)
 	{
-		vl_log(VL_ERROR, "Unable to add icon to NULL element!\n");
+		vl_log(VL_ERROR, "Unable to add icon to a NULL icon list!\n");
 		return 0;
 	}
 
-	if(elem->num_icons >= PHOS_GUI_MAX_ICONS)
+	// get owner of icon list
+	phos_gui_elem *elem = pluto_cs_get_owner(icon_list);
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "To add an icon to an icon list, it must have a valid owner!\n");
+		return 0;
+	}
+
+	if(icon_list->num_icons >= PHOS_GUI_MAX_ICONS)
 	{
 		vl_log(VL_ERROR, "This element cannot contain any more icons: '%s'!\n", elem->ID);
 		return 0;
@@ -2911,30 +2998,38 @@ int phos_gui_add_elem_icon(phos_gui_elem *elem, phos_gui_icon icon)
 		return 0;
 	}
 
-	elem->icons[elem->num_icons++] = icon;
+	icon_list->icons[icon_list->num_icons++] = icon;
 
 	vl_log(VL_SUCCESS, "Icon %d added to element '%s'!\n", icon.ID, elem->ID);
 
 	return 1;
 }
-int phos_gui_remove_icon_from_elem(phos_gui_elem *elem, phos_gui_icon_id ID)
+int phos_gui_remove_icon(phos_gui_icon_list_component *icon_list, phos_gui_icon_id ID)
 {
+	if(!icon_list)
+	{
+		vl_log(VL_ERROR, "Cannot remove an icon from a NULL icon list!\n");
+		return 0;
+	}
+
+	// get owner of icon list
+	phos_gui_elem *elem = pluto_cs_get_owner(icon_list);
 	if(!elem)
 	{
-		vl_log(VL_ERROR, "Cannot remove an icon from a NULL element!\n");
+		vl_log(VL_ERROR, "To remove an icon from an icon list, it must have a valid owner!\n");
 		return 0;
 	}
 
 	// find icon in icons array
-	for(size_t i = 0; i < elem->num_icons; ++i)
+	for(size_t i = 0; i < icon_list->num_icons; ++i)
 	{
-		phos_gui_icon *icon = &elem->icons[i];
+		phos_gui_icon *icon = &icon_list->icons[i];
 
 		if(icon->ID == ID)
 		{
 			// shift all icons to left
-			memmove(elem->icons + i, elem->icons + i + 1, (elem->num_icons - i - 1) * sizeof(phos_gui_icon));
-			elem->num_icons--;
+			memmove(icon_list->icons + i, icon_list->icons + i + 1, (icon_list->num_icons - i - 1) * sizeof(phos_gui_icon));
+			icon_list->num_icons--;
 
 			vl_log(VL_SUCCESS, "Removed icon %d from element '%s'!\n", ID, elem->ID);
 			return 1;
@@ -2953,9 +3048,14 @@ phos_gui_icon *phos_gui_find_elem_icon(phos_gui_elem *elem, phos_gui_icon_id ID)
 		return NULL;
 	}
 
-	for(size_t i = 0; i < elem->num_icons; ++i)
-		if(elem->icons[i].ID == ID)
-			return &elem->icons[i];
+	// get icon list
+	phos_gui_icon_list_component *icon_list = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
+	if(icon_list)
+	{
+		for(size_t i = 0; i < icon_list->num_icons; ++i)
+			if(icon_list->icons[i].ID == ID)
+				return &icon_list->icons[i];
+	}
 
 	return NULL;
 }
@@ -4176,7 +4276,7 @@ static phos_gui_elem *get_elem_mouse_target(phos_gui_elem *e, Vector2 mouse_pos)
 		return NULL;
 
 	// if elem isn't rendered, it can't be the mouse target either
-	if(!e->auto_render)
+	if(!e->visible)
 		return NULL;
 
 	// then see if mouse is within the parent's clip region
@@ -4225,527 +4325,6 @@ static phos_gui_elem *get_gui_mouse_target(phos_gui *gui, Vector2 mouse_pos)
 	// no mouse target
 	return NULL;
 }
-static void update_elem(phos_gui_elem *e, float dt)
-{
-	// skip disabled elems
-	if(e->disabled)
-		return;
-	// cannot update invalid elements
-	else if(e->type == PHOS_GUI_TYPE_INVALID)
-	{
-		vl_delay_log(VL_ERROR, 5.0f, "Cannot update element with invalid type: '%s'!\n", e->ID);
-		return;
-	}
-	// skip basic elements as well by going to update_children tag
-	else if(e->type == PHOS_GUI_TYPE_BLANK)
-		goto update_children;
-
-	// if element is not being rendered, it shouldn't be updated either
-	if(!e->auto_render)
-		goto update_children;
-
-	// obtain all input state here:
-	Vector2 mouse_pos = phos_gui_get_mouse_pos();
-	Vector2 mouse_delta = GetMouseDelta();
-	Vector2 mouse_wheel_move = GetMouseWheelMoveV();
-	bool mouse_clicked = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
-	bool mouse_down = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
-	bool mouse_released = IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
-	// see if mouse over element (if the current elem is the mouse target, that guarantees that the mouse is over the elem
-	bool mouse_over_elem = e == mouse_target;
-
-	// if mouse is not in window, manually clear out mouse delta to stop all dragging logic from occurring
-	if(mouse_pos.x <= 0.0f || mouse_pos.y <= 0.0f || mouse_pos.x >= GetRenderWidth() || mouse_pos.y >= GetRenderHeight())
-		mouse_delta = Vector2Zero();
-
-	// calculate and get all rects for the elem:
-	e->content_total_bounds.rect = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
-	e->content_free_bounds.rect = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
-	e->total_bounds.rect = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_TOTAL);
-
-	// update mouse listener component:
-	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
-	phos_gui_text_component *text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXT);
-	if(mouse_listener)
-	{
-		// keep track of whether or not elem gained focus
-		bool no_focus = !mouse_listener->has_focus;
-
-		// reset mouse state
-		mouse_listener->hovered = false;
-		mouse_listener->pressed = false;
-		mouse_listener->clicked = false;
-		mouse_listener->released = mouse_released;
-
-		if(mouse_over_elem)
-		{
-			// if mouse is over elem and all clip regions, handle elem-mouse logic:
-			mouse_listener->hovered = true;
-
-			// default mouse listener logic:
-			if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_DEFAULT)
-			{
-				if(mouse_clicked)
-				{
-					mouse_listener->clicked = true;
-					mouse_listener->has_focus = true;
-				}
-				else if(mouse_down)
-				{
-					mouse_listener->pressed = true;
-					mouse_listener->has_focus = true;
-				}
-			}
-			// toggle-style mouse listener:
-			else if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_TOGGLED)
-			{
-				if(mouse_clicked)
-				{
-					mouse_listener->clicked = true;
-					mouse_listener->toggled = true;
-					mouse_listener->toggled_on = !mouse_listener->toggled_on;
-					mouse_listener->has_focus = true;
-				}
-				else if(mouse_down)
-				{
-					mouse_listener->pressed = true;
-					mouse_listener->has_focus = true;
-				}
-			}
-		}
-		// else if user clicks OFF of the element
-		else if(mouse_clicked || mouse_down)
-		{
-			// ensure elem loses focus
-			mouse_listener->has_focus = false;
-
-			// if curr_gui_elem_num points to this elem, reset it
-			if(curr_travel_elem == e)
-				curr_travel_elem = NULL;
-		}
-		else
-		{
-			// if no mouse input detected, check to see if user reached the elem and is using keyboard input instead
-			if(curr_travel_elem == e)
-			{
-				// if this elem has a text component, hitting enter would insert a new line, and it has focus, ENTER should not act as a mouse-press
-				if(text && !text->enter_inserts_new_line && !mouse_listener->has_focus)
-				{
-					if(IsKeyPressed(KEY_ENTER))
-					{
-						mouse_listener->pressed = true;
-						mouse_listener->clicked = true;
-					}
-					else if(IsKeyDown(KEY_ENTER))
-						mouse_listener->pressed = true;
-				}
-			}
-		}
-
-		// if elem now has focus, it gained focus
-		if(no_focus && mouse_listener->has_focus)
-			mouse_listener->gained_focus = true;
-		else
-			mouse_listener->gained_focus = false;
-	}
-
-	// update text components:
-	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_SCROLL_PANE);
-	if(text)
-	{
-		// reset 'edited' field
-		text->edited = false;
-
-		// only type into text if it can be edited and has focus (requires mouse listener component)
-		if(text->editable && mouse_listener && mouse_listener->has_focus)
-		{
-			// collect char pressed
-			char c = GetCharPressed();
-
-			while(c > 0)
-			{
-				// get type of c
-				bool letter = isalpha(c);
-				bool num = isdigit(c);
-				bool special = !letter && !num;
-
-				// see if text accepts this type of char:
-
-				if(letter && !text->accept_letters)
-				{
-					c = GetCharPressed();
-					continue;
-				}
-				if(num && !text->accept_nums)
-				{
-					c = GetCharPressed();
-					continue;
-				}
-				// let SPACE through the special char check
-				if(special && !text->accept_specials && c != ' ')
-				{
-					c = GetCharPressed();
-					continue;
-				}
-
-				// assign char typed
-				text->char_typed = c;
-
-				// insert char into string at cursor pos (if possible)
-				insert_char_text(text, c, scroll_pane);
-
-				// get next char pressed
-				c = GetCharPressed();
-			}
-
-			update_key_timer(text, dt, &backspace_timer, backspace);
-			update_key_timer(text, dt, &del_timer, delete);
-			update_key_timer(text, dt, &left_arrow_timer, move_cursor_left);
-			update_key_timer(text, dt, &up_arrow_timer, move_cursor_up);
-			update_key_timer(text, dt, &right_arrow_timer, move_cursor_right);
-			update_key_timer(text, dt, &down_arrow_timer, move_cursor_down);
-			update_key_timer(text, dt, &enter_timer, new_line);
-			update_key_timer(text, dt, &tab_timer, indent);
-		}
-		else
-			text->edited = false;
-
-		// update text scrolling if edited
-		if(text->edited)
-			update_text_scrolling(text);
-	}
-
-	// if elem has focus and ESC pressed, lose focus
-	if(mouse_listener && mouse_listener->has_focus && IsKeyPressed(KEY_ESCAPE))
-	{
-		mouse_listener->has_focus = false;
-		mouse_listener->gained_focus = false;
-
-		// if curr_travel_elem points to this elem, reset it
-		if(curr_travel_elem == e)
-			curr_travel_elem = NULL;
-	}
-
-	// update input panes:
-	phos_gui_drag_pane_component *drag_pane = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_DRAG_PANE);
-
-	// is user currently scrolling the scroll pane?
-	bool scrolling_scroll_pane = scroll_pane && (scroll_pane->v_bar.thumb_grabbed || scroll_pane->h_bar.thumb_grabbed);
-	// is user currently dragging the drag pane?
-	bool dragging_drag_pane = drag_pane && drag_pane->grabbed;
-
-	if(scroll_pane)
-	{
-		// first, determine max scroll values for element (unless text already handled scrolling)
-		if(!text)
-		{
-			scroll_pane->max_scroll_x = get_max_scroll_x(e);
-			scroll_pane->max_scroll_y = get_max_scroll_y(e);
-		}
-
-		// store current scroll value
-		float prev_scroll_x = scroll_pane->scroll_x;
-		float prev_scroll_y = scroll_pane->scroll_y;
-
-		// define rects around scroll thumbs:
-		Rectangle v_bar, v_thumb, h_bar, h_thumb;
-		get_scroll_bar_rects(scroll_pane, &v_bar, &v_thumb, &h_bar, &h_thumb);
-
-		// reset mouse state on scroll thumb
-		scroll_pane->v_bar.thumb_has_focus = false;
-		scroll_pane->h_bar.thumb_has_focus = false;
-
-		// see if mouse is over the thumb
-		bool mouse_over_v_thumb = scroll_pane->v_bar.active && scroll_pane->v_bar.rendered && phos_gui_is_mouse_over_rect(v_thumb);
-		bool mouse_over_h_thumb = scroll_pane->h_bar.active && scroll_pane->h_bar.rendered && phos_gui_is_mouse_over_rect(h_thumb);
-
-		// see if user is hovered over the thumb and not currently dragging pane
-		if(mouse_over_v_thumb && !dragging_drag_pane)
-			// give scroll thumb focus
-			scroll_pane->v_bar.thumb_has_focus = true;
-		if(mouse_over_h_thumb && !dragging_drag_pane)
-			// give scroll thumb focus
-			scroll_pane->h_bar.thumb_has_focus = true;
-
-		// check for user dragging bars:
-		if(!dragging_drag_pane && mouse_down || (mouse_down && (scroll_pane->v_bar.thumb_grabbed || scroll_pane->h_bar.thumb_grabbed)))
-		{
-			// start initial grabs
-			if(mouse_over_v_thumb && !scroll_pane->v_bar.thumb_grabbed)
-			{
-				scroll_pane->v_bar.thumb_grabbed = true;
-				scroll_pane->v_bar.thumb_grab_offset = mouse_pos.y - v_thumb.y;
-			}
-			if(mouse_over_h_thumb && !scroll_pane->h_bar.thumb_grabbed)
-			{
-				scroll_pane->h_bar.thumb_grabbed = true;
-				scroll_pane->h_bar.thumb_grab_offset = mouse_pos.x - h_thumb.x;
-			}
-
-			// continue grabs
-			if(scroll_pane->v_bar.thumb_grabbed)
-			{
-				float desired_thumb_y = mouse_pos.y - scroll_pane->v_bar.thumb_grab_offset;
-				float thumb_travel = v_bar.height - v_thumb.height;
-				float thumb_offset = desired_thumb_y - v_bar.y;
-				float t = thumb_offset / thumb_travel;
-				t = Clamp(t, 0.0f, 1.0f);
-				scroll_pane->scroll_y = t * scroll_pane->max_scroll_y;
-			}
-			if(scroll_pane->h_bar.thumb_grabbed)
-			{
-				float desired_thumb_x = mouse_pos.x - scroll_pane->h_bar.thumb_grab_offset;
-				float thumb_travel = h_bar.width - h_thumb.width;
-				float thumb_offset = desired_thumb_x - h_bar.x;
-				float t = thumb_offset / thumb_travel;
-				t = Clamp(t, 0.0f, 1.0f);
-				scroll_pane->scroll_x = t * scroll_pane->max_scroll_x;
-			}
-		}
-		// user is using mouse wheel instead: (requires 'use_mouse_wheel_input' to be true)
-		else if(phos_gui_is_mouse_over_rect(get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL)) && scroll_pane->use_mouse_wheel_input)
-		{
-			// user is trying to scroll using mouse wheel:
-
-			// ticks becomes mouse wheel movement instead (include px_per_tick since the mouse wheel is being used)
-			float h_ticks = mouse_wheel_move.x * scroll_pane->px_per_tick;
-			float v_ticks = mouse_wheel_move.y * scroll_pane->px_per_tick;
-
-			// use ticks * px_per_tick to add to total scroll offset
-			scroll_pane->scroll_y -= v_ticks;
-			scroll_pane->scroll_x -= h_ticks;
-
-			// thumb no longer grabbed
-			scroll_pane->v_bar.thumb_grabbed = false;
-			scroll_pane->h_bar.thumb_grabbed = false;
-		}
-		else
-		{
-			// thumb no longer grabbed or focused
-			scroll_pane->v_bar.thumb_grabbed = false;
-			scroll_pane->h_bar.thumb_grabbed = false;
-		}
-
-		// clamp scroll amounts
-		if(scroll_pane->scroll_x < 0.0f)
-			scroll_pane->scroll_x = 0.0f;
-		else if(scroll_pane->scroll_x > scroll_pane->max_scroll_x)
-			scroll_pane->scroll_x = scroll_pane->max_scroll_x;
-
-		if(scroll_pane->scroll_y < 0.0f)
-			scroll_pane->scroll_y = 0.0f;
-		else if(scroll_pane->scroll_y > scroll_pane->max_scroll_y)
-			scroll_pane->scroll_y = scroll_pane->max_scroll_y;
-
-		float delta_x = scroll_pane->scroll_x - prev_scroll_x;
-		float delta_y = scroll_pane->scroll_y - prev_scroll_y;
-
-		// translate children based on scroll pane translation (only if user scrolled)
-		for(size_t i = 0; i < e->num_children; ++i)
-			phos_gui_move_elem(e->children[i], -delta_x, -delta_y, PHOS_GUI_OPTS_NONE);
-	}
-
-	// check for drag pane component
-	if(drag_pane)
-	{
-		// only handle drag pane logic if left mouse button down and user not currently scrolling the scroll pane
-		if(!scrolling_scroll_pane && mouse_down)
-		{
-			// get drag bar rect
-			Rectangle drag_bar_rect;
-			get_drag_bar_rect(drag_pane, &drag_bar_rect);
-
-			// see if mouse target was already taken:
-			bool mouse_target_exists = (mouse_target != NULL && mouse_target != e);
-
-			// determine how to interpret mouse state
-			if(drag_pane->use_drag_bar)
-			{
-				// check for mouse over drag bar
-				bool mouse_over_bar = phos_gui_is_mouse_over_rect(drag_bar_rect);
-
-				// if mouse over bar was already over an elem, do not drag:
-				if(!mouse_target_exists && (mouse_over_bar || drag_pane->grabbed))
-				{
-					// if mouse down and over the bar, it becomes grabbed
-					drag_pane->grabbed = true;
-					drag_pane->drag_delta = mouse_delta;
-
-					// add to elem pos based on mouse delta
-					phos_gui_move_elem(e, mouse_delta.x, mouse_delta.y, drag_pane->drag_opts);
-
-					// move drag bar based on mouse delta
-					/*drag_pane->drag_bar_pos.x += mouse_delta.x;
-					drag_pane->drag_bar_pos.y += mouse_delta.y;	*/
-				}
-			}
-			else
-			{
-				// check for mouse over free content rect
-				bool mouse_over_free_content = phos_gui_is_mouse_over_rect(e->content_free_bounds.rect);
-
-				// to grab the whole element, the mouse has to be over the free content rect but not over another elem
-				if(!mouse_target_exists && (mouse_over_free_content || drag_pane->grabbed))
-				{
-					// if mouse down and over the elem, it becomes grabbed
-					drag_pane->grabbed = true;
-					drag_pane->drag_delta = mouse_delta;
-
-					// add to elem pos based on mouse delta
-					phos_gui_move_elem(e, mouse_delta.x, mouse_delta.y, drag_pane->drag_opts);
-				}
-			}
-		}
-		else
-			// when mouse not down, the drag pane is no longer grabbed
-			drag_pane->grabbed = false;
-	}
-
-	// dropdown logic for the drop-down button (must be combined with mouse listener to be interacted with)
-	phos_gui_drop_down_component *drop_down = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_DROP_DOWN);
-	if(drop_down && mouse_listener)
-	{
-		// see if button was clicked, and if so, toggle dropdown's expanded state
-		if(mouse_listener->clicked)
-			drop_down->expanded = !drop_down->expanded;
-
-		bool selection_made = false;
-
-		// see if the dropdown was supplied a container
-		if(drop_down->container)
-		{
-			// reset scroll amounts on scroll pane if necessary
-			phos_gui_scroll_pane_component *container_scroll_pane = pluto_cs_get_component(drop_down->container, PHOS_GUI_COMPONENT_SCROLL_PANE);
-			if(mouse_listener->clicked && container_scroll_pane)
-			{
-				// reset positions of children
-				for(size_t i = 0; i < drop_down->container->num_children; ++i)
-					phos_gui_move_elem(drop_down->container->children[i], container_scroll_pane->scroll_x, container_scroll_pane->scroll_y, PHOS_GUI_OPTS_NONE);
-				// reset scroll values to 0
-				container_scroll_pane->scroll_x = 0.0f;
-				container_scroll_pane->scroll_y = 0.0f;
-			}
-
-			// the container will render if the dropdown is expanded
-			drop_down->container->auto_render = drop_down->expanded;
-
-			// only update elements within container if it's expanded
-			if(drop_down->expanded)
-			{
-				// see which element in the container was clicked
-				for(size_t i = 0; i < drop_down->container->num_children; ++i)
-				{
-					phos_gui_elem *container_option_elem = drop_down->container->children[i];
-
-					phos_gui_mouse_listener_component *container_option_elem_ml = pluto_cs_get_component(container_option_elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
-					if(container_option_elem_ml)
-					{
-						if(container_option_elem_ml->clicked)
-						{
-							drop_down->selection = container_option_elem;
-							selection_made = true;
-							break;
-						}
-					}
-				}
-			}
-
-			// see if an element was chosen by user
-			if(drop_down->selection && selection_made)
-			{
-				// modify contents of drop-down button to match selection's text
-				phos_gui_text_component *container_option_elem_text = pluto_cs_get_component(drop_down->selection, PHOS_GUI_COMPONENT_TEXT);
-				if(container_option_elem_text && text)
-					phos_gui_set_text_contents(text, PHOS_GUI_TARGET_MAIN_TEXT, container_option_elem_text->str, PHOS_GUI_OPTS_NONE);
-
-				// collapse drop-down list
-				drop_down->expanded = false;
-				// the container is guaranteed to be a valid pointer because 'selection_made' is true
-				drop_down->container->auto_render = false;
-			}
-		}
-	}
-
-	// dropdown logic for the container (parent of 'e' must have a drop-down component)
-	phos_gui_drop_down_component *parent_drop_down = NULL;
-	if(e->parent)
-		parent_drop_down = pluto_cs_get_component(e->parent, PHOS_GUI_COMPONENT_DROP_DOWN);
-	// see if the parent has a dropdown and 'e' has a mouse listener
-	if(parent_drop_down && mouse_listener)
-	{
-		// if 'e' was clicked, that means the selected elem in 'parent_drop_down' becomes 'e'
-		if(mouse_listener->clicked)
-			parent_drop_down->selection = e;
-
-		// now the text on the parent element should reflect the text on 'e'
-		phos_gui_text_component *child_text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXT);
-		phos_gui_text_component *parent_text = pluto_cs_get_component(e->parent, PHOS_GUI_COMPONENT_TEXT);
-		// both elems must have a text component for this to work
-		if(child_text && parent_text)
-			// parent text becomes child text
-			phos_gui_set_text_contents(parent_text, PHOS_GUI_TARGET_MAIN_TEXT, child_text->str, PHOS_GUI_OPTS_NONE);
-	}
-
-	// slider knob logic
-	phos_gui_value_bar_component *value_bar = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_VALUE_BAR);
-	if(value_bar)
-	{
-		// get slider knob rect and check for mouse over it
-		Rectangle slider_knob_rect;
-		get_slider_knob_rect(value_bar, &slider_knob_rect);
-
-		float progress_bar_width = (value_bar->curr_value / value_bar->max_value) * e->content_free_bounds.rect.width;
-
-		// reset focus state
-		value_bar->slider_knob_has_focus = false;
-
-		// same logic as scroll pane (let user grab once and then be able to move mouse anywhere and it remain grabbed)
-		bool mouse_over_slider_knob = phos_gui_is_mouse_over_rect(slider_knob_rect);
-		if(mouse_over_slider_knob)
-			value_bar->slider_knob_has_focus = true;
-
-		// check to see if user lets go of knob
-		value_bar->slider_knob_released = false;
-		if(value_bar->slider_knob_grabbed && mouse_released)
-			value_bar->slider_knob_released = true;
-
-		if(mouse_down && mouse_over_slider_knob || (mouse_down && value_bar->slider_knob_grabbed))
-		{
-			value_bar->slider_knob_has_focus = true;
-
-			if(!value_bar->slider_knob_grabbed)
-			{
-				value_bar->slider_knob_grabbed = true;
-				value_bar->slider_knob_grab_offset = mouse_pos.x - slider_knob_rect.x;
-			}
-
-			float track_x = e->content_free_bounds.rect.x;
-			float knob_travel = e->content_free_bounds.rect.width - slider_knob_rect.width;
-
-			if(knob_travel > 0.0f)
-			{
-				float desired_knob_x = mouse_pos.x - value_bar->slider_knob_grab_offset;
-				float knob_offset = desired_knob_x - track_x;
-				float t = knob_offset / knob_travel;
-				t = Clamp(t, 0.0f, 1.0f);
-				value_bar->curr_value = value_bar->min_value + t * (value_bar->max_value - value_bar->min_value);
-
-				// see if slider knob has snapping enabled
-				if(value_bar->slider_knob_snapping)
-					// round up to next value
-					value_bar->curr_value = (int) (value_bar->curr_value + 0.5f);
-			}
-		}
-		else
-			value_bar->slider_knob_grabbed = false;
-	}
-
-	// update child elements
-	update_children:
-	for(size_t i = 0; i < e->num_children; ++i)
-		update_elem(e->children[i], dt);
-}
-
 void phos_gui_launch()
 {
 	if(!init)
@@ -4926,7 +4505,7 @@ void phos_gui_update(float dt)
 		phos_gui_elem *elem = curr_gui->elems[i];
 
 		// update the element and its children
-		update_elem(elem, dt);
+		phos_gui_update_elem(elem, dt);
 
 		// if elem gained focus, make this elem the current one (requires mouse listener component)
 		phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
@@ -5101,27 +4680,10 @@ static Color resolve_elem_outline_color(const phos_gui_elem *const e)
 }
 
 static void render_children(phos_gui_elem *e, phos_gui_elem_bounding_box bounds);
-static void render_icon(phos_gui_icon *icon)
-{
-	// skip icons that should not auto-render
-	if(!icon->auto_render)
-		return;
-
-	// try to obtain icon texture
-	Texture2D *tex = phos_gui_get_icon_id(icon->ID);
-	if(!tex)
-	{
-		vl_delay_log(VL_ERROR, 5.0f, "Failed to render icon with ID: %d!\n", icon->ID);
-		return;
-	}
-
-	Rectangle src_rect = { 0, 0, PHOS_GUI_ICON_SIZE, PHOS_GUI_ICON_SIZE };
-	DrawTexturePro(*tex, src_rect, icon->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, icon->color);
-}
 static void render_elem(phos_gui_elem *e)
 {
 	// skip disabled elems or elems that should not be auto-rendered
-	if(e->disabled || !e->auto_render)
+	if(!e->visible)
 		return;
 
 	// cannot render invalid elements
@@ -5542,8 +5104,12 @@ static void render_elem(phos_gui_elem *e)
 	render_children(e, child_clip_bounds);
 
 	// render icons on the element:
-	for(size_t i = 0; i < e->num_icons; ++i)
-		render_icon(&e->icons[i]);
+	phos_gui_icon_list_component *icon_list = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_ICON_LIST);
+	if(icon_list)
+	{
+		for(size_t i = 0; i < icon_list->num_icons; ++i)
+			phos_gui_render_icon(&icon_list->icons[i]);
+	}
 }
 static void render_children(phos_gui_elem *e, phos_gui_elem_bounding_box bounds)
 {
@@ -5665,7 +5231,521 @@ void phos_gui_update_elem(phos_gui_elem *elem, float dt)
 		return;
 	}
 
-	update_elem(elem, dt);
+	// skip disabled elems
+	if(elem->disabled)
+		return;
+	// cannot update invalid elements
+	else if(elem->type == PHOS_GUI_TYPE_INVALID)
+	{
+		vl_delay_log(VL_ERROR, 5.0f, "Cannot update element with invalid type: '%s'!\n", elem->ID);
+		return;
+	}
+	// skip basic elements as well by going to update_children tag
+	else if(elem->type == PHOS_GUI_TYPE_BLANK)
+		goto update_children;
+
+	// if element is not being rendered, it shouldn't be updated either
+	if(!elem->visible)
+		goto update_children;
+
+	// obtain all input state here:
+	Vector2 mouse_pos = phos_gui_get_mouse_pos();
+	Vector2 mouse_delta = GetMouseDelta();
+	Vector2 mouse_wheel_move = GetMouseWheelMoveV();
+	bool mouse_clicked = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+	bool mouse_down = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+	bool mouse_released = IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
+	// see if mouse over element (if the current elem is the mouse target, that guarantees that the mouse is over the elem
+	bool mouse_over_elem = elem == mouse_target;
+
+	// if mouse is not in window, manually clear out mouse delta to stop all dragging logic from occurring
+	if(mouse_pos.x <= 0.0f || mouse_pos.y <= 0.0f || mouse_pos.x >= GetRenderWidth() || mouse_pos.y >= GetRenderHeight())
+		mouse_delta = Vector2Zero();
+
+	// calculate and get all rects for the elem:
+	elem->content_total_bounds.rect = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	elem->content_free_bounds.rect = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+	elem->total_bounds.rect = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_TOTAL);
+
+	// update mouse listener component:
+	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	if(mouse_listener)
+	{
+		// keep track of whether or not elem gained focus
+		bool no_focus = !mouse_listener->has_focus;
+
+		// reset mouse state
+		mouse_listener->hovered = false;
+		mouse_listener->pressed = false;
+		mouse_listener->clicked = false;
+		mouse_listener->released = mouse_released;
+
+		if(mouse_over_elem)
+		{
+			// if mouse is over elem and all clip regions, handle elem-mouse logic:
+			mouse_listener->hovered = true;
+
+			// default mouse listener logic:
+			if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_DEFAULT)
+			{
+				if(mouse_clicked)
+				{
+					mouse_listener->clicked = true;
+					mouse_listener->has_focus = true;
+				}
+				else if(mouse_down)
+				{
+					mouse_listener->pressed = true;
+					mouse_listener->has_focus = true;
+				}
+			}
+			// toggle-style mouse listener:
+			else if(mouse_listener->type == PHOS_GUI_MOUSE_LISTENER_TOGGLED)
+			{
+				if(mouse_clicked)
+				{
+					mouse_listener->clicked = true;
+					mouse_listener->toggled = true;
+					mouse_listener->toggled_on = !mouse_listener->toggled_on;
+					mouse_listener->has_focus = true;
+				}
+				else if(mouse_down)
+				{
+					mouse_listener->pressed = true;
+					mouse_listener->has_focus = true;
+				}
+			}
+		}
+		// else if user clicks OFF of the element
+		else if(mouse_clicked || mouse_down)
+		{
+			// ensure elem loses focus
+			mouse_listener->has_focus = false;
+
+			// if curr_gui_elem_num points to this elem, reset it
+			if(curr_travel_elem == elem)
+				curr_travel_elem = NULL;
+		}
+		else
+		{
+			// if no mouse input detected, check to see if user reached the elem and is using keyboard input instead
+			if(curr_travel_elem == elem)
+			{
+				// if this elem has a text component, hitting enter would insert a new line, and it has focus, ENTER should not act as a mouse-press
+				if(text && !text->enter_inserts_new_line && !mouse_listener->has_focus)
+				{
+					if(IsKeyPressed(KEY_ENTER))
+					{
+						mouse_listener->pressed = true;
+						mouse_listener->clicked = true;
+					}
+					else if(IsKeyDown(KEY_ENTER))
+						mouse_listener->pressed = true;
+				}
+			}
+		}
+
+		// if elem now has focus, it gained focus
+		if(no_focus && mouse_listener->has_focus)
+			mouse_listener->gained_focus = true;
+		else
+			mouse_listener->gained_focus = false;
+	}
+
+	// update text components:
+	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
+	if(text)
+	{
+		// reset 'edited' field
+		text->edited = false;
+
+		// only type into text if it can be edited and has focus (requires mouse listener component)
+		if(text->editable && mouse_listener && mouse_listener->has_focus)
+		{
+			// collect char pressed
+			char c = GetCharPressed();
+
+			while(c > 0)
+			{
+				// get type of c
+				bool letter = isalpha(c);
+				bool num = isdigit(c);
+				bool special = !letter && !num;
+
+				// see if text accepts this type of char:
+
+				if(letter && !text->accept_letters)
+				{
+					c = GetCharPressed();
+					continue;
+				}
+				if(num && !text->accept_nums)
+				{
+					c = GetCharPressed();
+					continue;
+				}
+				// let SPACE through the special char check
+				if(special && !text->accept_specials && c != ' ')
+				{
+					c = GetCharPressed();
+					continue;
+				}
+
+				// assign char typed
+				text->char_typed = c;
+
+				// insert char into string at cursor pos (if possible)
+				insert_char_text(text, c, scroll_pane);
+
+				// get next char pressed
+				c = GetCharPressed();
+			}
+
+			update_key_timer(text, dt, &backspace_timer, backspace);
+			update_key_timer(text, dt, &del_timer, delete);
+			update_key_timer(text, dt, &left_arrow_timer, move_cursor_left);
+			update_key_timer(text, dt, &up_arrow_timer, move_cursor_up);
+			update_key_timer(text, dt, &right_arrow_timer, move_cursor_right);
+			update_key_timer(text, dt, &down_arrow_timer, move_cursor_down);
+			update_key_timer(text, dt, &enter_timer, new_line);
+			update_key_timer(text, dt, &tab_timer, indent);
+		}
+		else
+			text->edited = false;
+
+		// update text scrolling if edited
+		if(text->edited)
+			update_text_scrolling(text);
+	}
+
+	// if elem has focus and ESC pressed, lose focus
+	if(mouse_listener && mouse_listener->has_focus && IsKeyPressed(KEY_ESCAPE))
+	{
+		mouse_listener->has_focus = false;
+		mouse_listener->gained_focus = false;
+
+		// if curr_travel_elem points to this elem, reset it
+		if(curr_travel_elem == elem)
+			curr_travel_elem = NULL;
+	}
+
+	// update input panes:
+	phos_gui_drag_pane_component *drag_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_DRAG_PANE);
+
+	// is user currently scrolling the scroll pane?
+	bool scrolling_scroll_pane = scroll_pane && (scroll_pane->v_bar.thumb_grabbed || scroll_pane->h_bar.thumb_grabbed);
+	// is user currently dragging the drag pane?
+	bool dragging_drag_pane = drag_pane && drag_pane->grabbed;
+
+	if(scroll_pane)
+	{
+		// first, determine max scroll values for element (unless text already handled scrolling)
+		if(!text)
+		{
+			scroll_pane->max_scroll_x = get_max_scroll_x(elem);
+			scroll_pane->max_scroll_y = get_max_scroll_y(elem);
+		}
+
+		// store current scroll value
+		float prev_scroll_x = scroll_pane->scroll_x;
+		float prev_scroll_y = scroll_pane->scroll_y;
+
+		// define rects around scroll thumbs:
+		Rectangle v_bar, v_thumb, h_bar, h_thumb;
+		get_scroll_bar_rects(scroll_pane, &v_bar, &v_thumb, &h_bar, &h_thumb);
+
+		// reset mouse state on scroll thumb
+		scroll_pane->v_bar.thumb_has_focus = false;
+		scroll_pane->h_bar.thumb_has_focus = false;
+
+		// see if mouse is over the thumb
+		bool mouse_over_v_thumb = scroll_pane->v_bar.active && scroll_pane->v_bar.rendered && phos_gui_is_mouse_over_rect(v_thumb);
+		bool mouse_over_h_thumb = scroll_pane->h_bar.active && scroll_pane->h_bar.rendered && phos_gui_is_mouse_over_rect(h_thumb);
+
+		// see if user is hovered over the thumb and not currently dragging pane
+		if(mouse_over_v_thumb && !dragging_drag_pane)
+			// give scroll thumb focus
+			scroll_pane->v_bar.thumb_has_focus = true;
+		if(mouse_over_h_thumb && !dragging_drag_pane)
+			// give scroll thumb focus
+			scroll_pane->h_bar.thumb_has_focus = true;
+
+		// check for user dragging bars:
+		if(!dragging_drag_pane && mouse_down || (mouse_down && (scroll_pane->v_bar.thumb_grabbed || scroll_pane->h_bar.thumb_grabbed)))
+		{
+			// start initial grabs
+			if(mouse_over_v_thumb && !scroll_pane->v_bar.thumb_grabbed)
+			{
+				scroll_pane->v_bar.thumb_grabbed = true;
+				scroll_pane->v_bar.thumb_grab_offset = mouse_pos.y - v_thumb.y;
+			}
+			if(mouse_over_h_thumb && !scroll_pane->h_bar.thumb_grabbed)
+			{
+				scroll_pane->h_bar.thumb_grabbed = true;
+				scroll_pane->h_bar.thumb_grab_offset = mouse_pos.x - h_thumb.x;
+			}
+
+			// continue grabs
+			if(scroll_pane->v_bar.thumb_grabbed)
+			{
+				float desired_thumb_y = mouse_pos.y - scroll_pane->v_bar.thumb_grab_offset;
+				float thumb_travel = v_bar.height - v_thumb.height;
+				float thumb_offset = desired_thumb_y - v_bar.y;
+				float t = thumb_offset / thumb_travel;
+				t = Clamp(t, 0.0f, 1.0f);
+				scroll_pane->scroll_y = t * scroll_pane->max_scroll_y;
+			}
+			if(scroll_pane->h_bar.thumb_grabbed)
+			{
+				float desired_thumb_x = mouse_pos.x - scroll_pane->h_bar.thumb_grab_offset;
+				float thumb_travel = h_bar.width - h_thumb.width;
+				float thumb_offset = desired_thumb_x - h_bar.x;
+				float t = thumb_offset / thumb_travel;
+				t = Clamp(t, 0.0f, 1.0f);
+				scroll_pane->scroll_x = t * scroll_pane->max_scroll_x;
+			}
+		}
+		// user is using mouse wheel instead: (requires 'use_mouse_wheel_input' to be true)
+		else if(phos_gui_is_mouse_over_rect(get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL)) && scroll_pane->use_mouse_wheel_input)
+		{
+			// user is trying to scroll using mouse wheel:
+
+			// ticks becomes mouse wheel movement instead (include px_per_tick since the mouse wheel is being used)
+			float h_ticks = mouse_wheel_move.x * scroll_pane->px_per_tick;
+			float v_ticks = mouse_wheel_move.y * scroll_pane->px_per_tick;
+
+			// use ticks * px_per_tick to add to total scroll offset
+			scroll_pane->scroll_y -= v_ticks;
+			scroll_pane->scroll_x -= h_ticks;
+
+			// thumb no longer grabbed
+			scroll_pane->v_bar.thumb_grabbed = false;
+			scroll_pane->h_bar.thumb_grabbed = false;
+		}
+		else
+		{
+			// thumb no longer grabbed or focused
+			scroll_pane->v_bar.thumb_grabbed = false;
+			scroll_pane->h_bar.thumb_grabbed = false;
+		}
+
+		// clamp scroll amounts
+		if(scroll_pane->scroll_x < 0.0f)
+			scroll_pane->scroll_x = 0.0f;
+		else if(scroll_pane->scroll_x > scroll_pane->max_scroll_x)
+			scroll_pane->scroll_x = scroll_pane->max_scroll_x;
+
+		if(scroll_pane->scroll_y < 0.0f)
+			scroll_pane->scroll_y = 0.0f;
+		else if(scroll_pane->scroll_y > scroll_pane->max_scroll_y)
+			scroll_pane->scroll_y = scroll_pane->max_scroll_y;
+
+		float delta_x = scroll_pane->scroll_x - prev_scroll_x;
+		float delta_y = scroll_pane->scroll_y - prev_scroll_y;
+
+		// translate children based on scroll pane translation (only if user scrolled)
+		for(size_t i = 0; i < elem->num_children; ++i)
+			phos_gui_move_elem(elem->children[i], -delta_x, -delta_y, PHOS_GUI_OPTS_NONE);
+	}
+
+	// check for drag pane component
+	if(drag_pane)
+	{
+		// only handle drag pane logic if left mouse button down and user not currently scrolling the scroll pane
+		if(!scrolling_scroll_pane && mouse_down)
+		{
+			// get drag bar rect
+			Rectangle drag_bar_rect;
+			get_drag_bar_rect(drag_pane, &drag_bar_rect);
+
+			// see if mouse target was already taken:
+			bool mouse_target_exists = (mouse_target != NULL && mouse_target != elem);
+
+			// determine how to interpret mouse state
+			if(drag_pane->use_drag_bar)
+			{
+				// check for mouse over drag bar
+				bool mouse_over_bar = phos_gui_is_mouse_over_rect(drag_bar_rect);
+
+				// if mouse over bar was already over an elem, do not drag:
+				if(!mouse_target_exists && (mouse_over_bar || drag_pane->grabbed))
+				{
+					// if mouse down and over the bar, it becomes grabbed
+					drag_pane->grabbed = true;
+					drag_pane->drag_delta = mouse_delta;
+
+					// add to elem pos based on mouse delta
+					phos_gui_move_elem(elem, mouse_delta.x, mouse_delta.y, drag_pane->drag_opts);
+
+					// move drag bar based on mouse delta
+					/*drag_pane->drag_bar_pos.x += mouse_delta.x;
+					  drag_pane->drag_bar_pos.y += mouse_delta.y;	*/
+				}
+			}
+			else
+			{
+				// check for mouse over free content rect
+				bool mouse_over_free_content = phos_gui_is_mouse_over_rect(elem->content_free_bounds.rect);
+
+				// to grab the whole element, the mouse has to be over the free content rect but not over another elem
+				if(!mouse_target_exists && (mouse_over_free_content || drag_pane->grabbed))
+				{
+					// if mouse down and over the elem, it becomes grabbed
+					drag_pane->grabbed = true;
+					drag_pane->drag_delta = mouse_delta;
+
+					// add to elem pos based on mouse delta
+					phos_gui_move_elem(elem, mouse_delta.x, mouse_delta.y, drag_pane->drag_opts);
+				}
+			}
+		}
+		else
+			// when mouse not down, the drag pane is no longer grabbed
+			drag_pane->grabbed = false;
+	}
+
+	// dropdown logic for the drop-down button (must be combined with mouse listener to be interacted with)
+	phos_gui_drop_down_component *drop_down = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_DROP_DOWN);
+	if(drop_down && mouse_listener)
+	{
+		// see if button was clicked, and if so, toggle dropdown's expanded state
+		if(mouse_listener->clicked)
+			drop_down->expanded = !drop_down->expanded;
+
+		bool selection_made = false;
+
+		// see if the dropdown was supplied a container
+		if(drop_down->container)
+		{
+			// reset scroll amounts on scroll pane if necessary
+			phos_gui_scroll_pane_component *container_scroll_pane = pluto_cs_get_component(drop_down->container, PHOS_GUI_COMPONENT_SCROLL_PANE);
+			if(mouse_listener->clicked && container_scroll_pane)
+			{
+				// reset positions of children
+				for(size_t i = 0; i < drop_down->container->num_children; ++i)
+					phos_gui_move_elem(drop_down->container->children[i], container_scroll_pane->scroll_x, container_scroll_pane->scroll_y, PHOS_GUI_OPTS_NONE);
+				// reset scroll values to 0
+				container_scroll_pane->scroll_x = 0.0f;
+				container_scroll_pane->scroll_y = 0.0f;
+			}
+
+			// the container will render if the dropdown is expanded
+			drop_down->container->visible= drop_down->expanded;
+
+			// only update elements within container if it's expanded
+			if(drop_down->expanded)
+			{
+				// see which element in the container was clicked
+				for(size_t i = 0; i < drop_down->container->num_children; ++i)
+				{
+					phos_gui_elem *container_option_elem = drop_down->container->children[i];
+
+					phos_gui_mouse_listener_component *container_option_elem_ml = pluto_cs_get_component(container_option_elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+					if(container_option_elem_ml)
+					{
+						if(container_option_elem_ml->clicked)
+						{
+							drop_down->selection = container_option_elem;
+							selection_made = true;
+							break;
+						}
+					}
+				}
+			}
+
+			// see if an element was chosen by user
+			if(drop_down->selection && selection_made)
+			{
+				// modify contents of drop-down button to match selection's text
+				phos_gui_text_component *container_option_elem_text = pluto_cs_get_component(drop_down->selection, PHOS_GUI_COMPONENT_TEXT);
+				if(container_option_elem_text && text)
+					phos_gui_set_text_contents(text, PHOS_GUI_TARGET_MAIN_TEXT, container_option_elem_text->str, PHOS_GUI_OPTS_NONE);
+
+				// collapse drop-down list and hide container
+				drop_down->container->visible = drop_down->expanded = false;
+			}
+		}
+	}
+
+	// dropdown logic for the container (parent of 'e' must have a drop-down component)
+	phos_gui_drop_down_component *parent_drop_down = NULL;
+	if(elem->parent)
+		parent_drop_down = pluto_cs_get_component(elem->parent, PHOS_GUI_COMPONENT_DROP_DOWN);
+	// see if the parent has a dropdown and 'e' has a mouse listener
+	if(parent_drop_down && mouse_listener)
+	{
+		// if 'e' was clicked, that means the selected elem in 'parent_drop_down' becomes 'e'
+		if(mouse_listener->clicked)
+			parent_drop_down->selection = elem;
+
+		// now the text on the parent element should reflect the text on 'e'
+		phos_gui_text_component *child_text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+		phos_gui_text_component *parent_text = pluto_cs_get_component(elem->parent, PHOS_GUI_COMPONENT_TEXT);
+		// both elems must have a text component for this to work
+		if(child_text && parent_text)
+			// parent text becomes child text
+			phos_gui_set_text_contents(parent_text, PHOS_GUI_TARGET_MAIN_TEXT, child_text->str, PHOS_GUI_OPTS_NONE);
+	}
+
+	// slider knob logic
+	phos_gui_value_bar_component *value_bar = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_VALUE_BAR);
+	if(value_bar)
+	{
+		// get slider knob rect and check for mouse over it
+		Rectangle slider_knob_rect;
+		get_slider_knob_rect(value_bar, &slider_knob_rect);
+
+		float progress_bar_width = (value_bar->curr_value / value_bar->max_value) * elem->content_free_bounds.rect.width;
+
+		// reset focus state
+		value_bar->slider_knob_has_focus = false;
+
+		// same logic as scroll pane (let user grab once and then be able to move mouse anywhere and it remain grabbed)
+		bool mouse_over_slider_knob = phos_gui_is_mouse_over_rect(slider_knob_rect);
+		if(mouse_over_slider_knob)
+			value_bar->slider_knob_has_focus = true;
+
+		// check to see if user lets go of knob
+		value_bar->slider_knob_released = false;
+		if(value_bar->slider_knob_grabbed && mouse_released)
+			value_bar->slider_knob_released = true;
+
+		if(mouse_down && mouse_over_slider_knob || (mouse_down && value_bar->slider_knob_grabbed))
+		{
+			value_bar->slider_knob_has_focus = true;
+
+			if(!value_bar->slider_knob_grabbed)
+			{
+				value_bar->slider_knob_grabbed = true;
+				value_bar->slider_knob_grab_offset = mouse_pos.x - slider_knob_rect.x;
+			}
+
+			float track_x = elem->content_free_bounds.rect.x;
+			float knob_travel = elem->content_free_bounds.rect.width - slider_knob_rect.width;
+
+			if(knob_travel > 0.0f)
+			{
+				float desired_knob_x = mouse_pos.x - value_bar->slider_knob_grab_offset;
+				float knob_offset = desired_knob_x - track_x;
+				float t = knob_offset / knob_travel;
+				t = Clamp(t, 0.0f, 1.0f);
+				value_bar->curr_value = value_bar->min_value + t * (value_bar->max_value - value_bar->min_value);
+
+				// see if slider knob has snapping enabled
+				if(value_bar->slider_knob_snapping)
+					// round up to next value
+					value_bar->curr_value = (int) (value_bar->curr_value + 0.5f);
+			}
+		}
+		else
+			value_bar->slider_knob_grabbed = false;
+	}
+
+	// update child elements
+	update_children:
+	for(size_t i = 0; i < elem->num_children; ++i)
+		phos_gui_update_elem(elem->children[i], dt);
 }
 void phos_gui_render_elem(phos_gui_elem *elem)
 {
@@ -5685,7 +5765,20 @@ void phos_gui_render_icon(phos_gui_icon *icon)
 		return;
 	}
 
-	render_icon(icon);
+	// skip icons that should not auto-render
+	if(!icon->visible)
+		return;
+
+	// try to obtain icon texture
+	Texture2D *tex = phos_gui_get_icon_id(icon->ID);
+	if(!tex)
+	{
+		vl_delay_log(VL_ERROR, 5.0f, "Failed to render icon with ID: %d!\n", icon->ID);
+		return;
+	}
+
+	Rectangle src_rect = { 0, 0, PHOS_GUI_ICON_SIZE, PHOS_GUI_ICON_SIZE };
+	DrawTexturePro(*tex, src_rect, icon->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, icon->color);
 }
 Color phos_gui_random_color()
 {
@@ -5729,7 +5822,7 @@ phos_gui_theme phos_gui_create_theme_accented(Color base_color, Color accent_col
 	theme.outline_focus_color = theme.outline_color;
 	theme.decoration_color = ColorContrast(accent_color, -0.3f);
 	theme.text_color = ColorBrightness(accent_color, -0.75f);
-	theme.icon_color = ColorContrast(accent_color, -0.5f);
+	theme.icon_color = ColorContrast(accent_color, 0.2f);
 	theme.window_bg_color = PHOS_GUI_COLOR_MIX(ColorContrast(accent_color, -0.65f), ColorBrightness(accent_color, -0.8f));
 	theme.outline_thickness = PHOS_GUI_THEME_DEFAULT_OUTLINE_THICKNESS;
 
@@ -5816,16 +5909,20 @@ void phos_gui_apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
 	phos_gui_value_bar_component *value_bar = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_VALUE_BAR);
 	if(value_bar)
 	{
-		value_bar->progress_color = ColorBrightness(ColorContrast(theme.bg_color, 0.6f), -0.2f);
+		value_bar->progress_color = ColorBrightness(theme.bg_color, -0.2f);
 		value_bar->slider_knob_color = ColorBrightness(value_bar->progress_color, -0.4f);
 		value_bar->slider_knob_focus_color = ColorBrightness(value_bar->progress_color, -0.2f);
 	}
 
 	// apply icon color to all icons in the elem
-	for(size_t i = 0; i < elem->num_icons; ++i)
+	phos_gui_icon_list_component *icon_list = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
+	if(icon_list)
 	{
-		phos_gui_icon *icon = &elem->icons[i];
-		icon->color = theme.icon_color;
+		for(size_t i = 0; i < icon_list->num_icons; ++i)
+		{
+			phos_gui_icon *icon = &icon_list->icons[i];
+			icon->color = theme.icon_color;
+		}
 	}
 
 	// force recalculation of elem rects because outline thickness changed:

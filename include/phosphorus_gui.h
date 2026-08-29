@@ -685,6 +685,10 @@
 */
 #define PHOS_GUI_THEME_LIGHT phos_gui_create_theme_full(WHITE, PHOS_GUI_COLOR_GRAY, ColorBrightness(PHOS_GUI_COLOR_DARK_GRAY, 0.1f), PHOS_GUI_COLOR_DARK_GRAY, PHOS_GUI_COLOR_BLACK, PHOS_GUI_COLOR_LIGHT_GRAY)
 /**
+  A theme revolving around red and magenta.
+*/
+#define PHOS_GUI_THEME_MARS phos_gui_create_theme_accented(PHOS_GUI_COLOR_DULL_RED, PHOS_GUI_COLOR_MAGENTA)
+/**
   A theme revolving around mint and black.
 */
 #define PHOS_GUI_THEME_MINT_CANDY phos_gui_create_theme_accented(PHOS_GUI_COLOR_MINT, PHOS_GUI_COLOR_BLACK)
@@ -706,6 +710,10 @@
   A theme revolving around blues.
 */
 #define PHOS_GUI_THEME_NAUTICAL phos_gui_create_theme_accented(PHOS_GUI_COLOR_DULL_BLUE, PHOS_GUI_COLOR_DARK_BLUE)
+/**
+  A theme revolving around dark and vibrant blues.
+*/
+#define PHOS_GUI_THEME_NEON_TECH phos_gui_create_theme_basic(PHOS_GUI_COLOR_SKY_BLUE)
 /**
   A theme revolving around blue and green.
 */
@@ -1197,6 +1205,10 @@ typedef enum phos_gui_component_type
 	  @see phos_gui_value_bar_component
 	*/
 	PHOS_GUI_COMPONENT_VALUE_BAR,
+	/**
+	  @see phos_gui_icon_list_component
+	*/
+	PHOS_GUI_COMPONENT_ICON_LIST,
 
 	/**
 	  Represents the last component ID in PhosphorusGUI.
@@ -2110,18 +2122,11 @@ typedef struct phos_gui_checkbox_list_component
 {
 	/**
 	  The elements in 'container' the user has chosen.
+
+	  The elements are added to this array in the order
+	  they are selected.
 	*/
 	struct phos_gui_elem *selections[PHOS_GUI_MAX_CHECKBOXES];
-
-	/**
-	  The container the checkbox list will use.
-
-	  @important This should point to a child element
-	  on the checkbox list representing the main
-	  container holding the individual checkbox
-	  elements within the list.
-	*/
-	struct phos_gui_elem *container;
 
 	/**
 	  The number of options the user can select
@@ -2325,8 +2330,27 @@ typedef struct phos_gui_icon
 	  Whether or not the icon should
 	  be rendered.
 	*/
-	bool auto_render;
+	bool visible;
 } phos_gui_icon;
+
+/**
+  A phos_gui_icon_list_component gives an
+  element the ability to store and render
+  icons.
+*/
+typedef struct phos_gui_icon_list_component
+{
+	/**
+	  The actual list of icons on the element.
+	*/
+	phos_gui_icon icons[PHOS_GUI_MAX_ICONS];
+
+	/**
+	  The number of icons currently stored
+	  on the element.
+	*/
+	size_t num_icons;
+} phos_gui_icon_list_component;
 
 /**
   Represents an actual bounding box for an element.
@@ -2367,11 +2391,6 @@ typedef struct phos_gui_elem
 	  This element's children.
 	*/
 	struct phos_gui_elem *children[PHOS_GUI_MAX_CHILDREN];
-
-	/**
-	  This element's icons.
-	*/
-	phos_gui_icon icons[PHOS_GUI_MAX_ICONS];
 
 	/**
 	  This UI element's ID.
@@ -2435,10 +2454,6 @@ typedef struct phos_gui_elem
 	  This element's number of children.
 	*/
 	size_t num_children;
-	/**
-	  This element's number of icons.
-	*/
-	size_t num_icons;
 
 	/**
 	  The type of this element.
@@ -2566,17 +2581,8 @@ typedef struct phos_gui_elem
 	/**
 	  Indicates whether or not PhosphorusGUI automatically
 	  renders this element in the program loop.
-
-	  If you want to render an element on your own anywhere in the
-	  program loop, set this to false. Otherwise, set it to true.
-
-	  By default, this is set to true.
-
-	  @note If you have an element with this set to false, and are
-	  manually handling its rendering, you can use phos_gui_render_elem(phos_gui_elem*)
-	  to render it when you need to.
 	*/
-	bool auto_render;
+	bool visible;
 
 	/**
 	  Indicates whether or not this element should be clipped
@@ -3335,7 +3341,7 @@ PHOS_GUI_API void phos_gui_init_icon(phos_gui_icon *icon, phos_gui_icon_id ID, f
   @note The element uses the current theme of PhosphorusGUI
   when initialized.
 */
-PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h, phos_gui *gui);
+PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h);
 /**
   Initializes an element and turns it into a button element.
 
@@ -3346,7 +3352,7 @@ PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_g
   @important If the string given is equal to "<no-text>" then
   the button will not have a text component.
 */
-PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text, phos_gui *gui);
+PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text);
 /**
   Initializes an element and turns it into a text field element.
 
@@ -3358,7 +3364,7 @@ PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, floa
   @important If a placeholder string is given, then this function
   will make the placeholder text fit the element.
 */
-PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui *gui);
+PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text);
 /**
   Initializes an element and turns it into a text area element.
 
@@ -3375,7 +3381,7 @@ PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, 
 
   @see phos_gui_init_text_field(phos_gui_elem*, phos_gui_elem*, const char*, float, float, float, float, const char*, const char*)
 */
-PHOS_GUI_API void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui_text_wrap_mode wrap_mode, phos_gui *gui);
+PHOS_GUI_API void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui_text_wrap_mode wrap_mode);
 /**
   Initializes an element and turns it into a drop-down menu.
 
@@ -3390,7 +3396,7 @@ PHOS_GUI_API void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, f
 
   @see phos_gui_drop_down_component
 */
-PHOS_GUI_API void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text, phos_gui *gui);
+PHOS_GUI_API void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text);
 /**
   Initializes an element and turns it into a single checkbox.
 
@@ -3404,6 +3410,11 @@ PHOS_GUI_API void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, f
   can be equal to "<no-text>" to remove the label component
   from the checkbox element.
 
+  @note Unlike the other element initialization functions, this
+  one requires a phos_gui instance. This is because the function
+  automatically creates an event listener so that the checkbox
+  can properly work.
+
   @see phos_gui_checkbox_list_component
 */
 PHOS_GUI_API void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *label_text, phos_gui *gui);
@@ -3413,9 +3424,12 @@ PHOS_GUI_API void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, fl
   By default, checkbox list elements come with just
   checkbox list components.
 
+  @note A checkbox list should be a container that only contains checkbox
+  elements.
+
   @see phos_gui_checkbox_list_component
 */
-PHOS_GUI_API void phos_gui_init_checkbox_list(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, phos_gui *gui);
+PHOS_GUI_API void phos_gui_init_checkbox_list(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h);
 /**
   Initializes an element and turns it into a simple value bar.
 
@@ -3424,7 +3438,7 @@ PHOS_GUI_API void phos_gui_init_checkbox_list(phos_gui_elem *elem, const char *I
 
   @see phos_gui_value_bar_component
 */
-PHOS_GUI_API void phos_gui_init_value_bar(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value, phos_gui *gui);
+PHOS_GUI_API void phos_gui_init_value_bar(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value);
 /**
   Initializes an element and turns it into a slider using a
   value bar component.
@@ -3438,7 +3452,7 @@ PHOS_GUI_API void phos_gui_init_value_bar(phos_gui_elem *elem, const char *ID, f
 
   @see phos_gui_value_bar_component
 */
-PHOS_GUI_API void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value, const char *label_text, phos_gui *gui);
+PHOS_GUI_API void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value, const char *label_text);
 
 /**
   Generates the background colors on a mouse listener component using brightness factors.
@@ -3550,7 +3564,7 @@ PHOS_GUI_API int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts o
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_add_elem_icon(phos_gui_elem *elem, phos_gui_icon icon);
+PHOS_GUI_API int phos_gui_add_icon(phos_gui_icon_list_component *icon_list, phos_gui_icon icon);
 /**
   Removes an icon from an element.
 
@@ -3559,7 +3573,7 @@ PHOS_GUI_API int phos_gui_add_elem_icon(phos_gui_elem *elem, phos_gui_icon icon)
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_remove_elem_icon(phos_gui_elem *elem, phos_gui_icon_id ID);
+PHOS_GUI_API int phos_gui_remove_icon(phos_gui_icon_list_component *icon_list, phos_gui_icon_id ID);
 /**
   Determines if an element contains the given icon,
   and if it does, it returns a pointer to the icon on the element.
