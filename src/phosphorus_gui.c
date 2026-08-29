@@ -2444,13 +2444,16 @@ void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y,
 	value_bar->slider_knob_shape = PHOS_GUI_SHAPE_ELLIPSE;
 	value_bar->slider_knob_snapping = true;
 
-	// add label
-	phos_gui_label_component *label = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_LABEL);
-	if(!label)
-		phos_gui_exit(EXIT_FAILURE);
-	phos_gui_write_str(label->str, "%s", label_text);
-	label->font_size = PHOS_GUI_FONT_SIZE_MED;
-	phos_gui_align_elem_label(label, PHOS_GUI_ALIGN_TOP_LEFT_EDGE);
+	// add label if str is not "<no-text>"
+	if(strcmp(label_text, PHOS_GUI_NO_TEXT) != 0)
+	{
+		phos_gui_label_component *label = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_LABEL);
+		if(!label)
+			phos_gui_exit(EXIT_FAILURE);
+		phos_gui_write_str(label->str, "%s", label_text);
+		label->font_size = PHOS_GUI_FONT_SIZE_MED;
+		phos_gui_align_elem_label(label, PHOS_GUI_ALIGN_TOP_LEFT_EDGE);
+	}
 }
 
 void phos_gui_gen_bg_colors(phos_gui_mouse_listener_component *mouse_listener, float hover_color_factor, float press_color_factor, float focus_color_factor)
