@@ -47,7 +47,7 @@
 
 /**
   The max number of event listeners that a
-  single phos_gui can hold.
+  single phos_gui_elem can hold.
 */
 #define PHOS_GUI_MAX_EVENT_LISTENERS 64
 
@@ -2375,6 +2375,98 @@ typedef struct phos_gui_elem_rect
 } phos_gui_elem_rect;
 
 /**
+  The different types of events an event listener
+  can listen for.
+*/
+typedef enum phos_gui_event_type
+{
+	/**
+	  An invalid/null event.
+	*/
+	PHOS_GUI_EVENT_NONE,
+	/**
+	  Used to listen for a single mouse click.
+	*/
+	PHOS_GUI_EVENT_MOUSE_CLICK,
+	/**
+	  Used to listen for the mouse being held down.
+	*/
+	PHOS_GUI_EVENT_MOUSE_DOWN,
+	/**
+	  Used to listen for the mouse being released.
+	*/
+	PHOS_GUI_EVENT_MOUSE_RELEASE,
+	/**
+	  Used to listen for a single key press.
+	*/
+	PHOS_GUI_EVENT_KEY_CLICK,
+	/**
+	  Used to listen for a key being held down.
+	*/
+	PHOS_GUI_EVENT_KEY_DOWN,
+	/**
+	  Used to listen for a hover event.
+	*/
+	PHOS_GUI_EVENT_HOVER,
+} phos_gui_event_type;
+
+/**
+  Provides an event listener with executable code.
+
+  The function returns nothing and takes in the target
+  object, or NULL if the target object was the window,
+  as well as additional options.
+
+  @see phos_gui_event_listener
+*/
+typedef void (*phos_gui_event_listener_action) (struct phos_gui_elem *elem, phos_gui_opts opts);
+
+/**
+  A phos_gui_event_listener gives PhosphorusGUI information
+  about an event, such as a mouse click or key press, and then
+  an action to execute when that event occurs.
+*/
+typedef struct phos_gui_event_listener
+{
+	/**
+	  The action to execute when the event occurs.
+	*/
+	phos_gui_event_listener_action action;
+
+	/**
+	  The target element.
+
+	  The target element is what will be receiving
+	  the user's input.
+
+	  @note This can be NULL but when it is NULL,
+	  PhosphorusGUI assumes the target of the event
+	  is the window.
+	*/
+	struct phos_gui_elem *elem;
+
+	/**
+	  The type of event to listen for.
+	*/
+	phos_gui_event_type event;
+
+	/**
+	  If wanting to pass additional options into
+	  the action function, add the options here.
+	*/
+	phos_gui_opts opts;
+
+	/**
+	  Indicates the target button or key the event
+	  listener should listen for.
+
+	  This could be MOUSE_BUTTON_LEFT, KEY_ESCAPE,
+	  etc.
+	*/
+	int target_btn;
+} phos_gui_event_listener;
+
+/**
   A phos_gui_elem represents a single UI element
   within a phos_gui.
 
@@ -2387,6 +2479,11 @@ typedef struct phos_gui_elem_rect
 */
 typedef struct phos_gui_elem
 {
+	/**
+	  The event listeners added to this GUI.
+	*/
+	phos_gui_event_listener listeners[PHOS_GUI_MAX_EVENT_LISTENERS];
+
 	/**
 	  This element's children.
 	*/
@@ -2454,6 +2551,10 @@ typedef struct phos_gui_elem
 	  This element's number of children.
 	*/
 	size_t num_children;
+	/**
+	  The current amount of event listeners added to this GUI.
+	*/
+	size_t num_listeners;
 
 	/**
 	  The type of this element.
@@ -2592,98 +2693,6 @@ typedef struct phos_gui_elem
 	*/
 	bool clipped;
 } phos_gui_elem;
-
-/**
-  The different types of events an event listener
-  can listen for.
-*/
-typedef enum phos_gui_event_type
-{
-	/**
-	  An invalid/null event.
-	*/
-	PHOS_GUI_EVENT_NONE,
-	/**
-	  Used to listen for a single mouse click.
-	*/
-	PHOS_GUI_EVENT_MOUSE_CLICK,
-	/**
-	  Used to listen for the mouse being held down.
-	*/
-	PHOS_GUI_EVENT_MOUSE_DOWN,
-	/**
-	  Used to listen for the mouse being released.
-	*/
-	PHOS_GUI_EVENT_MOUSE_RELEASE,
-	/**
-	  Used to listen for a single key press.
-	*/
-	PHOS_GUI_EVENT_KEY_CLICK,
-	/**
-	  Used to listen for a key being held down.
-	*/
-	PHOS_GUI_EVENT_KEY_DOWN,
-	/**
-	  Used to listen for a hover event.
-	*/
-	PHOS_GUI_EVENT_HOVER,
-} phos_gui_event_type;
-
-/**
-  Provides an event listener with executable code.
-
-  The function returns nothing and takes in the target
-  object, or NULL if the target object was the window,
-  as well as additional options.
-
-  @see phos_gui_event_listener
-*/
-typedef void (*phos_gui_event_listener_action) (phos_gui_elem *elem, phos_gui_opts opts);
-
-/**
-  A phos_gui_event_listener gives PhosphorusGUI information
-  about an event, such as a mouse click or key press, and then
-  an action to execute when that event occurs.
-*/
-typedef struct phos_gui_event_listener
-{
-	/**
-	  The action to execute when the event occurs.
-	*/
-	phos_gui_event_listener_action action;
-
-	/**
-	  The target element.
-
-	  The target element is what will be receiving
-	  the user's input.
-
-	  @note This can be NULL but when it is NULL,
-	  PhosphorusGUI assumes the target of the event
-	  is the window.
-	*/
-	phos_gui_elem *elem;
-
-	/**
-	  The type of event to listen for.
-	*/
-	phos_gui_event_type event;
-
-	/**
-	  If wanting to pass additional options into
-	  the action function, add the options here.
-	*/
-	phos_gui_opts opts;
-
-	/**
-	  Indicates the target button or key the event
-	  listener should listen for.
-
-	  This could be MOUSE_BUTTON_LEFT, KEY_ESCAPE,
-	  etc.
-	*/
-	int target_btn;
-} phos_gui_event_listener;
 
 /**
   Provides a timer with executable code.
@@ -2935,10 +2944,6 @@ typedef struct phos_gui_theme
 typedef struct phos_gui
 {
 	/**
-	  The event listeners added to this GUI.
-	*/
-	phos_gui_event_listener listeners[PHOS_GUI_MAX_EVENT_LISTENERS];
-	/**
 	  The elements inside the GUI.
 	*/
 	phos_gui_elem *elems[PHOS_GUI_MAX_ELEMS];
@@ -2967,10 +2972,6 @@ typedef struct phos_gui
 	  The current amount of elements inside this GUI.
 	*/
 	size_t num_elems;
-	/**
-	  The current amount of event listeners added to this GUI.
-	*/
-	size_t num_listeners;
 	/**
 	  The current amount of timers added to this GUI.
 	*/
@@ -3404,20 +3405,16 @@ PHOS_GUI_API void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, f
   and label components.
 
   Additionally, checkbox elements start out a check mark icon in the center
-  of the element.
+  of the element. They also come with an event listener that will
+  toggle the check mark when clicked (PHOS_GUI_EVENT_MOUSE_CLICK).
 
   @important Just like phos_gui_init_button(...), the 'label_text' string
   can be equal to "<no-text>" to remove the label component
   from the checkbox element.
 
-  @note Unlike the other element initialization functions, this
-  one requires a phos_gui instance. This is because the function
-  automatically creates an event listener so that the checkbox
-  can properly work.
-
   @see phos_gui_checkbox_list_component
 */
-PHOS_GUI_API void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *label_text, phos_gui *gui);
+PHOS_GUI_API void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *label_text);
 /**
   Initializes an element and turns it into a checkbox list.
 
@@ -3674,27 +3671,36 @@ PHOS_GUI_API bool phos_gui_is_mouse_over_rect(Rectangle r);
 PHOS_GUI_API phos_gui_elem *phos_gui_get_mouse_target(void);
 
 /**
-  Adds an event listener to the given phos_gui.
+  Adds an event listener to the given phos_gui_elem.
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_add_event_listener(phos_gui *gui, phos_gui_event_listener listener);
+PHOS_GUI_API int phos_gui_add_event_listener(phos_gui_elem *elem, phos_gui_event_listener listener);
 /**
   Creates and adds an event listener to the given phos_gui.
 
-  @param gui The GUI to add the event listener to.
-  @param target_elem Points to the target element
-  if there is one.
+  @param elem Points to the target element.
   @param event The event to listen for.
   @param target_button The target button/key in the event.
   @param opts Any additional options you want to use
   in the action function.
- e@param action The action the event listener should
+  @param action The action the event listener should
   execute when the event occurs.
 
   @see phos_gui_add_event_listener(phos_gui*, phos_gui_event_listener)
 */
-PHOS_GUI_API int phos_gui_new_event_listener(phos_gui *gui, phos_gui_elem *target_elem, phos_gui_event_type event, int target_button, phos_gui_opts opts, phos_gui_event_listener_action action);
+PHOS_GUI_API int phos_gui_new_event_listener(phos_gui_elem *elem, phos_gui_event_type event, int target_button, phos_gui_opts opts, phos_gui_event_listener_action action);
+/**
+  Removes an event listener from a phos_gui_elem.
+
+  @note Because event listeners do not have IDs or some unique
+  way of identifying them, this function finds the
+  first event listener with the exact same element and event
+  type given and removes that event listener, if found.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_remove_event_listener(phos_gui_elem *elem, phos_gui_event_type event);
 /**
   Adds a timer to the given phos_gui.
 

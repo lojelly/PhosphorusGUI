@@ -2417,7 +2417,7 @@ static void toggle_checkbox(phos_gui_elem *elem, phos_gui_opts opts)
 	else
 		check_mark_icon->visible = !check_mark_icon->visible;
 }
-void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *label_text, phos_gui *gui)
+void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *label_text)
 {
 	if(!elem)
 	{
@@ -2440,18 +2440,7 @@ void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float 
 	phos_gui_add_icon(icon_list, check_mark);
 
 	// add way to toggle check mark
-	if(gui)
-	{
-		phos_gui_event_listener listener = {0};
-		listener.elem = elem;
-		listener.event = PHOS_GUI_EVENT_MOUSE_CLICK;
-		listener.target_btn = MOUSE_BUTTON_LEFT;
-		listener.action = toggle_checkbox;
-		listener.opts = PHOS_GUI_OPTS_NONE;
-		phos_gui_add_event_listener(gui, listener);
-	}
-	else
-		vl_log(VL_ERROR, "A checkbox must be created with a phos_gui to properly work!\n");
+	phos_gui_new_event_listener(elem, PHOS_GUI_EVENT_MOUSE_CLICK, MOUSE_BUTTON_LEFT, PHOS_GUI_OPTS_NONE, toggle_checkbox);
 
 	// make mouse listener a toggle mouse listener
 	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
@@ -3267,34 +3256,67 @@ phos_gui_elem *phos_gui_get_mouse_target()
 	return mouse_target;
 }
 
-int phos_gui_add_event_listener(phos_gui *gui, phos_gui_event_listener listener)
+int phos_gui_add_event_listener(phos_gui_elem *elem, phos_gui_event_listener listener)
 {
-	if(!gui)
+	if(!elem)
 	{
-		vl_log(VL_ERROR, "To add an event listener, the phos_gui cannot be NULL!\n");
+		vl_log(VL_ERROR, "Cannot add an event listener to a NULL element!\n");
 		return 0;
 	}
 
 	// add the listener to the gui
-	if(gui->num_listeners >= PHOS_GUI_MAX_EVENT_LISTENERS)
+	if(elem->num_listeners >= PHOS_GUI_MAX_EVENT_LISTENERS)
 	{
-		vl_log(VL_WARNING, "No more event listeners can be added to this phos_gui: '%s'!\n", gui->ID);
+		vl_log(VL_WARNING, "No more event listeners can be added to this phos_gui_elem: '%s'!\n", elem->ID);
 		return 0;
 	}
-	gui->listeners[gui->num_listeners++] = listener;
+	elem->listeners[elem->num_listeners++] = listener;
 
 	return 1;
 }
-int phos_gui_new_event_listener(phos_gui *gui, phos_gui_elem *target_elem, phos_gui_event_type event, int target_button, phos_gui_opts opts, phos_gui_event_listener_action action)
+int phos_gui_new_event_listener(phos_gui_elem *elem, phos_gui_event_type event, int target_button, phos_gui_opts opts, phos_gui_event_listener_action action)
 {
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot add an event listener to a NULL element!\n");
+		return 0;
+	}
+
 	phos_gui_event_listener listener = {0};
-	listener.elem = target_elem;
+	listener.elem = elem;
 	listener.event = event;
 	listener.target_btn = target_button;
 	listener.opts = opts;
 	listener.action = action;
 
-	return phos_gui_add_event_listener(gui, listener);
+	return phos_gui_add_event_listener(elem, listener);
+}
+int phos_gui_remove_event_listener(phos_gui_elem *elem, phos_gui_event_type event)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot remove an event listener from a NULL element!\n");
+		return 0;
+	}
+
+	// find matching event listener
+	for(size_t i = 0; i < elem->num_listeners; ++i)
+	{
+		phos_gui_event_listener *listener = &elem->listeners[i];
+
+		if(listener->elem == elem)
+		{
+			if(listener->event == event)
+			{
+				memmove(elem->listeners + i, elem->listeners + i + 1, (elem->num_listeners - i - 1) * sizeof(phos_gui_event_listener));
+				elem->num_listeners--;
+				return 1;
+			}
+		}
+	}
+
+	vl_delay_log(VL_WARNING, 3.0f, "Failed to remove the event listener on '%s'! No matching event listener found!", elem->ID);
+	return 0;
 }
 int phos_gui_add_timer(phos_gui *gui, phos_gui_timer timer)
 {
@@ -4512,10 +4534,6 @@ void phos_gui_update(float dt)
 		if(mouse_listener && mouse_listener->gained_focus)
 			curr_travel_elem = elem;
 	}
-
-	// update event listeners
-	for(size_t i = 0; i < curr_gui->num_listeners; ++i)
-		run_event_listener(&curr_gui->listeners[i]);
 
 	// update timers:
 
@@ -5746,6 +5764,10 @@ void phos_gui_update_elem(phos_gui_elem *elem, float dt)
 	update_children:
 	for(size_t i = 0; i < elem->num_children; ++i)
 		phos_gui_update_elem(elem->children[i], dt);
+
+	// execute listeners
+	for(size_t i = 0; i < elem->num_listeners; ++i)
+		run_event_listener(&elem->listeners[i]);
 }
 void phos_gui_render_elem(phos_gui_elem *elem)
 {
