@@ -17,6 +17,7 @@
 #define ROUND_RECT_SEGMENTS 32
 
 #define TEXT_PADDING 2.0f
+#define ICON_PADDING 3.0f
 
 #define MAX_CLIPS 16
 
@@ -80,12 +81,18 @@ typedef struct gui_arr
 } gui_arr;
 
 // icon registry:
-typedef struct icon_map
+typedef struct icon_id_map
 {
 	phos_gui_icon_id *keys;
 	const char **values;
 	size_t size, capacity;
-} icon_map;
+} icon_id_map;
+typedef struct icon_name_map
+{
+	char **keys;
+	phos_gui_icon_id *values;
+	size_t size, capacity;
+} icon_name_map;
 
 // core info and registries
 static bool init = false;
@@ -96,7 +103,8 @@ static gui_arr gui_registry;
 
 // resources
 static tex_arr textures;
-static icon_map icons;
+static icon_id_map icon_ids;
+static icon_name_map icon_names;
 static font_arr fonts;
 
 // for objects with ID="<auto>":
@@ -675,7 +683,8 @@ int phos_gui_init()
 
 	// resources:
 	init_arr(&textures, 0);
-	init_map(&icons, 0);
+	init_map(&icon_ids, 0);
+	init_map(&icon_names, 0);
 	init_arr(&fonts, 0);
 
 	// keyboard input:
@@ -707,8 +716,20 @@ int phos_gui_init()
 	curr_theme = PHOS_GUI_THEME_MONOTONE;
 
 	// fill icon map
-	phos_gui_set_icon(PHOS_GUI_ICON_ARROW_DOWN, "icons/down_arrow.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_CHECK_MARK, "icons/check_mark.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_VERTICAL_BARS, "icons/vertical_bars.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_HORIZONTAL_BARS, "icons/horizontal_bars.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_VERTICAL_DOTS, "icons/vertical_dots.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_HORIZONTAL_DOTS, "icons/horizontal_dots.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_ARROW_DOWN, "icons/down_arrow.png");
+
+	// default icon names, user cannot change these!
+	dynmaps_set_strkey(&icon_names, "CHECK_MARK", PHOS_GUI_ICON_CHECK_MARK);
+	dynmaps_set_strkey(&icon_names, "VERTICAL_BARS", PHOS_GUI_ICON_VERTICAL_BARS);
+	dynmaps_set_strkey(&icon_names, "HORIZONTAL_BARS", PHOS_GUI_ICON_HORIZONTAL_BARS);
+	dynmaps_set_strkey(&icon_names, "VERTICAL_DOTS", PHOS_GUI_ICON_VERTICAL_DOTS);
+	dynmaps_set_strkey(&icon_names, "HORIZONTAL_DOTS", PHOS_GUI_ICON_HORIZONTAL_DOTS);
+	dynmaps_set_strkey(&icon_names, "ARROW_DOWN", PHOS_GUI_ICON_ARROW_DOWN);
 
 	// change seed for rand()
 	srand((unsigned int) time(NULL));
@@ -746,7 +767,8 @@ void phos_gui_shutdown()
 	dynas_free(&textures);
 
 	// after unloading all textures, free icons map
-	dynmaps_free(&icons);
+	dynmaps_free(&icon_ids);
+	dynmaps_free_strkey(&icon_names);
 
 	// unload every font loaded
 	for(size_t i = 0; i < fonts.size; ++i)
@@ -892,6 +914,19 @@ static void move_icon(phos_gui_icon *icon, float x, float y)
 	icon->bounds.x += x;
 	icon->bounds.y += y;
 }
+static void move_children_and_icons(phos_gui_elem *elem, float x, float y, phos_gui_opts opts)
+{
+	for(size_t i = 0; i < elem->num_children; ++i)
+		phos_gui_move_elem(elem->children[i], x, y, opts);
+
+	// pass changes down to icons as well
+	phos_gui_icon_list_component *icon_list = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
+	if(icon_list)
+	{
+		for(size_t i = 0; i < icon_list->num_icons; ++i)
+			move_icon(&icon_list->icons[i], x, y);
+	}
+}
 void phos_gui_move_elem(phos_gui_elem *elem, float x, float y, phos_gui_opts opts)
 {
 	if(!elem)
@@ -966,18 +1001,7 @@ void phos_gui_move_elem(phos_gui_elem *elem, float x, float y, phos_gui_opts opt
 	}
 	// if no collision occurred on the parent, its children can move
 	else
-	{
-		for(size_t i = 0; i < elem->num_children; ++i)
-			phos_gui_move_elem(elem->children[i], x, y, opts);
-
-		// pass changes down to icons as well
-		phos_gui_icon_list_component *icon_list = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
-		if(icon_list)
-		{
-			for(size_t i = 0; i < icon_list->num_icons; ++i)
-				move_icon(&icon_list->icons[i], x, y);
-		}
-	}
+		move_children_and_icons(elem, x, y, opts);
 
 	// calculate all rects of elem in update loop
 	prepare_elem_rects_for_caching(elem);
@@ -1106,7 +1130,7 @@ static void realign_elem_texts(phos_gui_elem *elem)
 {
 	phos_gui_text_component *child_text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
 	if(child_text)
-		phos_gui_realign_elem_text(child_text);
+		phos_gui_realign_elem_text(child_text, PHOS_GUI_TARGET_AUTO_TEXT);
 	phos_gui_label_component *child_label = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_LABEL);
 	if(child_label)
 		phos_gui_realign_elem_label(child_label);
@@ -1141,7 +1165,7 @@ static void resize_single_elem(phos_gui_elem *elem, float w, float h, phos_gui_o
 			phos_gui_make_text_fit_elem(elem_tx, PHOS_GUI_TARGET_AUTO_TEXT);
 
 		// then realign text no matter what
-		phos_gui_realign_elem_text(elem_tx);
+		phos_gui_realign_elem_text(elem_tx, PHOS_GUI_TARGET_AUTO_TEXT);
 	}
 	phos_gui_label_component *elem_label = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_LABEL);
 	if(elem_label)
@@ -1164,21 +1188,8 @@ static void resize_icon(phos_gui_icon *icon, float w, float h)
 	icon->bounds.width = new_w;
 	icon->bounds.height = new_h;
 }
-void phos_gui_resize_elem(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
+static void resize_children_and_icons(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
 {
-	if(!elem)
-	{
-		vl_log(VL_ERROR, "Cannot resize a NULL element!\n");
-		return;
-	}
-
-	// no change needed, exit early
-	if(w == 0.0f && h == 0.0f)
-		return;
-
-	// resize the given elem
-	resize_single_elem(elem, w, h, opts);
-
 	// pass changes down to children
 	for(size_t i = 0; i < elem->num_children; ++i)
 	{
@@ -1198,6 +1209,23 @@ void phos_gui_resize_elem(phos_gui_elem *elem, float w, float h, phos_gui_opts o
 		for(size_t i = 0; i < icon_list->num_icons; ++i)
 			resize_icon(&icon_list->icons[i], w, h);
 	}
+}
+void phos_gui_resize_elem(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot resize a NULL element!\n");
+		return;
+	}
+
+	// no change needed, exit early
+	if(w == 0.0f && h == 0.0f)
+		return;
+
+	// resize the given elem
+	resize_single_elem(elem, w, h, opts);
+
+	resize_children_and_icons(elem, w, h, opts);
 }
 void phos_gui_scale_elem(phos_gui_elem *elem, float scale, phos_gui_opts opts)
 {
@@ -1931,7 +1959,7 @@ Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_g
 
 	return v;
 }
-Vector2 phos_gui_realign_elem_text(phos_gui_text_component *text_component)
+Vector2 phos_gui_realign_elem_text(phos_gui_text_component *text_component, phos_gui_target_text_string target_str)
 {
 	if(!text_component)
 	{
@@ -1939,7 +1967,7 @@ Vector2 phos_gui_realign_elem_text(phos_gui_text_component *text_component)
 		return Vector2Zero();
 	}
 	
-	return phos_gui_align_elem_text(text_component, PHOS_GUI_TARGET_AUTO_TEXT, text_component->alignment);
+	return phos_gui_align_elem_text(text_component, target_str, text_component->alignment);
 }
 Vector2 phos_gui_align_elem_label(phos_gui_label_component *label_component, phos_gui_alignment alignment)
 {
@@ -1983,6 +2011,44 @@ Vector2 phos_gui_realign_elem_label(phos_gui_label_component *label_component)
 	}
 
 	return phos_gui_align_elem_label(label_component, label_component->alignment);
+}
+Vector2 phos_gui_align_elem_icon(phos_gui_icon *icon, phos_gui_elem *reference_elem, phos_gui_alignment alignment)
+{
+	Vector2 v = {0};
+
+	if(!icon)
+	{
+		vl_log(VL_ERROR, "Cannot align NULL icon!\n");
+		return v;
+	}
+	if(!reference_elem)
+	{
+		vl_log(VL_ERROR, "Cannot align icon with NULL reference element!\n");
+		return v;
+	}
+
+	v = get_proposed_align_pos(phos_gui_get_rect_size(icon->bounds), alignment, reference_elem);
+
+	icon->bounds.x = v.x;
+	icon->bounds.y = v.y;
+	icon->alignment = alignment;
+
+	return v;
+}
+Vector2 phos_gui_realign_elem_icon(phos_gui_icon *icon, phos_gui_elem *reference_elem)
+{
+	if(!icon)
+	{
+		vl_delay_log(VL_ERROR, 2.0f, "Cannot realign NULL icon!\n");
+		return Vector2Zero();
+	}
+	if(!reference_elem)
+	{
+		vl_delay_log(VL_ERROR, 2.0f, "Cannot realign icon against NULL element!\n");
+		return Vector2Zero();
+	}
+
+	return phos_gui_align_elem_icon(icon, reference_elem, icon->alignment);
 }
 Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment alignment, phos_gui_elem *reference_elem, phos_gui_opts opts)
 {
@@ -2111,7 +2177,26 @@ static void use_largest_possible_font_size(phos_gui_text_component *text_compone
 		text_bounds = resolve_elem_text_bounds(text_component, target_str);
 	}
 }
+static void use_largest_possible_icon_size(phos_gui_icon *icon, Rectangle rect)
+{
+	// get content area
+	Vector2 size = phos_gui_get_rect_size(rect);
 
+	// create virtual padding around icon
+	size.x -= ICON_PADDING * 2.0f;
+	size.y -= ICON_PADDING * 2.0f;
+
+	// start out at largest icon size
+	icon->bounds.width = icon->bounds.height = PHOS_GUI_ICON_SIZE_LARGEST;
+
+	// while the icon takes up more space than the inner bounds, icon size automatically has to shrink
+	while(icon->bounds.width > 0 && icon->bounds.height > 0 && (icon->bounds.width >= size.x || icon->bounds.height >= size.y))
+	{
+		// go to next icon size
+		icon->bounds.width -= 1.0f;
+		icon->bounds.height -= 1.0f;
+	}
+}
 void phos_gui_make_text_fit_elem(phos_gui_text_component *text_component, phos_gui_target_text_string target_str)
 {
 	if(!text_component)
@@ -2152,6 +2237,31 @@ void phos_gui_make_text_fit_rect(phos_gui_text_component *text_component, phos_g
 	// use the rectangle the user gave
 	use_largest_possible_font_size(text_component, target_str, rect);
 }
+void phos_gui_make_icon_fit_elem(phos_gui_icon *icon, phos_gui_elem *elem)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot make an icon fit a NULL element!\n");
+		return;
+	}
+	if(!icon)
+	{
+		vl_log(VL_ERROR, "To make an icon fit an element, the icon cannot be NULL!\n");
+		return;
+	}
+
+	use_largest_possible_icon_size(icon, get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE));
+}
+void phos_gui_make_icon_fit_rect(phos_gui_icon *icon, Rectangle rect)
+{
+	if(!icon)
+	{
+		vl_log(VL_ERROR, "Cannot make NULL icon fit rectangle!\n");
+		return;
+	}
+
+	use_largest_possible_icon_size(icon, rect);
+}
 
 void phos_gui_init_icon(phos_gui_icon *icon, phos_gui_icon_id ID, float x, float y)
 {
@@ -2161,12 +2271,13 @@ void phos_gui_init_icon(phos_gui_icon *icon, phos_gui_icon_id ID, float x, float
 		return;
 	}
 
-	icon->bounds.width = PHOS_GUI_ICON_SIZE;
-	icon->bounds.height = PHOS_GUI_ICON_SIZE;
+	icon->bounds.width = PHOS_GUI_ICON_SIZE_DEFAULT;
+	icon->bounds.height = PHOS_GUI_ICON_SIZE_DEFAULT;
 	icon->bounds.x = x;
 	icon->bounds.y = y;
 	icon->ID = ID;
 	icon->color = phos_gui_get_theme().icon_color;
+	icon->alignment = PHOS_GUI_ALIGN_LEFT;
 	icon->visible = true;
 }
 void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h)
@@ -2219,8 +2330,39 @@ void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y,
 	// init element's basic attributes first
 	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_INTERACTIVE, PHOS_GUI_RENDER_FILL_OUTLINE, x, y, w, h);
 
+	// create mouse listener component
+	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+	if(!mouse_listener)
+		phos_gui_exit(EXIT_FAILURE);
+
+	// check for icon string instead
+	if(strncmp(text, "<icon=", 6) == 0)
+	{
+		// first try to obtain icon
+		phos_gui_icon_id icon_id = -1;
+		Texture2D *icon_tex = phos_gui_get_icon_str(text, &icon_id);
+		if(icon_tex)
+		{
+			phos_gui_icon_list_component *icon_list = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
+			if(!icon_list)
+				phos_gui_exit(EXIT_FAILURE);
+
+			// place icon in center of button
+			phos_gui_icon icon = {0};
+			phos_gui_init_icon(&icon, icon_id, 0.0f, 0.0f);
+
+			// make icon fit elem, then center icon
+			phos_gui_make_icon_fit_elem(&icon, elem);
+			icon.bounds.x = x + (w - icon.bounds.width) / 2.0f;
+			icon.bounds.y = y + (h - icon.bounds.height) / 2.0f;
+
+			phos_gui_add_icon(icon_list, icon);
+		}
+		else
+			vl_log(VL_ERROR, "Failed to initialize button with an icon: '%s'!\n", text);
+	}
 	// create text component only if str is not "<no-text>"
-	if(strcmp(text, PHOS_GUI_NO_TEXT) != 0)
+	else if(strcmp(text, PHOS_GUI_NO_TEXT) != 0)
 	{
 		phos_gui_text_component *text_component = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_TEXT);
 		if(!text_component)
@@ -2228,10 +2370,8 @@ void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y,
 		phos_gui_set_text_contents(text_component, PHOS_GUI_TARGET_MAIN_TEXT, text, PHOS_GUI_OPTS_FIT_TEXT);
 	}
 
-	// create mouse listener component
-	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
-	if(!mouse_listener)
-		phos_gui_exit(EXIT_FAILURE);
+	// re-apply theme to elem
+	phos_gui_apply_theme_to_elem(elem, phos_gui_get_theme());
 }
 void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text)
 {
@@ -2274,7 +2414,7 @@ void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, floa
 
 		// align text
 		text->alignment = PHOS_GUI_ALIGN_INNER_LEFT;
-		phos_gui_realign_elem_text(text);
+		phos_gui_realign_elem_text(text, PHOS_GUI_TARGET_AUTO_TEXT);
 	}
 }
 void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui_text_wrap_mode wrap_mode)
@@ -2314,7 +2454,7 @@ void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float
 		// start text at top left of text area and go back to default font size
 		text->alignment = PHOS_GUI_ALIGN_INNER_TOP_LEFT;
 		text->font_size = PHOS_GUI_FONT_SIZE_MED;
-		phos_gui_realign_elem_text(text);
+		phos_gui_realign_elem_text(text, PHOS_GUI_TARGET_AUTO_TEXT);
 	}
 }
 void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text)
@@ -2347,7 +2487,7 @@ void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float
 	if(text_component)
 	{
 		text_component->alignment = PHOS_GUI_ALIGN_INNER_LEFT;
-		phos_gui_realign_elem_text(text_component);
+		phos_gui_realign_elem_text(text_component, PHOS_GUI_TARGET_AUTO_TEXT);
 	}
 
 	// move container to elem pos
@@ -2430,7 +2570,7 @@ void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float 
 
 	// add check mark icon to checkbox
 	phos_gui_icon check_mark = {0};
-	phos_gui_init_icon(&check_mark, PHOS_GUI_ICON_CHECK_MARK, elem->bounds.x + (elem->bounds.width - PHOS_GUI_ICON_SIZE) / 2.0f, elem->bounds.y + (elem->bounds.height - PHOS_GUI_ICON_SIZE) / 2.0f);
+	phos_gui_init_icon(&check_mark, PHOS_GUI_ICON_CHECK_MARK, elem->bounds.x + (elem->bounds.width - PHOS_GUI_ICON_SIZE_DEFAULT) / 2.0f, elem->bounds.y + (elem->bounds.height - PHOS_GUI_ICON_SIZE_DEFAULT) / 2.0f);
 	// checkbox is not selected by default
 	check_mark.visible= false;
 
@@ -2512,8 +2652,31 @@ void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y,
 	value_bar->slider_knob_shape = PHOS_GUI_SHAPE_ELLIPSE;
 	value_bar->slider_knob_snapping = true;
 
+	if(strncmp(label_text, "<icon=", 6) == 0)
+	{
+		// first try to obtain icon
+		phos_gui_icon_id icon_id = -1;
+		Texture2D *icon_tex = phos_gui_get_icon_str(label_text, &icon_id);
+		if(icon_tex)
+		{
+			phos_gui_icon_list_component *icon_list = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
+			if(!icon_list)
+				phos_gui_exit(EXIT_FAILURE);
+
+			// create icon and align to value bar
+			phos_gui_icon icon = {0};
+			phos_gui_init_icon(&icon, icon_id, 0.0f, 0.0f);
+
+			// align icon
+			phos_gui_align_elem_icon(&icon, elem, PHOS_GUI_ALIGN_LEFT);
+
+			phos_gui_add_icon(icon_list, icon);
+		}
+		else
+			vl_log(VL_ERROR, "Failed to initialize slider with an icon: '%s'!\n", label_text);
+	}
 	// add label if str is not "<no-text>"
-	if(strcmp(label_text, PHOS_GUI_NO_TEXT) != 0)
+	else if(strcmp(label_text, PHOS_GUI_NO_TEXT) != 0)
 	{
 		phos_gui_label_component *label = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_LABEL);
 		if(!label)
@@ -3389,7 +3552,7 @@ int phos_gui_add_animation(phos_gui *gui, phos_gui_animation animation)
 
 	return 1;
 }
-int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, int execution_count, phos_gui_animation_end_value_interpretation end_value_interpretation)
+int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, int execution_count, phos_gui_animation_end_value_interpretation end_value_interpretation, phos_gui_opts opts)
 {
 	if(!curr_value)
 	{
@@ -3415,6 +3578,7 @@ int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value
 	anim.duration = duration;
 	anim.step = step;
 	anim.execution_count = execution_count;
+	anim.opts = opts;
 
 	return phos_gui_add_animation(gui, anim);
 }
@@ -3459,7 +3623,7 @@ static void backspace(phos_gui_text_component *t)
 		if(t->edit_opts & PHOS_GUI_OPTS_FIT_TEXT)
 			phos_gui_make_text_fit_elem(t, PHOS_GUI_TARGET_AUTO_TEXT);
 		if(t->edit_opts & PHOS_GUI_OPTS_REALIGN_TEXT)
-			phos_gui_realign_elem_text(t);
+			phos_gui_realign_elem_text(t, PHOS_GUI_TARGET_AUTO_TEXT);
 	}
 }
 static void delete(phos_gui_text_component *t)
@@ -3494,7 +3658,7 @@ static void delete(phos_gui_text_component *t)
 		if(t->edit_opts & PHOS_GUI_OPTS_FIT_TEXT)
 			phos_gui_make_text_fit_elem(t, PHOS_GUI_TARGET_AUTO_TEXT);
 		if(t->edit_opts & PHOS_GUI_OPTS_REALIGN_TEXT)
-			phos_gui_realign_elem_text(t);
+			phos_gui_realign_elem_text(t, PHOS_GUI_TARGET_AUTO_TEXT);
 	}
 }
 static void move_cursor_left(phos_gui_text_component *t)
@@ -3631,7 +3795,7 @@ static void insert_char_text(phos_gui_text_component *text, char c, phos_gui_scr
 		if(text->edit_opts & PHOS_GUI_OPTS_FIT_TEXT)
 			phos_gui_make_text_fit_elem(text, PHOS_GUI_TARGET_AUTO_TEXT);
 		if(text->edit_opts & PHOS_GUI_OPTS_REALIGN_TEXT)
-			phos_gui_realign_elem_text(text);
+			phos_gui_realign_elem_text(text, PHOS_GUI_TARGET_AUTO_TEXT);
 	}
 
 	// if the char inserted is '\n', reset scroll x on text component
@@ -4468,6 +4632,20 @@ static void update_anim(phos_gui_animation *anim, float dt)
 
 		// update animation frame
 		*anim->curr_value += anim->step;
+
+		// handle custom moves and resize calls:
+		if(anim->elem)
+		{
+			if(anim->curr_value == &anim->elem->bounds.x)
+				move_children_and_icons(anim->elem, anim->step, 0.0f, anim->opts);
+			else if(anim->curr_value == &anim->elem->bounds.y)
+				move_children_and_icons(anim->elem, 0.0f, anim->step, anim->opts);
+
+			if(anim->curr_value == &anim->elem->bounds.width)
+				resize_children_and_icons(anim->elem, anim->step, 0.0f, anim->opts);
+			else if(anim->curr_value == &anim->elem->bounds.height)
+				resize_children_and_icons(anim->elem, 0.0f, anim->step, anim->opts);
+		}
 	}
 
 	// once curr value reaches end value, determine if anim should loop
@@ -5799,7 +5977,7 @@ void phos_gui_render_icon(phos_gui_icon *icon)
 		return;
 	}
 
-	Rectangle src_rect = { 0, 0, PHOS_GUI_ICON_SIZE, PHOS_GUI_ICON_SIZE };
+	Rectangle src_rect = { 0, 0, PHOS_GUI_ICON_SIZE_DEFAULT, PHOS_GUI_ICON_SIZE_DEFAULT };
 	DrawTexturePro(*tex, src_rect, icon->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, icon->color);
 }
 Color phos_gui_random_color()
@@ -6097,7 +6275,7 @@ Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon)
 {
 	// return loaded texture at icon's file path in the icon map
 	const char **icon_file_path_value = NULL;
-	dynmaps_get(&icons, icon, icon_file_path_value);
+	dynmaps_get(&icon_ids, icon, icon_file_path_value);
 	if(icon_file_path_value)
 	{
 		const char *icon_file_path = *icon_file_path_value;
@@ -6107,69 +6285,41 @@ Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon)
 	vl_log(VL_ERROR, "Failed to obtain icon texture: %d!\n", icon);
 	return NULL;
 }
-// TODO should this still be used? how to incorporate into text components like docs say?
-/*Texture2D *phos_gui_get_icon_str(const char *str)
+Texture2D *phos_gui_get_icon_str(const char *str, phos_gui_icon_id *out_icon_id)
 {
-	// example str:   '<icon_id=0>'
-	// example str 2: '<icon=DOWN_ARROW>'
-
-	// parse an ID:
-	if(strncmp(str, "<icon_id=", 9) == 0)
+	if(strncmp(str, "<icon=", 6) == 0)
 	{
-		// get characters after '=' but before closing '>'
-		const char *e = str + 9;
+		// go to equals sign
+		const char *equals = str + 6;
 
-		// max of 3 digits
-		char icon_id[3];
-		size_t icon_id_idx = 0;
+		char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
 
-		// walk forward until closing '>' is found
-		while(*e + 1 != '>' && icon_id_idx < sizeof(icon_id))
+		size_t i = 0;
+		while(*equals != '>' && i < sizeof(icon_name))
+			icon_name[i++] = *equals++;
+
+		icon_name[i] = '\0';
+
+		// now use icon name to obtain icon ID
+		phos_gui_icon_id *icon_id = NULL;
+		dynmaps_get_strkey(&icon_names, icon_name, icon_id);
+		if(icon_id)
 		{
-			icon_id[icon_id_idx++] = *e;
-			e++;
+			if(out_icon_id)
+				*out_icon_id = *icon_id;
+			return phos_gui_get_icon_id(*icon_id);
 		}
-		icon_id[icon_id_idx] = '\0';
 
-		// parse ID
-		int real_icon_id = strtol(icon_id, NULL, 10);
-
-		// return texture matching the icon ID parsed, or NULL if invalid ID given
-		return phos_gui_get_icon_id(real_icon_id);
-	}
-	// parse a name:
-	else if(strncmp(str, "<icon=", 6) == 0)
-	{
-		// get characters after '=' but before closing '>'
-		const char *e = str + 6;
-
-		char icon_name[64];
-		size_t icon_id_idx = 0;
-
-		// walk forward until closing '>' is found
-		while(*e + 1 != '>' && icon_id_idx < sizeof(icon_name))
-		{
-			icon_name[icon_id_idx++] = *e;
-			e++;
-		}
-		icon_name[icon_id_idx] = '\0';
-
-		// parse name
-		if(strcmp(icon_name, "DOWN_ARROW"))
-			return phos_gui_get_icon_id(PHOS_GUI_ICON_ARROW_DOWN);
-		else
-		{
-			vl_log(VL_ERROR, "Invalid icon name given: '%s'!\n", icon_name);
-			return NULL;
-		}
+		vl_log(VL_ERROR, "Cannot find matching icon ID with icon name: '%s'!\n", icon_name);
+		return NULL;
 	}
 
-	// unable to parse because an invalid string was given
+	vl_log(VL_ERROR, "To obtain an icon using an icon string, you must use the '<icon=ICON_NAME>' format!\n");
 	return NULL;
-}*/
+}
 void phos_gui_set_icon(phos_gui_icon_id icon, const char *file_path)
 {
-	map_add(&icons, icon, file_path);
+	map_add(&icon_ids, icon, file_path);
 	vl_log(VL_INFO, "Icon %d loaded with texture '%s'!\n", icon, file_path);
 }
 

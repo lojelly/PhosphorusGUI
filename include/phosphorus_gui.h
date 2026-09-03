@@ -141,7 +141,33 @@
 /**
   The default size of icons in PhosphorusGUI.
 */
-#define PHOS_GUI_ICON_SIZE 32.0f
+#define PHOS_GUI_ICON_SIZE_DEFAULT PHOS_GUI_ICON_SIZE_MED
+/**
+  Small icon size.
+*/
+#define PHOS_GUI_ICON_SIZE_SMALL 16.0f
+/**
+  Medium icon size.
+*/
+#define PHOS_GUI_ICON_SIZE_MED 32.0f
+/**
+  Large icon size.
+*/
+#define PHOS_GUI_ICON_SIZE_LARGE 64.0f
+/**
+  Largest icon size.
+*/
+#define PHOS_GUI_ICON_SIZE_LARGEST 128.0f
+
+/**
+  The max length of an icon name in PhosphorusGUI.
+
+  An example of an icon name is 'CHECK_MARK.' Note
+  that PHOS_GUI_CHECK_MARK is not the icon name.
+  PhosphorusGUI does not use the 'PHOS_GUI' prefix
+  in icon names.
+*/
+#define PHOS_GUI_MAX_ICON_NAME_LEN 64
 
 /**
   The window's origin.
@@ -2294,13 +2320,29 @@ typedef struct phos_gui_value_bar_component
 typedef enum phos_gui_icon_id
 {
 	/**
-	  The down arrow icon.
-	*/
-	PHOS_GUI_ICON_ARROW_DOWN = 0,
-	/**
 	  The check mark icon.
 	*/
 	PHOS_GUI_ICON_CHECK_MARK,
+	/**
+	  The vertical bars icon.
+	*/
+	PHOS_GUI_ICON_VERTICAL_BARS,
+	/**
+	  The horizontal bars icon.
+	*/
+	PHOS_GUI_ICON_HORIZONTAL_BARS,
+	/**
+	  The vertical dots icon.
+	*/
+	PHOS_GUI_ICON_VERTICAL_DOTS,
+	/**
+	  The horizontal dots icon.
+	*/
+	PHOS_GUI_ICON_HORIZONTAL_DOTS,
+	/**
+	  The down arrow icon.
+	*/
+	PHOS_GUI_ICON_ARROW_DOWN,
 	/**
 	  The max number of icons.
 	*/
@@ -2326,6 +2368,13 @@ typedef struct phos_gui_icon
 	  The color of the icon.
 	*/
 	Color color;
+	/**
+	  The alignment of the icon.
+
+	  This is equal to PHOS_GUI_ALIGN_LEFT
+	  by default.
+	*/
+	phos_gui_alignment alignment;
 	/**
 	  Whether or not the icon should
 	  be rendered.
@@ -2843,6 +2892,13 @@ typedef struct phos_gui_animation
 	  should loop forever.
 	*/
 	int execution_count;
+
+	/**
+	  As the animation updates, this
+	  options are used in any necessary
+	  function calls.
+	*/
+	phos_gui_opts opts;
 } phos_gui_animation;
 
 /**
@@ -3240,49 +3296,33 @@ PHOS_GUI_API void phos_gui_add_elem_margin(phos_gui_elem *elem, float margin);
 PHOS_GUI_API void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, const char *new_contents, phos_gui_opts opts);
 
 /**
-  Calculates the position of the text component of an element based on an alignment.
-
-  @note This function uses the text component's owner as the reference
-  element to align with.
-
-  @important The given alignment must be one of the PHOS_GUI_ALIGN_INNER... alignments.
-
-  @param text_component The text component to align.
-  @param target_str The string buffer on the text component to use when aligning.
-  See phos_gui_target_text_string.
-  @param alignment The alignment to use.
-
-  @see phos_gui_align_elem(phos_gui_elem*, phos_gui_alignment, const phos_gui_elem *const)
-  @see phos_gui_target_text_string
+  Aligns the given text component using its owner as a reference element.
 */
 PHOS_GUI_API Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, phos_gui_alignment alignment);
 /**
   Realigns text using the same alignment originally used to align it.
-
-  @see phos_gui_align_elem_text(phos_gui_text_component*, phos_gui_target_text_string, phos_gui_alignment)
 */
-PHOS_GUI_API Vector2 phos_gui_realign_elem_text(phos_gui_text_component *text_component);
+PHOS_GUI_API Vector2 phos_gui_realign_elem_text(phos_gui_text_component *text_component, phos_gui_target_text_string target_str);
 /**
-  Similar to phos_gui_align_elem_text(...) but is used for label components instead.
+  Aligns the given label using the reference element and alignment.
 
   @note When aligning a label, the element's total bounds are used (includes the element's margins).
 */
 PHOS_GUI_API Vector2 phos_gui_align_elem_label(phos_gui_label_component *label_component, phos_gui_alignment alignment);
 /**
-  Similar to phos_gui_realign_elem_text(...) but is used for label components instead.
-
-  @see phos_gui_align_elem_label(phos_gui_label_component*, phos_gui_alignment)
+  Realigns the label using the same alignment originally used to align it.
 */
 PHOS_GUI_API Vector2 phos_gui_realign_elem_label(phos_gui_label_component *label_component);
 /**
-  Calculates the position of 'target_elem' if it were aligned with 'reference_elem'
-  using the given alignment, and then uses the calculated position to properly
-  move 'target_elem.'
-
-  @param target_elem The element to move and align.
-  @param alignment The alignment to use.
-  The element's 'alignment' field is automatically assigned to the value given.
-  @param reference_elem The element 'target_elem' is being aligned with.
+  Aligns the given icon using a reference element and alignment.
+*/
+PHOS_GUI_API Vector2 phos_gui_align_elem_icon(phos_gui_icon *icon, phos_gui_elem *reference_elem, phos_gui_alignment alignment);
+/**
+  Realigns the icon using the same alignment originally used to align it.
+*/
+PHOS_GUI_API Vector2 phos_gui_realign_elem_icon(phos_gui_icon *icon, phos_gui_elem *reference_elem);
+/**
+  Aligns 'target_elem' using the given alignment with 'reference_elem.'
 */
 PHOS_GUI_API Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment alignment, phos_gui_elem *reference_elem, phos_gui_opts opts);
 /**
@@ -3327,6 +3367,14 @@ PHOS_GUI_API void phos_gui_make_text_fit_elem(phos_gui_text_component *text_comp
   @see phos_gui_make_text_fit_elem(phos_gui_text_component*, phos_gui_target_text_string)
 */
 PHOS_GUI_API void phos_gui_make_text_fit_rect(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, Rectangle rect);
+/**
+  Makes the given icon fit the element's bounds.
+*/
+PHOS_GUI_API void phos_gui_make_icon_fit_elem(phos_gui_icon *icon, phos_gui_elem *elem);
+/**
+  Makes the given icon fit the rectangle.
+*/
+PHOS_GUI_API void phos_gui_make_icon_fit_rect(phos_gui_icon *icon, Rectangle rect);
 
 /**
   Initializes an icon.
@@ -3350,8 +3398,10 @@ PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_g
   and text components. The text component is initialized with the
   'text' string given.
 
-  @important If the string given is equal to "<no-text>" then
-  the button will not have a text component.
+  @important If the text string given is equal to "<no-text>" then
+  the button will not have a text component. If the text string given
+  follows the format of "<icon=ICON_NAME>," then the button will not
+  have a text component, but instead an icon.
 */
 PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text);
 /**
@@ -3361,6 +3411,11 @@ PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, floa
   text components, and placeholder text components. A scroll
   pane component is added to the container element. Each text
   component is initialized with the respective string given.
+
+  @important Just like phos_gui_init_button(...), the 'text' string
+  can be equal to "<no-text>" to remove the text component from
+  the drop-down button. Or you can add an icon to the button
+  by using "<icon=ICON_NAME>."
 
   @important If a placeholder string is given, then this function
   will make the placeholder text fit the element.
@@ -3380,6 +3435,11 @@ PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, 
   is given, a scroll pane is added to the text area element. If PHOS_GUI_TEXT_WRAP_CHAR
   or PHOS_GUI_TEXT_WRAP_WORD is given, the text area will not have a scroll pane component.
 
+  @important Just like phos_gui_init_button(...), the 'text' string
+  can be equal to "<no-text>" to remove the text component from
+  the drop-down button. Or you can add an icon to the button
+  by using "<icon=ICON_NAME>."
+
   @see phos_gui_init_text_field(phos_gui_elem*, phos_gui_elem*, const char*, float, float, float, float, const char*, const char*)
 */
 PHOS_GUI_API void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui_text_wrap_mode wrap_mode);
@@ -3391,7 +3451,8 @@ PHOS_GUI_API void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, f
 
   @important Just like phos_gui_init_button(...), the 'text' string
   can be equal to "<no-text>" to remove the text component from
-  the drop-down button.
+  the drop-down button. Or you can add an icon to the button
+  by using "<icon=ICON_NAME>."
 
   @note 'container_elem' should point to the container of the drop-down menu.
 
@@ -3408,9 +3469,10 @@ PHOS_GUI_API void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, f
   of the element. They also come with an event listener that will
   toggle the check mark when clicked (PHOS_GUI_EVENT_MOUSE_CLICK).
 
-  @important Just like phos_gui_init_button(...), the 'label_text' string
-  can be equal to "<no-text>" to remove the label component
-  from the checkbox element.
+  @important Just like phos_gui_init_button(...), the 'text' string
+  can be equal to "<no-text>" to remove the text component from
+  the drop-down button. Or you can add an icon to the button
+  by using "<icon=ICON_NAME>."
 
   @see phos_gui_checkbox_list_component
 */
@@ -3443,9 +3505,10 @@ PHOS_GUI_API void phos_gui_init_value_bar(phos_gui_elem *elem, const char *ID, f
   By default, slider elements come with value bar
   components and label components.
 
-  @important Just like phos_gui_init_button(...), the 'label_text' string can
-  be equal to "<no-text>" to remove the label component
-  from the slider element.
+  @important Just like phos_gui_init_button(...), the 'text' string
+  can be equal to "<no-text>" to remove the text component from
+  the drop-down button. Or you can add an icon to the button
+  by using "<icon=ICON_NAME>."
 
   @see phos_gui_value_bar_component
 */
@@ -3724,7 +3787,7 @@ PHOS_GUI_API int phos_gui_add_animation(phos_gui *gui, phos_gui_animation animat
 
   @see phos_gui_add_animation(phos_gui*, phos_gui_animation)
 */
-PHOS_GUI_API int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, int execution_count, phos_gui_animation_end_value_interpretation end_value_interpretation);
+PHOS_GUI_API int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, int execution_count, phos_gui_animation_end_value_interpretation end_value_interpretation, phos_gui_opts opts);
 
 /**
   Launches a custom program loop for PhosphorusGUI.
@@ -3962,22 +4025,17 @@ PHOS_GUI_API Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon);
 /**
   Obtains a texture for a specific icon using an icon string.
 
-  For example, if you were obtaining the down arrow icon using its
-  ID, you would use phos_gui_get_icon_id(PHOS_GUI_ICON_ARROW_DOWN).
-  But this function expects a special string that matches the icon ID.
-  For PHOS_GUI_ICON_ARROW_DOWN, you could pass in "<icon_id=0>," or you
-  could also pass in "<icon=DOWN_ARROW>." When using 'icon_id' you must
-  pass in the ID of the icon, and in this case 0 corresponds to
-  PHOS_GUI_ICON_ARROW_DOWN. If using just 'icon' you must use the name
-  of the icon but omit the 'PHOS_GUI_' part of the name. This technique
-  also works in text components. Just insert the same type of string
-  into a text component's string and the icon will be rendered there
-  instead of characters.
+  An icon string must follow this format: "<icon=ICON_NAME>."
+
+  For example, to obtain the check mark icon, use
+  "<icon=CHECK_MARK>."
+
+  @note You can also obtain the ID of the icon if a valid pointer
+  is passed into 'out_icon_id.'
 
   @see phos_gui_get_icon_id(phos_gui_icon)
 */
-// TODO work on this
-//PHOS_GUI_API Texture2D *phos_gui_get_icon_str(const char *str);
+PHOS_GUI_API Texture2D *phos_gui_get_icon_str(const char *str, phos_gui_icon_id *out_icon_id);
 /**
   Sets up an icon and its texture.
 
