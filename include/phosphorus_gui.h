@@ -3399,9 +3399,8 @@ PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_g
   'text' string given.
 
   @important If the text string given is equal to "<no-text>" then
-  the button will not have a text component. If the text string given
-  follows the format of "<icon=ICON_NAME>," then the button will not
-  have a text component, but instead an icon.
+  the button will not have a text component. You can also insert icons
+  into text components using the "<icon=ICON_NAME>" format.
 */
 PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text);
 /**
@@ -3412,13 +3411,10 @@ PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, floa
   pane component is added to the container element. Each text
   component is initialized with the respective string given.
 
-  @important Just like phos_gui_init_button(...), the 'text' string
-  can be equal to "<no-text>" to remove the text component from
-  the drop-down button. Or you can add an icon to the button
-  by using "<icon=ICON_NAME>."
-
   @important If a placeholder string is given, then this function
   will make the placeholder text fit the element.
+
+  @see phos_gui_init_button(phos_gui_elem*, const char*, float, float, float, float, const char*)
 */
 PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text);
 /**
@@ -3435,11 +3431,6 @@ PHOS_GUI_API void phos_gui_init_text_field(phos_gui_elem *elem, const char *ID, 
   is given, a scroll pane is added to the text area element. If PHOS_GUI_TEXT_WRAP_CHAR
   or PHOS_GUI_TEXT_WRAP_WORD is given, the text area will not have a scroll pane component.
 
-  @important Just like phos_gui_init_button(...), the 'text' string
-  can be equal to "<no-text>" to remove the text component from
-  the drop-down button. Or you can add an icon to the button
-  by using "<icon=ICON_NAME>."
-
   @see phos_gui_init_text_field(phos_gui_elem*, phos_gui_elem*, const char*, float, float, float, float, const char*, const char*)
 */
 PHOS_GUI_API void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *main_text, const char *placeholder_text, phos_gui_text_wrap_mode wrap_mode);
@@ -3449,14 +3440,10 @@ PHOS_GUI_API void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, f
   By default, drop-down elements come with mouse listener components,
   text components, and drop-down components.
 
-  @important Just like phos_gui_init_button(...), the 'text' string
-  can be equal to "<no-text>" to remove the text component from
-  the drop-down button. Or you can add an icon to the button
-  by using "<icon=ICON_NAME>."
-
   @note 'container_elem' should point to the container of the drop-down menu.
 
   @see phos_gui_drop_down_component
+  @see phos_gui_init_button(phos_gui_elem*, const char*, float, float, float, float, const char*)
 */
 PHOS_GUI_API void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, phos_gui_elem *container_elem, const char *text);
 /**
@@ -3469,12 +3456,8 @@ PHOS_GUI_API void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, f
   of the element. They also come with an event listener that will
   toggle the check mark when clicked (PHOS_GUI_EVENT_MOUSE_CLICK).
 
-  @important Just like phos_gui_init_button(...), the 'text' string
-  can be equal to "<no-text>" to remove the text component from
-  the drop-down button. Or you can add an icon to the button
-  by using "<icon=ICON_NAME>."
-
   @see phos_gui_checkbox_list_component
+  @see phos_gui_init_button(phos_gui_elem*, const char*, float, float, float, float, const char*)
 */
 PHOS_GUI_API void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *label_text);
 /**
@@ -3505,12 +3488,8 @@ PHOS_GUI_API void phos_gui_init_value_bar(phos_gui_elem *elem, const char *ID, f
   By default, slider elements come with value bar
   components and label components.
 
-  @important Just like phos_gui_init_button(...), the 'text' string
-  can be equal to "<no-text>" to remove the text component from
-  the drop-down button. Or you can add an icon to the button
-  by using "<icon=ICON_NAME>."
-
   @see phos_gui_value_bar_component
+  @see phos_gui_init_button(phos_gui_elem*, const char*, float, float, float, float, const char*)
 */
 PHOS_GUI_API void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, float min_value, float max_value, float curr_value, const char *label_text);
 
@@ -3871,6 +3850,23 @@ PHOS_GUI_API void phos_gui_render_elem(phos_gui_elem *elem);
   @see phos_gui_icon
 */
 PHOS_GUI_API void phos_gui_render_icon(phos_gui_icon *icon);
+/**
+  Measures a text block using PhosphorusGUI's custom
+  text engine.
+*/
+PHOS_GUI_API Vector2 phos_gui_measure_text(Font font, const char *text, float font_size);
+/**
+  Renders text.
+
+  PhosphorusGUI has a custom engine separate from Raylib.
+
+  The text engine is very similar but it also gives you
+  the ability to render icons within the text. To enter
+  an icon into a text block, use the "<icon=ICON_NAME>"
+  format. The size of the icon will match the font size
+  of the text.
+*/
+PHOS_GUI_API void phos_gui_render_text(Font font, const char *text, Vector2 pos, float font_size, Color color);
 /**
   Generates a random color.
 */

@@ -1451,7 +1451,7 @@ void phos_gui_get_text_bounds(const phos_gui_text_component *const text_componen
 		}
 
 		// width and height of the text
-		Vector2 text_size = MeasureTextEx(*text_component->font, main_str, text_component->font_size, 0.0f);
+		Vector2 text_size = phos_gui_measure_text(*text_component->font, main_str, text_component->font_size);
 
 		main_bounds.width = text_size.x;
 		main_bounds.height = text_size.y;
@@ -1474,7 +1474,7 @@ void phos_gui_get_text_bounds(const phos_gui_text_component *const text_componen
 		}
 
 		// width and height of the text
-		Vector2 text_size = MeasureTextEx(*text_component->font, placeholder_str, text_component->font_size, 0.0f);
+		Vector2 text_size = phos_gui_measure_text(*text_component->font, placeholder_str, text_component->font_size);
 
 		placeholder_bounds.width = text_size.x;
 		placeholder_bounds.height = text_size.y;
@@ -1519,7 +1519,7 @@ static Vector2 get_cursor_draw_pos(const phos_gui_text_component *const text, co
 		// use entire buffer
 		curr_line = buf;
 
-	Vector2 caret_size = MeasureTextEx(*text->font, curr_line, text->font_size, 0.0f);
+	Vector2 caret_size = phos_gui_measure_text(*text->font, curr_line, text->font_size);
 	float line_height = text->font_size;
 
 	Vector2 cursor_pos = { text_pos.x + caret_size.x, text_pos.y };
@@ -1893,11 +1893,11 @@ static Vector2 resolve_elem_text_bounds(const phos_gui_text_component *const tex
 	switch(target_str)
 	{
 		case PHOS_GUI_TARGET_MAIN_TEXT:
-			text_bounds = MeasureTextEx(*text_component->font, text_component->str, text_component->font_size, 0.0f);
+			text_bounds = phos_gui_measure_text(*text_component->font, text_component->str, text_component->font_size);
 			break;
 		case PHOS_GUI_TARGET_PLACEHOLDER_TEXT:
 			if(placeholder_text)
-				text_bounds = MeasureTextEx(*text_component->font, placeholder_text->str, text_component->font_size, 0.0f);
+				text_bounds = phos_gui_measure_text(*text_component->font, placeholder_text->str, text_component->font_size);
 			else
 				vl_log(VL_ERROR, "Cannot obtain placeholder text because the element '%s' does not own a phos_gui_placeholder_text_extension component!\n", elem->ID);
 			break;
@@ -1905,9 +1905,9 @@ static Vector2 resolve_elem_text_bounds(const phos_gui_text_component *const tex
 			size_t main_len = strlen(text_component->str);
 			size_t placeholder_len = placeholder_text ? strlen(placeholder_text->str) : 0;
 			if(main_len > placeholder_len)
-				text_bounds = MeasureTextEx(*text_component->font, text_component->str, text_component->font_size, 0.0f);
+				text_bounds = phos_gui_measure_text(*text_component->font, text_component->str, text_component->font_size);
 			else if(placeholder_text && placeholder_len > main_len)
-				text_bounds = MeasureTextEx(*text_component->font, placeholder_text->str, text_component->font_size, 0.0f);
+				text_bounds = phos_gui_measure_text(*text_component->font, placeholder_text->str, text_component->font_size);
 			else
 				vl_log(VL_WARNING, "PHOS_GUI_TARGET_AUTO_TEXT failed for element: '%s'!\n", elem->ID);
 			break;
@@ -1992,7 +1992,7 @@ Vector2 phos_gui_align_elem_label(phos_gui_label_component *label_component, pho
 		return v;
 	}
 
-	Vector2 label_bounds = MeasureTextEx(*label_component->font, label_component->str, label_component->font_size, 0.0f);
+	Vector2 label_bounds = phos_gui_measure_text(*label_component->font, label_component->str, label_component->font_size);
 
 	v = get_proposed_align_pos(label_bounds, alignment, owner);
 
@@ -2335,34 +2335,8 @@ void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y,
 	if(!mouse_listener)
 		phos_gui_exit(EXIT_FAILURE);
 
-	// check for icon string instead
-	if(strncmp(text, "<icon=", 6) == 0)
-	{
-		// first try to obtain icon
-		phos_gui_icon_id icon_id = -1;
-		Texture2D *icon_tex = phos_gui_get_icon_str(text, &icon_id);
-		if(icon_tex)
-		{
-			phos_gui_icon_list_component *icon_list = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
-			if(!icon_list)
-				phos_gui_exit(EXIT_FAILURE);
-
-			// place icon in center of button
-			phos_gui_icon icon = {0};
-			phos_gui_init_icon(&icon, icon_id, 0.0f, 0.0f);
-
-			// make icon fit elem, then center icon
-			phos_gui_make_icon_fit_elem(&icon, elem);
-			icon.bounds.x = x + (w - icon.bounds.width) / 2.0f;
-			icon.bounds.y = y + (h - icon.bounds.height) / 2.0f;
-
-			phos_gui_add_icon(icon_list, icon);
-		}
-		else
-			vl_log(VL_ERROR, "Failed to initialize button with an icon: '%s'!\n", text);
-	}
 	// create text component only if str is not "<no-text>"
-	else if(strcmp(text, PHOS_GUI_NO_TEXT) != 0)
+	if(strcmp(text, PHOS_GUI_NO_TEXT) != 0)
 	{
 		phos_gui_text_component *text_component = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_TEXT);
 		if(!text_component)
@@ -2652,31 +2626,8 @@ void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y,
 	value_bar->slider_knob_shape = PHOS_GUI_SHAPE_ELLIPSE;
 	value_bar->slider_knob_snapping = true;
 
-	if(strncmp(label_text, "<icon=", 6) == 0)
-	{
-		// first try to obtain icon
-		phos_gui_icon_id icon_id = -1;
-		Texture2D *icon_tex = phos_gui_get_icon_str(label_text, &icon_id);
-		if(icon_tex)
-		{
-			phos_gui_icon_list_component *icon_list = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
-			if(!icon_list)
-				phos_gui_exit(EXIT_FAILURE);
-
-			// create icon and align to value bar
-			phos_gui_icon icon = {0};
-			phos_gui_init_icon(&icon, icon_id, 0.0f, 0.0f);
-
-			// align icon
-			phos_gui_align_elem_icon(&icon, elem, PHOS_GUI_ALIGN_LEFT);
-
-			phos_gui_add_icon(icon_list, icon);
-		}
-		else
-			vl_log(VL_ERROR, "Failed to initialize slider with an icon: '%s'!\n", label_text);
-	}
 	// add label if str is not "<no-text>"
-	else if(strcmp(label_text, PHOS_GUI_NO_TEXT) != 0)
+	if(strcmp(label_text, PHOS_GUI_NO_TEXT) != 0)
 	{
 		phos_gui_label_component *label = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_LABEL);
 		if(!label)
@@ -3822,7 +3773,7 @@ static void insert_char_text(phos_gui_text_component *text, char c, phos_gui_scr
 	curr_line[line_len] = '\0';
 
 	// measure line
-	Vector2 line_bounds = MeasureTextEx(*text->font, curr_line, text->font_size, 0.0f);
+	Vector2 line_bounds = phos_gui_measure_text(*text->font, curr_line, text->font_size);
 
 	// compare text bounds to content free bounds
 	phos_gui_elem *text_elem = pluto_cs_get_owner(text);
@@ -4999,9 +4950,9 @@ static void render_elem(phos_gui_elem *e)
 
 					// determine if text's main text, or placeholder text should be rendered
 					if(placeholder_text && strlen(text->str) == 0 && strlen(placeholder_text->str) > 0)
-						DrawTextEx(*text->font, placeholder_text->str, draw_pos, text->font_size, 0.0f, placeholder_text->color);
+						phos_gui_render_text(*text->font, placeholder_text->str, draw_pos, text->font_size, placeholder_text->color);
 					else
-						DrawTextEx(*text->font, text->str, draw_pos, text->font_size, 0.0f, text->color);
+						phos_gui_render_text(*text->font, text->str, draw_pos, text->font_size, text->color);
 
 					// render cursor (only if placeholder text is not being rendered and text has focus)
 					if(strlen(text->str) > 0 && text->editable && mouse_listener && mouse_listener->has_focus)
@@ -5029,7 +4980,7 @@ static void render_elem(phos_gui_elem *e)
 			if(label->font_size <= 0.0f || ColorIsEqual(label->color, BLANK))
 				vl_delay_log(VL_WARNING, 1.0f, "This element's ('%s') label component will not render correctly due to invalid font size, or the color's alpha is 0!\n", e->ID);
 			else
-				DrawTextEx(*label->font, label->str, get_label_draw_pos(label), label->font_size, 0.0f, label->color);
+				phos_gui_render_text(*label->font, label->str, get_label_draw_pos(label), label->font_size, label->color);
 		}
 		else
 			vl_delay_log(VL_ERROR, 5.0f, "Cannot render label component on element '%s' because it does not have a valid font!\n");
@@ -5980,6 +5931,139 @@ void phos_gui_render_icon(phos_gui_icon *icon)
 	Rectangle src_rect = { 0, 0, PHOS_GUI_ICON_SIZE_DEFAULT, PHOS_GUI_ICON_SIZE_DEFAULT };
 	DrawTexturePro(*tex, src_rect, icon->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, icon->color);
 }
+static bool get_icon_name(const char *str, char *buffer, size_t buffer_size)
+{
+	if(buffer_size == 0)
+		return false;
+
+	if(strncmp(str, "<icon=", 6) == 0)
+	{
+		// go to equals sign
+		const char *equals = str + 6;
+
+		char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
+
+		size_t i = 0;
+		while(*equals != '>' && i < sizeof(icon_name))
+			icon_name[i++] = *equals++;
+
+		icon_name[i] = '\0';
+
+		// place icon name into buffer
+		snprintf(buffer, buffer_size, "%s", icon_name);
+
+		return true;
+	}
+
+	return false;
+}
+Vector2 phos_gui_measure_text(Font font, const char *text, float font_size)
+{
+	Vector2 v = {0};
+
+	if(!text || !IsFontValid(font) || font_size <= 0.0f)
+		return v;
+
+	float line_width = 0.0f;
+
+	for(const char *p = text; *p; ++p)
+	{
+		if(*p == '\n')
+		{
+			if(line_width > v.x)
+				v.x = line_width;
+
+			line_width = 0.0f;
+			v.y += font_size;
+			continue;
+		}
+
+		// see if it's start of an icon
+		char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
+		if(get_icon_name(p, icon_name, sizeof(icon_name)))
+		{
+			// width of an icon is just the font size
+			line_width += font_size;
+
+			// p should now point to the first char after the ending '>' char
+			while(*p && *p != '>')
+				p++;
+			continue;
+		}
+
+		char c_str[2] = { *p, '\0' };
+		line_width += MeasureTextEx(font, c_str, font_size, 0.0f).x;
+	}
+
+	if(line_width > v.x)
+		v.x = line_width;
+
+	v.y += font_size;
+
+	return v;
+}
+void phos_gui_render_text(Font font, const char *text, Vector2 pos, float font_size, Color color)
+{
+	if(!IsFontValid(font) || !text || font_size <= 0.0f)
+	{
+		vl_delay_log(VL_ERROR, 3.0f, "Failed to render text!\n");
+		return;
+	}
+
+	// where each char is drawn individually
+	Vector2 draw_pos = pos;
+
+	for(const char *p = text; *p; ++p)
+	{
+		char c_str[2] = { *p, '\0' };
+
+		// if a new line, go to next draw pos but do not draw anything
+		if(*p == '\n')
+		{
+			// reset x to default value given
+			draw_pos.x = pos.x;
+			draw_pos.y += font_size;
+			continue;
+		}
+
+		// see if an icon should be rendered
+		char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
+		phos_gui_icon_id icon_id = -1;
+		if(get_icon_name(p, icon_name, sizeof(icon_name)))
+		{
+			phos_gui_icon_id *icon_id = NULL;
+			dynmaps_get_strkey(&icon_names, icon_name, icon_id);
+			if(icon_id)
+			{
+				// render icon texture
+				Texture2D *icon_tex = phos_gui_get_icon_id(*icon_id);
+
+				phos_gui_icon icon = {0};
+				icon.ID = *icon_id;
+				icon.color = color;
+				icon.visible = true;
+				icon.bounds = (Rectangle) { draw_pos.x, draw_pos.y, font_size, font_size };
+
+				phos_gui_render_icon(&icon);
+
+				draw_pos.x += font_size;
+
+				// p should now point to the first char after the ending '>' char
+				while(*p && *p != '>')
+					p++;
+
+				continue;
+			}
+			else
+				vl_delay_log(VL_ERROR, 3.0f, "Failed to find icon name in PhosphorusGUI registry: '%s'!\n", icon_name);
+		}
+
+		// render normal char
+		DrawTextEx(font, c_str, draw_pos, font_size, 0.0f, color);
+		// update draw pos
+		draw_pos.x += phos_gui_measure_text(font, c_str, font_size).x;
+	}
+}
 Color phos_gui_random_color()
 {
 	return (Color) { GetRandomValue(0, 255), GetRandomValue(0, 255), GetRandomValue(0, 255), 255 };
@@ -6287,19 +6371,9 @@ Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon)
 }
 Texture2D *phos_gui_get_icon_str(const char *str, phos_gui_icon_id *out_icon_id)
 {
-	if(strncmp(str, "<icon=", 6) == 0)
+	char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
+	if(get_icon_name(str, icon_name, sizeof(icon_name)))
 	{
-		// go to equals sign
-		const char *equals = str + 6;
-
-		char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
-
-		size_t i = 0;
-		while(*equals != '>' && i < sizeof(icon_name))
-			icon_name[i++] = *equals++;
-
-		icon_name[i] = '\0';
-
 		// now use icon name to obtain icon ID
 		phos_gui_icon_id *icon_id = NULL;
 		dynmaps_get_strkey(&icon_names, icon_name, icon_id);
@@ -6309,12 +6383,11 @@ Texture2D *phos_gui_get_icon_str(const char *str, phos_gui_icon_id *out_icon_id)
 				*out_icon_id = *icon_id;
 			return phos_gui_get_icon_id(*icon_id);
 		}
-
 		vl_log(VL_ERROR, "Cannot find matching icon ID with icon name: '%s'!\n", icon_name);
 		return NULL;
 	}
 
-	vl_log(VL_ERROR, "To obtain an icon using an icon string, you must use the '<icon=ICON_NAME>' format!\n");
+	vl_log(VL_ERROR, "Failed to parse icon string: '%s'!\n", str);
 	return NULL;
 }
 void phos_gui_set_icon(phos_gui_icon_id icon, const char *file_path)
