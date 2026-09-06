@@ -733,6 +733,10 @@
 */
 #define PHOS_GUI_THEME_MUTATION phos_gui_create_theme_accented(PHOS_GUI_COLOR_DULL_GREEN, PHOS_GUI_COLOR_DULL_VIOLET)
 /**
+  A theme revolving around pink and green.
+*/
+#define PHOS_GUI_THEME_MYSTIC phos_gui_create_theme_accented(PHOS_GUI_COLOR_DULL_PINK, PHOS_GUI_COLOR_DULL_GREEN)
+/**
   A theme revolving around blues.
 */
 #define PHOS_GUI_THEME_NAUTICAL phos_gui_create_theme_accented(PHOS_GUI_COLOR_DULL_BLUE, PHOS_GUI_COLOR_DARK_BLUE)
@@ -2225,7 +2229,7 @@ typedef struct phos_gui_value_bar_component
 
 	  By default, this is equal to the height of the
 	  element's free content bounds *
-	  3.0f.
+	  2.5f.
 	*/
 	float slider_knob_span;
 	/**
@@ -2979,6 +2983,29 @@ typedef enum phos_gui_animation_end_value_interpretation
 } phos_gui_animation_end_value_interpretation;
 
 /**
+  The different types of looping techniques
+  an animation can use.
+*/
+typedef enum phos_gui_animation_loop_technique
+{
+	/**
+	  Indicates the animation should
+	  only execute once.
+
+	  This is the default looping
+	  technique of animations.
+	*/
+	PHOS_GUI_ANIMATION_LOOP_NONE,
+	/**
+	  Indicates the animation should
+	  execute once, then execute again
+	  but in reversed direction, and continue
+	  that process forever.
+	*/
+	PHOS_GUI_ANIMATION_LOOP_PING_PONG
+} phos_gui_animation_loop_technique;
+
+/**
   Animations are used to modify a float value
   over time.
 */
@@ -3005,6 +3032,14 @@ typedef struct phos_gui_animation
 	*/
 	float *curr_value;
 
+	/**
+	  The starting/initial value of the animation.
+
+	  @important When creating an animation, the current value
+	  and initial value should be identical. Once
+	  set, do not modify this value.
+	*/
+	float start_value;
 	/**
 	  The target end value.
 	*/
@@ -3038,6 +3073,27 @@ typedef struct phos_gui_animation
 	  or slow the animation moves.
 	*/
 	float step;
+
+	/**
+	  The current direction the animation moves in.
+
+	  The direction of animation determines whether or
+	  not it uses a positive or negative step value.
+
+	  By default, animations use the positive direction
+	  (1.0f).
+
+	  @note 1 indiciates the direction is positive, while
+	  -1 indicates the direction is negative. If you want
+	  to speed up the animation, you can use larger values,
+	  like 3, or -0.5f.
+	*/
+	float direction;
+
+	/**
+	  How the animation should loop.
+	*/
+	phos_gui_animation_loop_technique loop_technique;
 
 	/**
 	  As the animation updates, this
@@ -3902,17 +3958,9 @@ PHOS_GUI_API int phos_gui_add_timer(phos_gui *gui, phos_gui_timer timer);
 */
 PHOS_GUI_API int phos_gui_new_timer(phos_gui *gui, phos_gui_timer_action action, void *args, float target_time, int execution_count);
 /**
-  Adds an animation to the given phos_gui.
-
-  @return 1 on success, 0 on failure.
-*/
-PHOS_GUI_API int phos_gui_add_animation(phos_gui *gui, phos_gui_animation animation);
-/**
   Creates and adds an animation to the given phos_gui.
-
-  @see phos_gui_add_animation(phos_gui*, phos_gui_animation)
 */
-PHOS_GUI_API int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, phos_gui_animation_end_value_interpretation end_value_interpretation, phos_gui_opts opts);
+PHOS_GUI_API int phos_gui_create_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, phos_gui_animation_end_value_interpretation end_value_interpretation, phos_gui_animation_loop_technique loop_technique, phos_gui_opts opts);
 
 /**
   Launches a custom program loop for PhosphorusGUI.

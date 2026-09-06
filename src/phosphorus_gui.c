@@ -642,7 +642,7 @@ static void init_value_bar_component(void *value_bar_component)
 	value_bar->curr_value = 0.0f;
 	value_bar->slider_knob_shape = PHOS_GUI_SHAPE_RECT;
 	value_bar->slider_knob_corner_radius = 0.0f;
-	value_bar->slider_knob_span = phos_gui_get_rect_size(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE)).y * 3.0f;
+	value_bar->slider_knob_span = phos_gui_get_rect_size(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE)).y * 2.5f;
 	value_bar->slider_knob_grab_offset = 0.0f;
 	value_bar->slider_knob_color = WHITE;
 	value_bar->slider_knob_focus_color = PHOS_GUI_COLOR_GRAY;
@@ -1260,7 +1260,7 @@ static void resize_icon(phos_gui_icon *icon, float w, float h)
 	icon->bounds.width = new_w;
 	icon->bounds.height = new_h;
 }
-static void resize_children_and_icons(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
+static void resize_inner_contents(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
 {
 	// pass changes down to children
 	for(size_t i = 0; i < elem->num_children; ++i)
@@ -1281,6 +1281,13 @@ static void resize_children_and_icons(phos_gui_elem *elem, float w, float h, pho
 		for(size_t i = 0; i < icon_list->num_icons; ++i)
 			resize_icon(&icon_list->icons[i], w, h);
 	}
+
+	// pass changes down to text
+	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	if(text && opts & PHOS_GUI_OPTS_FIT_TEXT)
+		phos_gui_make_text_fit_elem(text, PHOS_GUI_TARGET_AUTO_TEXT);
+	if(opts & PHOS_GUI_OPTS_REALIGN_TEXT)
+		realign_elem_texts(elem);
 }
 void phos_gui_resize_elem(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
 {
@@ -1297,7 +1304,7 @@ void phos_gui_resize_elem(phos_gui_elem *elem, float w, float h, phos_gui_opts o
 	// resize the given elem
 	resize_single_elem(elem, w, h, opts);
 
-	resize_children_and_icons(elem, w, h, opts);
+	resize_inner_contents(elem, w, h, opts);
 }
 void phos_gui_scale_elem(phos_gui_elem *elem, float scale, phos_gui_opts opts)
 {
@@ -2697,6 +2704,7 @@ void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y,
 	value_bar->editable = true;
 	value_bar->slider_knob_shape = PHOS_GUI_SHAPE_ELLIPSE;
 	value_bar->slider_knob_snapping = true;
+	value_bar->slider_knob_span = h * 1.5f;
 
 	// add label if str is not "<no-text>"
 	if(strcmp(label_text, PHOS_GUI_NO_TEXT) != 0)
@@ -3532,24 +3540,8 @@ int phos_gui_new_timer(phos_gui *gui, phos_gui_timer_action action, void *args, 
 
 	return phos_gui_add_timer(gui, timer);
 }
-int phos_gui_add_animation(phos_gui *gui, phos_gui_animation animation)
+static int add_animation(phos_gui *gui, phos_gui_animation animation)
 {
-	if(!gui)
-	{
-		vl_log(VL_ERROR, "To add an animation, the phos_gui cannot be NULL!\n");
-		return 0;
-	}
-	if(!animation.curr_value)
-	{
-		vl_log(VL_ERROR, "Cannot create an animation with a NULL starting value!\n");
-		return 0;
-	}
-	if(animation.duration <= 0.0f)
-	{
-		vl_log(VL_ERROR, "Cannot use an animation with a duration <= 0.0f!\n");
-		return 0;
-	}
-
 	// add the anim to the gui
 	if(gui->num_anims >= PHOS_GUI_MAX_ANIMATIONS)
 	{
@@ -3557,7 +3549,7 @@ int phos_gui_add_animation(phos_gui *gui, phos_gui_animation animation)
 		return 0;
 	}
 
-	// calculate 'step' field in animation
+	// delta is the amount of change on the curr value for it to reach the end value
 	float delta = animation.end_value - *animation.curr_value;
 
 	// no need to animate if nothing changes
@@ -3575,8 +3567,13 @@ int phos_gui_add_animation(phos_gui *gui, phos_gui_animation animation)
 
 	return 1;
 }
-int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, phos_gui_animation_end_value_interpretation end_value_interpretation, phos_gui_opts opts)
+int phos_gui_create_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, phos_gui_animation_end_value_interpretation end_value_interpretation, phos_gui_animation_loop_technique loop_technique, phos_gui_opts opts)
 {
+	if(!gui)
+	{
+		vl_log(VL_ERROR, "Cannot add an animation to a NULL phos_gui!\n");
+		return 0;
+	}
 	if(!curr_value)
 	{
 		vl_log(VL_ERROR, "Cannot create an animation with a NULL starting value.\n");
@@ -3585,7 +3582,10 @@ int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value
 
 	phos_gui_animation anim = {0};
 	anim.elem = elem;
+
+	// both the start and curr value are equal to the curr value given
 	anim.curr_value = curr_value;
+	anim.start_value = *curr_value;
 
 	// determine how end value should be interpreted
 	switch(end_value_interpretation)
@@ -3600,9 +3600,11 @@ int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value
 
 	anim.duration = duration;
 	anim.step = step;
+	anim.direction = 1.0f;
+	anim.loop_technique = loop_technique;
 	anim.opts = opts;
 
-	return phos_gui_add_animation(gui, anim);
+	return add_animation(gui, anim);
 }
 
 static void backspace(phos_gui_text_component *t)
@@ -4644,30 +4646,36 @@ static void update_anim(phos_gui_animation *anim, float dt)
 {
 	// add delta time to curr time
 	anim->curr_time += dt;
+	bool reload_necessary = false;
 	while(anim->curr_time >= anim->target_time)
 	{
 		anim->curr_time -= anim->target_time;
 
+		// get amount of change based on direction
+		float total_change = anim->step * anim->direction;
+
 		// update animation frame
-		*anim->curr_value += anim->step;
+		*anim->curr_value += total_change;
 
 		// handle custom moves and resize calls:
 		if(anim->elem)
 		{
 			if(anim->curr_value == &anim->elem->bounds.x)
-				move_children_and_icons(anim->elem, anim->step, 0.0f, anim->opts);
+				move_children_and_icons(anim->elem, total_change, 0.0f, anim->opts);
 			else if(anim->curr_value == &anim->elem->bounds.y)
-				move_children_and_icons(anim->elem, 0.0f, anim->step, anim->opts);
+				move_children_and_icons(anim->elem, 0.0f, total_change, anim->opts);
 
 			if(anim->curr_value == &anim->elem->bounds.width)
-				resize_children_and_icons(anim->elem, anim->step, 0.0f, anim->opts);
+				resize_inner_contents(anim->elem, total_change, 0.0f, anim->opts);
 			else if(anim->curr_value == &anim->elem->bounds.height)
-				resize_children_and_icons(anim->elem, 0.0f, anim->step, anim->opts);
+				resize_inner_contents(anim->elem, 0.0f, total_change, anim->opts);
+
+			reload_necessary = true;
 		}
 	}
 
 	// should an element be reloaded?
-	if(anim->elem)
+	if(reload_necessary)
 		phos_gui_reload_elem(anim->elem);
 }
 void phos_gui_update(float dt)
@@ -4729,8 +4737,8 @@ void phos_gui_update(float dt)
 	// update timers:
 
 	// use local copy of curr_gui->num_timers because this loop can decrement curr_gui->num_timers directly
-	size_t num_timers = curr_gui->num_timers;
-	for(size_t i = 0; i < num_timers; ++i)
+	size_t i = 0;
+	while(i < curr_gui->num_timers)
 	{
 		phos_gui_timer *timer = &curr_gui->timers[i];
 		update_timer(timer, dt);
@@ -4739,27 +4747,45 @@ void phos_gui_update(float dt)
 		if(timer->execution_count == 0)
 		{
 			// move all timers after current timer one to left
-			memmove(curr_gui->timers + i, curr_gui->timers + i + 1, (num_timers - i - 1) * sizeof(phos_gui_timer));
+			memmove(curr_gui->timers + i, curr_gui->timers + i + 1, (curr_gui->num_timers - i - 1) * sizeof(phos_gui_timer));
 			curr_gui->num_timers--;
+			continue;
 		}
+
+		i++;
 	}
 
 	// update anims:
 
 	// use local copy of curr_gui->num_anims because this loop can decremenet curr_gui->num_anims directly
-	size_t num_anims = curr_gui->num_anims;
-	for(size_t i = 0; i < num_anims; ++i)
+	i = 0;
+	while(i < curr_gui->num_anims)
 	{
 		phos_gui_animation *anim = &curr_gui->anims[i];
 		update_anim(anim, dt);
 
-		// check to see if this anim should be removed
-		if(anim->curr_value && *anim->curr_value >= anim->end_value)
+		// check to see if anim's curr value has reached the end value
+		if(anim->curr_value && *anim->curr_value >= anim->end_value && anim->direction > 0.0f)
 		{
-			// move all anims after current anim one to left
-			memmove(curr_gui->anims + i, curr_gui->anims + i + 1, (num_anims - i - 1) * sizeof(phos_gui_animation));
-			curr_gui->num_anims--;
+			// when an animation has no looping enabled, remove it once it's reached the end value
+			if(anim->loop_technique == PHOS_GUI_ANIMATION_LOOP_NONE)
+			{
+				// move all anims after current anim one to left
+				memmove(curr_gui->anims + i, curr_gui->anims + i + 1, (curr_gui->num_anims - i - 1) * sizeof(phos_gui_animation));
+				curr_gui->num_anims--;
+				continue;
+			}
+
+			// if it uses ping pong loop technique, reverse it's current direction
+			if(anim->loop_technique == PHOS_GUI_ANIMATION_LOOP_PING_PONG)
+				anim->direction *= -1.0f;
 		}
+
+		// check to see if anim's curr value has reverted back to the starting value and it uses the ping pong loop technique
+		if(anim->loop_technique == PHOS_GUI_ANIMATION_LOOP_PING_PONG && anim->curr_value && *anim->curr_value <= anim->start_value && anim->direction < 0.0f)
+			anim->direction *= -1.0f;
+
+		i++;
 	}
 
 	// if no elems to update, warn user
@@ -6281,6 +6307,8 @@ void phos_gui_apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
 void phos_gui_set_theme(phos_gui_theme theme)
 {
 	curr_theme = theme;
+	if(curr_gui)
+		phos_gui_apply_theme_to_gui(curr_gui, theme);
 }
 phos_gui_theme phos_gui_brighten_theme(phos_gui_theme theme, float factor)
 {
