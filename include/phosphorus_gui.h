@@ -2320,31 +2320,186 @@ typedef struct phos_gui_value_bar_component
 typedef enum phos_gui_icon_id
 {
 	/**
+	  The down arrow icon.
+	*/
+	PHOS_GUI_ICON_ARROW_DOWN,
+	/**
+	  The left arrow icon.
+	*/
+	PHOS_GUI_ICON_ARROW_LEFT,
+	/**
+	  The right arrow icon.
+	*/
+	PHOS_GUI_ICON_ARROW_RIGHT,
+	/**
+	  The up arrow icon.
+	*/
+	PHOS_GUI_ICON_ARROW_UP,
+	/**
+	  The bolt icon.
+	*/
+	PHOS_GUI_ICON_BOLT,
+	/**
+	  The calendar icon.
+	*/
+	PHOS_GUI_ICON_CALENDAR,
+	/**
 	  The check mark icon.
 	*/
 	PHOS_GUI_ICON_CHECK_MARK,
 	/**
-	  The vertical bars icon.
+	  The download icon.
 	*/
-	PHOS_GUI_ICON_VERTICAL_BARS,
+	PHOS_GUI_ICON_DOWNLOAD,
+	/**
+	  The exclamation icon.
+	*/
+	PHOS_GUI_ICON_EXCLAMATION_MARK,
+	/**
+	  The closed eye icon.
+	*/
+	PHOS_GUI_ICON_EYE_CLOSED,
+	/**
+	  The open eye icon.
+	*/
+	PHOS_GUI_ICON_EYE_OPENED,
+	/**
+	  The file icon.
+	*/
+	PHOS_GUI_ICON_FILE,
+	/**
+	  The floppy disk icon.
+	*/
+	PHOS_GUI_ICON_FLOPPY_DISK,
+	/**
+	  The closed folder icon.
+	*/
+	PHOS_GUI_ICON_FOLDER_CLOSED,
+	/**
+	  The open folder icon.
+	*/
+	PHOS_GUI_ICON_FOLDER_OPENED,
+	/**
+	  The gear icon.
+	*/
+	PHOS_GUI_ICON_GEAR,
+	/**
+	  The home/house icon.
+	*/
+	PHOS_GUI_ICON_HOME,
 	/**
 	  The horizontal bars icon.
 	*/
 	PHOS_GUI_ICON_HORIZONTAL_BARS,
 	/**
-	  The vertical dots icon.
-	*/
-	PHOS_GUI_ICON_VERTICAL_DOTS,
-	/**
 	  The horizontal dots icon.
 	*/
 	PHOS_GUI_ICON_HORIZONTAL_DOTS,
 	/**
-	  The down arrow icon.
+	  The 'i' icon.
 	*/
-	PHOS_GUI_ICON_ARROW_DOWN,
+	PHOS_GUI_ICON_I,
 	/**
-	  The max number of icons.
+	  The closed lock icon.
+	*/
+	PHOS_GUI_ICON_LOCK_CLOSED,
+	/**
+	  The opened lock icon.
+	*/
+	PHOS_GUI_ICON_LOCK_OPENED,
+	/**
+	  The loop icon.
+	*/
+	PHOS_GUI_ICON_LOOP,
+	/**
+	  The magnifying glass icon.
+	*/
+	PHOS_GUI_ICON_MAGNIFYING_GLASS,
+	/**
+	  The closed mail icon.
+	*/
+	PHOS_GUI_ICON_MAIL_CLOSED,
+	/**
+	  The opened mail icon.
+	*/
+	PHOS_GUI_ICON_MAIL_OPENED,
+	/**
+	  The pencil icon.
+	*/
+	PHOS_GUI_ICON_PENCIL,
+	/**
+	  The pin icon.
+	*/
+	PHOS_GUI_ICON_PIN,
+	/**
+	  The plus icon.
+	*/
+	PHOS_GUI_ICON_PLUS,
+	/**
+	  The pointer icon.
+	*/
+	PHOS_GUI_ICON_POINTER,
+	/**
+	  The power-off icon.
+	*/
+	PHOS_GUI_ICON_POWER_OFF,
+	/**
+	  The question mark icon.
+	*/
+	PHOS_GUI_ICON_QUESTION_MARK,
+	/**
+	  The sliders icon.
+	*/
+	PHOS_GUI_ICON_SLIDERS,
+	/**
+	  The star icon.
+	*/
+	PHOS_GUI_ICON_STAR,
+	/**
+	  The trash can icon.
+	*/
+	PHOS_GUI_ICON_TRASH,
+	/**
+	  The upload icon.
+	*/
+	PHOS_GUI_ICON_UPLOAD,
+	/**
+	  The user icon.
+	*/
+	PHOS_GUI_ICON_USER,
+	/**
+	  The vertical bars icon.
+	*/
+	PHOS_GUI_ICON_VERTICAL_BARS,
+	/**
+	  The vertical dots icon.
+	*/
+	PHOS_GUI_ICON_VERTICAL_DOTS,
+	/**
+	  The full volume icon.
+	*/
+	PHOS_GUI_ICON_VOLUME_FULL,
+	/**
+	  The half volume icon.
+	*/
+	PHOS_GUI_ICON_VOLUME_HALF,
+	/**
+	  The low volume icon.
+	*/
+	PHOS_GUI_ICON_VOLUME_LOW,
+	/**
+	  The mute volume icon.
+	*/
+	PHOS_GUI_ICON_VOLUME_MUTE,
+	/**
+	  The 'X' icon.
+	*/
+	PHOS_GUI_ICON_X,
+	/**
+	  The max number of icons in PhosphorusGUI.
+
+	  This number automatically updates as icons
+	  are added to the phos_gui_icon_id enum.
 	*/
 	PHOS_GUI_ICON_MAX
 } phos_gui_icon_id;
@@ -2883,15 +3038,6 @@ typedef struct phos_gui_animation
 	  or slow the animation moves.
 	*/
 	float step;
-
-	/**
-	  The number of times this animation
-	  should execute.
-
-	  Set this to -1 to indicate the animation
-	  should loop forever.
-	*/
-	int execution_count;
 
 	/**
 	  As the animation updates, this
@@ -3766,7 +3912,7 @@ PHOS_GUI_API int phos_gui_add_animation(phos_gui *gui, phos_gui_animation animat
 
   @see phos_gui_add_animation(phos_gui*, phos_gui_animation)
 */
-PHOS_GUI_API int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, int execution_count, phos_gui_animation_end_value_interpretation end_value_interpretation, phos_gui_opts opts);
+PHOS_GUI_API int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, phos_gui_animation_end_value_interpretation end_value_interpretation, phos_gui_opts opts);
 
 /**
   Launches a custom program loop for PhosphorusGUI.
@@ -4033,12 +4179,16 @@ PHOS_GUI_API Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon);
 */
 PHOS_GUI_API Texture2D *phos_gui_get_icon_str(const char *str, phos_gui_icon_id *out_icon_id);
 /**
-  Sets up an icon and its texture.
+  Sets up an icon and its texture's file path.
 
   @note Every icon in PhosphorusGUI comes with a default
   texture. If you want to modify the icon's texture, you
   can directly edit the texture or use this function to use
   a different file entirely.
+
+  @note This function does not validate the file path. Instead the
+  file path is validate once the icon is fully loaded and rendered
+  for the first time.
 */
 PHOS_GUI_API void phos_gui_set_icon(phos_gui_icon_id icon, const char *file_path);
 

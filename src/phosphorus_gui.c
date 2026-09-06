@@ -1,4 +1,3 @@
-#include <time.h>
 #include <math.h>
 #include <ctype.h>
 #include "dynamic_array_spellbook.h"
@@ -715,24 +714,97 @@ int phos_gui_init()
 	// set default theme
 	curr_theme = PHOS_GUI_THEME_MONOTONE;
 
-	// fill icon map
+	// fill icon map (user can change these later if they want to)
+	phos_gui_set_icon(PHOS_GUI_ICON_ARROW_DOWN, "icons/arrow_down.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_ARROW_LEFT, "icons/arrow_left.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_ARROW_RIGHT, "icons/arrow_right.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_ARROW_UP, "icons/arrow_up.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_BOLT, "icons/bolt.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_CALENDAR, "icons/calendar.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_CHECK_MARK, "icons/check_mark.png");
-	phos_gui_set_icon(PHOS_GUI_ICON_VERTICAL_BARS, "icons/vertical_bars.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_DOWNLOAD, "icons/download.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_EXCLAMATION_MARK, "icons/exclamation_mark.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_EYE_CLOSED, "icons/eye_closed.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_EYE_OPENED, "icons/eye_opened.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_FILE, "icons/file.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_FLOPPY_DISK, "icons/floppy_disk.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_FOLDER_CLOSED, "icons/folder_closed.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_FOLDER_OPENED, "icons/folder_opened.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_GEAR, "icons/gear.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_HOME, "icons/home.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_HORIZONTAL_BARS, "icons/horizontal_bars.png");
-	phos_gui_set_icon(PHOS_GUI_ICON_VERTICAL_DOTS, "icons/vertical_dots.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_HORIZONTAL_DOTS, "icons/horizontal_dots.png");
-	phos_gui_set_icon(PHOS_GUI_ICON_ARROW_DOWN, "icons/down_arrow.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_I, "icons/i.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_LOCK_CLOSED, "icons/lock_closed.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_LOCK_OPENED, "icons/lock_opened.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_LOOP, "icons/loop.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_MAGNIFYING_GLASS, "icons/magnifying_glass.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_MAIL_CLOSED, "icons/mail_closed.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_MAIL_OPENED, "icons/mail_opened.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_PENCIL, "icons/pencil.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_PIN, "icons/pin.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_PLUS, "icons/plus.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_POINTER, "icons/pointer.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_POWER_OFF, "icons/power_off.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_QUESTION_MARK, "icons/question_mark.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_SLIDERS, "icons/sliders.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_STAR, "icons/star.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_TRASH, "icons/trash.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_UPLOAD, "icons/upload.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_USER, "icons/user.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_VERTICAL_BARS, "icons/vertical_bars.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_VERTICAL_DOTS, "icons/vertical_dots.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_VOLUME_FULL, "icons/volume_full.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_VOLUME_HALF, "icons/volume_half.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_VOLUME_LOW, "icons/volume_low.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_VOLUME_MUTE, "icons/volume_mute.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_X, "icons/x.png");
 
-	// default icon names, user cannot change these!
-	dynmaps_set_strkey(&icon_names, "CHECK_MARK", PHOS_GUI_ICON_CHECK_MARK);
-	dynmaps_set_strkey(&icon_names, "VERTICAL_BARS", PHOS_GUI_ICON_VERTICAL_BARS);
-	dynmaps_set_strkey(&icon_names, "HORIZONTAL_BARS", PHOS_GUI_ICON_HORIZONTAL_BARS);
-	dynmaps_set_strkey(&icon_names, "VERTICAL_DOTS", PHOS_GUI_ICON_VERTICAL_DOTS);
-	dynmaps_set_strkey(&icon_names, "HORIZONTAL_DOTS", PHOS_GUI_ICON_HORIZONTAL_DOTS);
+	// set icon names, user cannot change these!
 	dynmaps_set_strkey(&icon_names, "ARROW_DOWN", PHOS_GUI_ICON_ARROW_DOWN);
-
-	// change seed for rand()
-	srand((unsigned int) time(NULL));
+	dynmaps_set_strkey(&icon_names, "ARROW_LEFT", PHOS_GUI_ICON_ARROW_LEFT);
+	dynmaps_set_strkey(&icon_names, "ARROW_RIGHT", PHOS_GUI_ICON_ARROW_RIGHT);
+	dynmaps_set_strkey(&icon_names, "ARROW_UP", PHOS_GUI_ICON_ARROW_UP);
+	dynmaps_set_strkey(&icon_names, "BOLT", PHOS_GUI_ICON_BOLT);
+	dynmaps_set_strkey(&icon_names, "CALENDAR", PHOS_GUI_ICON_CALENDAR);
+	dynmaps_set_strkey(&icon_names, "CHECK_MARK", PHOS_GUI_ICON_CHECK_MARK);
+	dynmaps_set_strkey(&icon_names, "DOWNLOAD", PHOS_GUI_ICON_DOWNLOAD);
+	dynmaps_set_strkey(&icon_names, "EXCLAMATION_MARK", PHOS_GUI_ICON_EXCLAMATION_MARK);
+	dynmaps_set_strkey(&icon_names, "EYE_CLOSED", PHOS_GUI_ICON_EYE_CLOSED);
+	dynmaps_set_strkey(&icon_names, "EYE_OPENED", PHOS_GUI_ICON_EYE_OPENED);
+	dynmaps_set_strkey(&icon_names, "FILE", PHOS_GUI_ICON_FILE);
+	dynmaps_set_strkey(&icon_names, "FLOPPY_DISK", PHOS_GUI_ICON_FLOPPY_DISK);
+	dynmaps_set_strkey(&icon_names, "FOLDER_CLOSED", PHOS_GUI_ICON_FOLDER_CLOSED);
+	dynmaps_set_strkey(&icon_names, "FOLDER_OPENED", PHOS_GUI_ICON_FOLDER_OPENED);
+	dynmaps_set_strkey(&icon_names, "GEAR", PHOS_GUI_ICON_GEAR);
+	dynmaps_set_strkey(&icon_names, "HOME", PHOS_GUI_ICON_HOME);
+	dynmaps_set_strkey(&icon_names, "HORIZONTAL_BARS", PHOS_GUI_ICON_HORIZONTAL_BARS);
+	dynmaps_set_strkey(&icon_names, "HORIZONTAL_DOTS", PHOS_GUI_ICON_HORIZONTAL_DOTS);
+	dynmaps_set_strkey(&icon_names, "I", PHOS_GUI_ICON_I);
+	dynmaps_set_strkey(&icon_names, "LOCK_CLOSED", PHOS_GUI_ICON_LOCK_CLOSED);
+	dynmaps_set_strkey(&icon_names, "LOCK_OPENED", PHOS_GUI_ICON_LOCK_OPENED);
+	dynmaps_set_strkey(&icon_names, "LOOP", PHOS_GUI_ICON_LOOP);
+	dynmaps_set_strkey(&icon_names, "MAGNIFYING_GLASS", PHOS_GUI_ICON_MAGNIFYING_GLASS);
+	dynmaps_set_strkey(&icon_names, "MAIL_CLOSED", PHOS_GUI_ICON_MAIL_CLOSED);
+	dynmaps_set_strkey(&icon_names, "MAIL_OPENED", PHOS_GUI_ICON_MAIL_OPENED);
+	dynmaps_set_strkey(&icon_names, "PENCIL", PHOS_GUI_ICON_PENCIL);
+	dynmaps_set_strkey(&icon_names, "PIN", PHOS_GUI_ICON_PIN);
+	dynmaps_set_strkey(&icon_names, "PLUS", PHOS_GUI_ICON_PLUS);
+	dynmaps_set_strkey(&icon_names, "POINTER", PHOS_GUI_ICON_POINTER);
+	dynmaps_set_strkey(&icon_names, "POWER_OFF", PHOS_GUI_ICON_POWER_OFF);
+	dynmaps_set_strkey(&icon_names, "QUESTION_MARK", PHOS_GUI_ICON_QUESTION_MARK);
+	dynmaps_set_strkey(&icon_names, "SLIDERS", PHOS_GUI_ICON_SLIDERS);
+	dynmaps_set_strkey(&icon_names, "STAR", PHOS_GUI_ICON_STAR);
+	dynmaps_set_strkey(&icon_names, "TRASH", PHOS_GUI_ICON_TRASH);
+	dynmaps_set_strkey(&icon_names, "UPLOAD", PHOS_GUI_ICON_UPLOAD);
+	dynmaps_set_strkey(&icon_names, "USER", PHOS_GUI_ICON_USER);
+	dynmaps_set_strkey(&icon_names, "VERTICAL_BARS", PHOS_GUI_ICON_VERTICAL_BARS);
+	dynmaps_set_strkey(&icon_names, "VERTICAL_DOTS", PHOS_GUI_ICON_VERTICAL_DOTS);
+	dynmaps_set_strkey(&icon_names, "VOLUME_FULL", PHOS_GUI_ICON_VOLUME_FULL);
+	dynmaps_set_strkey(&icon_names, "VOLUME_HALF", PHOS_GUI_ICON_VOLUME_HALF);
+	dynmaps_set_strkey(&icon_names, "VOLUME_LOW", PHOS_GUI_ICON_VOLUME_LOW);
+	dynmaps_set_strkey(&icon_names, "VOLUME_MUTE", PHOS_GUI_ICON_VOLUME_MUTE);
+	dynmaps_set_strkey(&icon_names, "X", PHOS_GUI_ICON_X);
 
 	// enforce no additional text line spacing
 	SetTextLineSpacing(0);
@@ -3503,7 +3575,7 @@ int phos_gui_add_animation(phos_gui *gui, phos_gui_animation animation)
 
 	return 1;
 }
-int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, int execution_count, phos_gui_animation_end_value_interpretation end_value_interpretation, phos_gui_opts opts)
+int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, phos_gui_animation_end_value_interpretation end_value_interpretation, phos_gui_opts opts)
 {
 	if(!curr_value)
 	{
@@ -3528,7 +3600,6 @@ int phos_gui_new_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value
 
 	anim.duration = duration;
 	anim.step = step;
-	anim.execution_count = execution_count;
 	anim.opts = opts;
 
 	return phos_gui_add_animation(gui, anim);
@@ -4571,10 +4642,6 @@ static void update_timer(phos_gui_timer *timer, float dt)
 }
 static void update_anim(phos_gui_animation *anim, float dt)
 {
-	// if 'execution_count' is 0 or less than -1, do not animate
-	if(anim->execution_count == 0 || anim->execution_count < -1)
-		return;
-
 	// add delta time to curr time
 	anim->curr_time += dt;
 	while(anim->curr_time >= anim->target_time)
@@ -4598,11 +4665,6 @@ static void update_anim(phos_gui_animation *anim, float dt)
 				resize_children_and_icons(anim->elem, 0.0f, anim->step, anim->opts);
 		}
 	}
-
-	// once curr value reaches end value, determine if anim should loop
-	if(*anim->curr_value >= anim->end_value)
-		if(anim->execution_count > 0)
-			anim->execution_count--;
 
 	// should an element be reloaded?
 	if(anim->elem)
@@ -4692,7 +4754,7 @@ void phos_gui_update(float dt)
 		update_anim(anim, dt);
 
 		// check to see if this anim should be removed
-		if(anim->execution_count == 0)
+		if(anim->curr_value && *anim->curr_value >= anim->end_value)
 		{
 			// move all anims after current anim one to left
 			memmove(curr_gui->anims + i, curr_gui->anims + i + 1, (num_anims - i - 1) * sizeof(phos_gui_animation));
@@ -6393,7 +6455,7 @@ Texture2D *phos_gui_get_icon_str(const char *str, phos_gui_icon_id *out_icon_id)
 void phos_gui_set_icon(phos_gui_icon_id icon, const char *file_path)
 {
 	map_add(&icon_ids, icon, file_path);
-	vl_log(VL_INFO, "Icon %d loaded with texture '%s'!\n", icon, file_path);
+	vl_log(VL_INFO, "Icon %d now using texture file path: '%s'!\n", icon, file_path);
 }
 
 Font *phos_gui_load_font(const char *file_path)
