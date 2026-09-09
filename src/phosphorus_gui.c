@@ -880,43 +880,61 @@ static int search_for_duplicate_id(const char *ID)
 	return found;
 }
 
+static void register_gui(phos_gui *gui)
+{
+	if(!gui)
+		return;
+
+	// see if a duplicate is found
+	for(size_t i = 0; i < gui_registry.size; ++i)
+	{
+		phos_gui *saved_gui = gui_registry.data[i];
+
+		// if a match is found, the GUI is already registered:
+		if(saved_gui == gui)
+			return;
+	}
+
+	// auto-gen ID if necessary
+	auto_gen_id(gui->ID, gui->ID, sizeof(gui->ID), "gui", &gui_auto_id);
+
+	// see if a duplicate ID is found anywhere
+	if(search_for_duplicate_id(gui->ID) != -1)
+		return;
+
+	// register the phos_gui
+	arr_add(&all_ids, gui->ID);
+	arr_add(&gui_registry, gui);
+
+	vl_log(VL_SUCCESS, "Registered GUI with ID: '%s'!\n", gui->ID);
+}
+void phos_gui_register_gui(phos_gui *new_gui)
+{
+	if(!new_gui)
+	{
+		vl_log(VL_ERROR, "Cannot register a NULL phos_gui!\n");
+		return;
+	}
+
+	register_gui(new_gui);
+}
 void phos_gui_set_gui(phos_gui *new_gui)
 {
 	prev_gui = curr_gui;
 	curr_gui = new_gui;
 
-	// only register non-NULL pointers:
-	if(new_gui)
-	{
-		// see if a duplicate is found
-		for(size_t i = 0; i < gui_registry.size; ++i)
-		{
-			phos_gui *saved_gui = gui_registry.data[i];
-
-			// if a match is found, the GUI is already registered:
-			if(saved_gui == new_gui)
-				return;
-		}
-
-		// auto-gen ID if necessary
-		auto_gen_id(new_gui->ID, new_gui->ID, sizeof(new_gui->ID), "gui", &gui_auto_id);
-
-		// see if a duplicate ID is found anywhere
-		if(search_for_duplicate_id(new_gui->ID) != -1)
-			return;
-
-		// register the phos_gui
-		arr_add(&all_ids, new_gui->ID);
-		arr_add(&gui_registry, new_gui);
-
-		vl_log(VL_SUCCESS, "Registered GUI with ID: '%s'!\n", new_gui->ID);
-	}
+	// register GUI if necessary
+	register_gui(new_gui);
 
 	// reset 'goto' elem tracker
 	curr_travel_elem = NULL;
 
 	// signal that the focus_on_start elem has to be resolved for this gui when updated for the first time
 	resolve_focus_on_start_elem = true;
+
+	// if the GUI has an on-switch function set, execute it
+	if(new_gui && new_gui->on_switch)
+		new_gui->on_switch(new_gui);
 }
 void phos_gui_set_gui_by_id(const char *ID)
 {
@@ -935,6 +953,10 @@ void phos_gui_set_gui_by_id(const char *ID)
 		return;
 	}
 
+	phos_gui_set_gui(gui);
+}
+void phos_gui_switch_to_gui(phos_gui_elem *elem, void *gui, phos_gui_opts opts)
+{
 	phos_gui_set_gui(gui);
 }
 phos_gui *phos_gui_get_curr_gui()
@@ -2584,7 +2606,7 @@ static void unselect_checkbox(phos_gui_elem *checkbox, phos_gui_checkbox_list_co
 		}
 	}
 }
-static void toggle_checkbox(phos_gui_elem *elem, phos_gui_opts opts)
+static void toggle_checkbox(phos_gui_elem *elem, void *args, phos_gui_opts opts)
 {
 	// first, ensure elem has check mark icon
 	phos_gui_icon *check_mark_icon = phos_gui_find_elem_icon(elem, PHOS_GUI_ICON_CHECK_MARK);
@@ -2633,7 +2655,7 @@ void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float 
 	phos_gui_add_icon(icon_list, check_mark);
 
 	// add way to toggle check mark
-	phos_gui_new_event_listener(elem, PHOS_GUI_EVENT_MOUSE_CLICK, MOUSE_BUTTON_LEFT, PHOS_GUI_OPTS_NONE, toggle_checkbox);
+	phos_gui_new_event_listener(elem, PHOS_GUI_EVENT_MOUSE_CLICK, MOUSE_BUTTON_LEFT, toggle_checkbox, NULL, PHOS_GUI_OPTS_NONE);
 
 	// make mouse listener a toggle mouse listener
 	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
@@ -2810,9 +2832,14 @@ static int register_elem(phos_gui_elem *elem)
 
 int phos_gui_add_elem_to_gui(phos_gui_elem *elem, phos_gui *gui)
 {
-	if(!gui || !elem)
+	if(!gui)
 	{
-		vl_log(VL_ERROR, "Failed to add the element to the given phos_gui. Make sure 'gui' and 'elem' are not NULL!\n");
+		vl_log(VL_ERROR, "Cannot add an element to a NULL phos_gui!\n");
+		return 0;
+	}
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot add a NULL element to the given phos_gui: '%s'!\n", gui->ID);
 		return 0;
 	}
 
@@ -3468,7 +3495,7 @@ int phos_gui_add_event_listener(phos_gui_elem *elem, phos_gui_event_listener lis
 
 	return 1;
 }
-int phos_gui_new_event_listener(phos_gui_elem *elem, phos_gui_event_type event, int target_button, phos_gui_opts opts, phos_gui_event_listener_action action)
+int phos_gui_new_event_listener(phos_gui_elem *elem, phos_gui_event_type event, int target_button, phos_gui_event_listener_action action, void *args, phos_gui_opts opts)
 {
 	if(!elem)
 	{
@@ -3480,8 +3507,9 @@ int phos_gui_new_event_listener(phos_gui_elem *elem, phos_gui_event_type event, 
 	listener.elem = elem;
 	listener.event = event;
 	listener.target_btn = target_button;
-	listener.opts = opts;
 	listener.action = action;
+	listener.args = args;
+	listener.opts = opts;
 
 	return phos_gui_add_event_listener(elem, listener);
 }
@@ -4617,7 +4645,7 @@ static void run_event_listener(phos_gui_event_listener *listener)
 
 	// execute action if conditions are true
 	if(can_execute)
-		action(elem, listener->opts);
+		action(elem, listener->args, listener->opts);
 }
 static void update_timer(phos_gui_timer *timer, float dt)
 {

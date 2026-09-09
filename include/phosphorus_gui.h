@@ -2623,11 +2623,11 @@ typedef enum phos_gui_event_type
 
   The function returns nothing and takes in the target
   object, or NULL if the target object was the window,
-  as well as additional options.
+  as well as additional arguments and options.
 
   @see phos_gui_event_listener
 */
-typedef void (*phos_gui_event_listener_action) (struct phos_gui_elem *elem, phos_gui_opts opts);
+typedef void (*phos_gui_event_listener_action) (struct phos_gui_elem *elem, void *args, phos_gui_opts opts);
 
 /**
   A phos_gui_event_listener gives PhosphorusGUI information
@@ -2640,6 +2640,12 @@ typedef struct phos_gui_event_listener
 	  The action to execute when the event occurs.
 	*/
 	phos_gui_event_listener_action action;
+	/**
+	  Any optional arguments you want to pass
+	  into the action function of the event
+	  listener.
+	*/
+	void *args;
 
 	/**
 	  The target element.
@@ -3192,6 +3198,18 @@ typedef struct phos_gui_theme
 	float outline_thickness;
 } phos_gui_theme;
 
+struct phos_gui;
+/**
+  Provides a GUI with a specific routine when it is switched to.
+
+  @param gui The GUI being switched to.
+
+  @see phos_gui
+  @see phos_gui.on_switch
+  @see phos_gui_switch_to_gui(phos_gui_elem*, void*, phos_gui_opts)
+*/
+typedef void (*phos_gui_switch_fn) (struct phos_gui *gui);
+
 /**
   A phos_gui is used to store and organize UI elements.
 
@@ -3225,6 +3243,13 @@ typedef struct phos_gui
 	  the element.
 	*/
 	char ID[PHOS_GUI_MAX_ID_LEN + 1];
+
+	/**
+	  Executes when this phos_gui is switched to.
+
+	  The pointer must be valid for it to execute.
+	*/
+	phos_gui_switch_fn on_switch;
 
 	/**
 	  The current amount of elements inside this GUI.
@@ -3270,6 +3295,18 @@ PHOS_GUI_API void phos_gui_shutdown(void);
 PHOS_GUI_API void phos_gui_exit(int exit_code);
 
 /**
+  Registers the given phos_gui.
+
+  If creating a new phos_gui but you're not going to set
+  it as the current one, you must register it.
+
+  Setting a phos_gui automatically registers it if it hasn't
+  been registered yet.
+
+  @see phos_gui_set_gui(phos_gui*)
+*/
+PHOS_GUI_API void phos_gui_register_gui(phos_gui *new_gui);
+/**
   Sets the current phos_gui to use for updating
   and rendering.
 
@@ -3286,7 +3323,7 @@ PHOS_GUI_API void phos_gui_exit(int exit_code);
 
   @important You can pass NULL into function
   to signal to PhosphorusGUI there is no GUI
-  to render at the moment.
+  to handle at the moment.
 */
 PHOS_GUI_API void phos_gui_set_gui(phos_gui *new_gui);
 /**
@@ -3298,6 +3335,18 @@ PHOS_GUI_API void phos_gui_set_gui(phos_gui *new_gui);
   @see phos_gui_set_gui(phos_gui*)
 */
 PHOS_GUI_API void phos_gui_set_gui_by_id(const char *ID);
+/**
+  Same as phos_gui_set_gui(phos_gui*)
+  but can be used as an action function
+  in event listeners.
+
+  This function only uses the 'gui'
+  argument.
+
+  @see phos_gui_set_gui(phos_gui*)
+  @see phos_gui_set_gui_by_id(const char*)
+*/
+PHOS_GUI_API void phos_gui_switch_to_gui(phos_gui_elem *elem, void *gui, phos_gui_opts opts);
 /**
   Returns the current phos_gui instance PhosphorusGUI
   is working on.
@@ -3926,14 +3975,16 @@ PHOS_GUI_API int phos_gui_add_event_listener(phos_gui_elem *elem, phos_gui_event
   @param elem Points to the target element.
   @param event The event to listen for.
   @param target_button The target button/key in the event.
-  @param opts Any additional options you want to use
-  in the action function.
   @param action The action the event listener should
   execute when the event occurs.
+  @param args Any additional arguments you want to pass
+  into the action function.
+  @param opts Any additional options you want to pass
+  into the action function.
 
   @see phos_gui_add_event_listener(phos_gui*, phos_gui_event_listener)
 */
-PHOS_GUI_API int phos_gui_new_event_listener(phos_gui_elem *elem, phos_gui_event_type event, int target_button, phos_gui_opts opts, phos_gui_event_listener_action action);
+PHOS_GUI_API int phos_gui_new_event_listener(phos_gui_elem *elem, phos_gui_event_type event, int target_button, phos_gui_event_listener_action action, void *args, phos_gui_opts opts);
 /**
   Removes an event listener from a phos_gui_elem.
 
