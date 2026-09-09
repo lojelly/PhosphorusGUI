@@ -52,6 +52,12 @@
 #define PHOS_GUI_MAX_EVENT_LISTENERS 64
 
 /**
+  Used to indicate an event listener has no specific
+  button/key to listen for.
+*/
+#define PHOS_GUI_NO_INPUT 0
+
+/**
   The max number of timers that a single
   phos_gui can hold.
 */
@@ -167,7 +173,16 @@
   PhosphorusGUI does not use the 'PHOS_GUI' prefix
   in icon names.
 */
-#define PHOS_GUI_MAX_ICON_NAME_LEN 64
+#define PHOS_GUI_MAX_ICON_NAME_LEN 32
+/**
+  The max length of an alignment name in PhosphorusGUI.
+
+  An example of an alignment name is 'LEFT' or 'INNER_TOP.'
+  Note that PHOS_GUI_ALIGN_LEFT is not the alignment name.
+  PhosphorusGUI does not use the 'PHOS_GUI' prefix
+  in alignment names.
+*/
+#define PHOS_GUI_MAX_ALIGNMENT_NAME_LEN 32
 
 /**
   The window's origin.
@@ -2616,6 +2631,21 @@ typedef enum phos_gui_event_type
 	  Used to listen for a hover event.
 	*/
 	PHOS_GUI_EVENT_HOVER,
+
+	// special events:
+
+	/**
+	  A special event reserved for slider elements.
+
+	  Indicates the slider is grabbed by the user.
+	*/
+	PHOS_GUI_EVENT_SLIDER_GRABBED,
+	/**
+	  A special event reserved for slider elements.
+
+	  Indicates the slider knob was released.
+	*/
+	PHOS_GUI_EVENT_SLIDER_RELEASED
 } phos_gui_event_type;
 
 /**
@@ -3651,7 +3681,11 @@ PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_g
 
   @important If the text string given is equal to "<no-text>" then
   the button will not have a text component. You can also insert icons
-  into text components using the "<icon=ICON_NAME>" format.
+  into text components using the "<icon=ICON_NAME>" format. If you insert
+  icons, there are additional optional arguments you can use to edit the icon.
+  For example, to align the icon with the element, use the 'align' argument like
+  this: "<icon=ICON_NAME,align=LEFT>." Note that you should not add any spaces
+  in the string.
 */
 PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text);
 /**
@@ -3738,6 +3772,9 @@ PHOS_GUI_API void phos_gui_init_value_bar(phos_gui_elem *elem, const char *ID, f
 
   By default, slider elements come with value bar
   components and label components.
+
+  @note The slider knob's span will be equal to
+  the height given * 1.5f.
 
   @see phos_gui_value_bar_component
   @see phos_gui_init_button(phos_gui_elem*, const char*, float, float, float, float, const char*)
@@ -3975,6 +4012,8 @@ PHOS_GUI_API int phos_gui_add_event_listener(phos_gui_elem *elem, phos_gui_event
   @param elem Points to the target element.
   @param event The event to listen for.
   @param target_button The target button/key in the event.
+  If no specific button/key is being targeted, pass in
+  PHOS_GUI_NO_INPUT, or 0.
   @param action The action the event listener should
   execute when the event occurs.
   @param args Any additional arguments you want to pass
@@ -4006,10 +4045,17 @@ PHOS_GUI_API int phos_gui_add_timer(phos_gui *gui, phos_gui_timer timer);
   Creates and adds a timer to the given phos_gui.
 
   @see phos_gui_add_timer(phos_gui*, phos_gui_timer)
+
+  @return 1 on success, 0 on failure.
 */
 PHOS_GUI_API int phos_gui_new_timer(phos_gui *gui, phos_gui_timer_action action, void *args, float target_time, int execution_count);
 /**
   Creates and adds an animation to the given phos_gui.
+
+  @note If an animation already exists with the given element and
+  current value, this will return 0.
+
+  @return 1 on success, 0 on failure.
 */
 PHOS_GUI_API int phos_gui_create_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_value, float end_value, float duration, float step, phos_gui_animation_end_value_interpretation end_value_interpretation, phos_gui_animation_loop_technique loop_technique, phos_gui_opts opts);
 
@@ -4101,7 +4147,7 @@ PHOS_GUI_API void phos_gui_render_icon(phos_gui_icon *icon);
 */
 PHOS_GUI_API Vector2 phos_gui_measure_text(Font font, const char *text, float font_size);
 /**
-  Renders text.
+  Renders a text component.
 
   PhosphorusGUI has a custom engine separate from Raylib.
 
@@ -4111,7 +4157,18 @@ PHOS_GUI_API Vector2 phos_gui_measure_text(Font font, const char *text, float fo
   format. The size of the icon will match the font size
   of the text.
 */
-PHOS_GUI_API void phos_gui_render_text(Font font, const char *text, Vector2 pos, float font_size, Color color);
+PHOS_GUI_API void phos_gui_render_text_component(phos_gui_text_component *text);
+/**
+  Renders text using the given information about the font and text.
+
+  @note When using this function, you must provide the element
+  being rendered alongside the text if there are any 'align='
+  arguments found in any icon strings within the text. To
+  align an icon there must be a reference element to align
+  against. If no element is given but alignment arguments are
+  parsed, then they will be skipped.
+*/
+PHOS_GUI_API void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *text, Vector2 pos, float font_size, Color color);
 /**
   Generates a random color.
 */

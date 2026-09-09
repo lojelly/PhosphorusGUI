@@ -93,18 +93,26 @@ typedef struct icon_name_map
 	size_t size, capacity;
 } icon_name_map;
 
+typedef struct alignment_name_map
+{
+	char **keys;
+	phos_gui_alignment *values;
+	size_t size, capacity;
+} alignment_name_map;
+
 // core info and registries
 static bool init = false;
-static dynas_string_arr all_ids;
-static elem_arr elem_registry;
-static blueprint_arr blueprint_registry;
-static gui_arr gui_registry;
+static dynas_string_arr all_ids = {0};
+static elem_arr elem_registry = {0};
+static blueprint_arr blueprint_registry = {0};
+static gui_arr gui_registry = {0};
+static alignment_name_map alignment_names = {0};
 
 // resources
-static tex_arr textures;
-static icon_id_map icon_ids;
-static icon_name_map icon_names;
-static font_arr fonts;
+static tex_arr textures = {0};
+static icon_id_map icon_ids = {0};
+static icon_name_map icon_names = {0};
+static font_arr fonts = {0};
 
 // for objects with ID="<auto>":
 static size_t elem_auto_id = 0;
@@ -182,6 +190,12 @@ static phos_gui_theme curr_theme = {0};
 #define map_add(map, key, value, ...) \
 	do { \
 		dynmaps_set(map, key, value); \
+		assert_obj_ptr(map, keys, __VA_ARGS__); \
+		assert_obj_ptr(map, values, __VA_ARGS__); \
+	} while(0)
+#define map_add_strkey(map, key, value, ...) \
+	do { \
+		dynmaps_set_strkey(map, key, value); \
 		assert_obj_ptr(map, keys, __VA_ARGS__); \
 		assert_obj_ptr(map, values, __VA_ARGS__); \
 	} while(0)
@@ -679,6 +693,7 @@ int phos_gui_init()
 	init_arr(&elem_registry, 0);
 	init_arr(&blueprint_registry, 0);
 	init_arr(&gui_registry, 0);
+	init_map(&alignment_names, 0);
 
 	// resources:
 	init_arr(&textures, 0);
@@ -761,50 +776,73 @@ int phos_gui_init()
 	phos_gui_set_icon(PHOS_GUI_ICON_X, "icons/x.png");
 
 	// set icon names, user cannot change these!
-	dynmaps_set_strkey(&icon_names, "ARROW_DOWN", PHOS_GUI_ICON_ARROW_DOWN);
-	dynmaps_set_strkey(&icon_names, "ARROW_LEFT", PHOS_GUI_ICON_ARROW_LEFT);
-	dynmaps_set_strkey(&icon_names, "ARROW_RIGHT", PHOS_GUI_ICON_ARROW_RIGHT);
-	dynmaps_set_strkey(&icon_names, "ARROW_UP", PHOS_GUI_ICON_ARROW_UP);
-	dynmaps_set_strkey(&icon_names, "BOLT", PHOS_GUI_ICON_BOLT);
-	dynmaps_set_strkey(&icon_names, "CALENDAR", PHOS_GUI_ICON_CALENDAR);
-	dynmaps_set_strkey(&icon_names, "CHECK_MARK", PHOS_GUI_ICON_CHECK_MARK);
-	dynmaps_set_strkey(&icon_names, "DOWNLOAD", PHOS_GUI_ICON_DOWNLOAD);
-	dynmaps_set_strkey(&icon_names, "EXCLAMATION_MARK", PHOS_GUI_ICON_EXCLAMATION_MARK);
-	dynmaps_set_strkey(&icon_names, "EYE_CLOSED", PHOS_GUI_ICON_EYE_CLOSED);
-	dynmaps_set_strkey(&icon_names, "EYE_OPENED", PHOS_GUI_ICON_EYE_OPENED);
-	dynmaps_set_strkey(&icon_names, "FILE", PHOS_GUI_ICON_FILE);
-	dynmaps_set_strkey(&icon_names, "FLOPPY_DISK", PHOS_GUI_ICON_FLOPPY_DISK);
-	dynmaps_set_strkey(&icon_names, "FOLDER_CLOSED", PHOS_GUI_ICON_FOLDER_CLOSED);
-	dynmaps_set_strkey(&icon_names, "FOLDER_OPENED", PHOS_GUI_ICON_FOLDER_OPENED);
-	dynmaps_set_strkey(&icon_names, "GEAR", PHOS_GUI_ICON_GEAR);
-	dynmaps_set_strkey(&icon_names, "HOME", PHOS_GUI_ICON_HOME);
-	dynmaps_set_strkey(&icon_names, "HORIZONTAL_BARS", PHOS_GUI_ICON_HORIZONTAL_BARS);
-	dynmaps_set_strkey(&icon_names, "HORIZONTAL_DOTS", PHOS_GUI_ICON_HORIZONTAL_DOTS);
-	dynmaps_set_strkey(&icon_names, "I", PHOS_GUI_ICON_I);
-	dynmaps_set_strkey(&icon_names, "LOCK_CLOSED", PHOS_GUI_ICON_LOCK_CLOSED);
-	dynmaps_set_strkey(&icon_names, "LOCK_OPENED", PHOS_GUI_ICON_LOCK_OPENED);
-	dynmaps_set_strkey(&icon_names, "LOOP", PHOS_GUI_ICON_LOOP);
-	dynmaps_set_strkey(&icon_names, "MAGNIFYING_GLASS", PHOS_GUI_ICON_MAGNIFYING_GLASS);
-	dynmaps_set_strkey(&icon_names, "MAIL_CLOSED", PHOS_GUI_ICON_MAIL_CLOSED);
-	dynmaps_set_strkey(&icon_names, "MAIL_OPENED", PHOS_GUI_ICON_MAIL_OPENED);
-	dynmaps_set_strkey(&icon_names, "PENCIL", PHOS_GUI_ICON_PENCIL);
-	dynmaps_set_strkey(&icon_names, "PIN", PHOS_GUI_ICON_PIN);
-	dynmaps_set_strkey(&icon_names, "PLUS", PHOS_GUI_ICON_PLUS);
-	dynmaps_set_strkey(&icon_names, "POINTER", PHOS_GUI_ICON_POINTER);
-	dynmaps_set_strkey(&icon_names, "POWER_OFF", PHOS_GUI_ICON_POWER_OFF);
-	dynmaps_set_strkey(&icon_names, "QUESTION_MARK", PHOS_GUI_ICON_QUESTION_MARK);
-	dynmaps_set_strkey(&icon_names, "SLIDERS", PHOS_GUI_ICON_SLIDERS);
-	dynmaps_set_strkey(&icon_names, "STAR", PHOS_GUI_ICON_STAR);
-	dynmaps_set_strkey(&icon_names, "TRASH", PHOS_GUI_ICON_TRASH);
-	dynmaps_set_strkey(&icon_names, "UPLOAD", PHOS_GUI_ICON_UPLOAD);
-	dynmaps_set_strkey(&icon_names, "USER", PHOS_GUI_ICON_USER);
-	dynmaps_set_strkey(&icon_names, "VERTICAL_BARS", PHOS_GUI_ICON_VERTICAL_BARS);
-	dynmaps_set_strkey(&icon_names, "VERTICAL_DOTS", PHOS_GUI_ICON_VERTICAL_DOTS);
-	dynmaps_set_strkey(&icon_names, "VOLUME_FULL", PHOS_GUI_ICON_VOLUME_FULL);
-	dynmaps_set_strkey(&icon_names, "VOLUME_HALF", PHOS_GUI_ICON_VOLUME_HALF);
-	dynmaps_set_strkey(&icon_names, "VOLUME_LOW", PHOS_GUI_ICON_VOLUME_LOW);
-	dynmaps_set_strkey(&icon_names, "VOLUME_MUTE", PHOS_GUI_ICON_VOLUME_MUTE);
-	dynmaps_set_strkey(&icon_names, "X", PHOS_GUI_ICON_X);
+	map_add_strkey(&icon_names, "ARROW_DOWN", PHOS_GUI_ICON_ARROW_DOWN, 0);
+	map_add_strkey(&icon_names, "ARROW_LEFT", PHOS_GUI_ICON_ARROW_LEFT, 0);
+	map_add_strkey(&icon_names, "ARROW_RIGHT", PHOS_GUI_ICON_ARROW_RIGHT, 0);
+	map_add_strkey(&icon_names, "ARROW_UP", PHOS_GUI_ICON_ARROW_UP, 0);
+	map_add_strkey(&icon_names, "BOLT", PHOS_GUI_ICON_BOLT, 0);
+	map_add_strkey(&icon_names, "CALENDAR", PHOS_GUI_ICON_CALENDAR, 0);
+	map_add_strkey(&icon_names, "CHECK_MARK", PHOS_GUI_ICON_CHECK_MARK, 0);
+	map_add_strkey(&icon_names, "DOWNLOAD", PHOS_GUI_ICON_DOWNLOAD, 0);
+	map_add_strkey(&icon_names, "EXCLAMATION_MARK", PHOS_GUI_ICON_EXCLAMATION_MARK, 0);
+	map_add_strkey(&icon_names, "EYE_CLOSED", PHOS_GUI_ICON_EYE_CLOSED, 0);
+	map_add_strkey(&icon_names, "EYE_OPENED", PHOS_GUI_ICON_EYE_OPENED, 0);
+	map_add_strkey(&icon_names, "FILE", PHOS_GUI_ICON_FILE, 0);
+	map_add_strkey(&icon_names, "FLOPPY_DISK", PHOS_GUI_ICON_FLOPPY_DISK, 0);
+	map_add_strkey(&icon_names, "FOLDER_CLOSED", PHOS_GUI_ICON_FOLDER_CLOSED, 0);
+	map_add_strkey(&icon_names, "FOLDER_OPENED", PHOS_GUI_ICON_FOLDER_OPENED, 0);
+	map_add_strkey(&icon_names, "GEAR", PHOS_GUI_ICON_GEAR, 0);
+	map_add_strkey(&icon_names, "HOME", PHOS_GUI_ICON_HOME, 0);
+	map_add_strkey(&icon_names, "HORIZONTAL_BARS", PHOS_GUI_ICON_HORIZONTAL_BARS, 0);
+	map_add_strkey(&icon_names, "HORIZONTAL_DOTS", PHOS_GUI_ICON_HORIZONTAL_DOTS, 0);
+	map_add_strkey(&icon_names, "I", PHOS_GUI_ICON_I, 0);
+	map_add_strkey(&icon_names, "LOCK_CLOSED", PHOS_GUI_ICON_LOCK_CLOSED, 0);
+	map_add_strkey(&icon_names, "LOCK_OPENED", PHOS_GUI_ICON_LOCK_OPENED, 0);
+	map_add_strkey(&icon_names, "LOOP", PHOS_GUI_ICON_LOOP, 0);
+	map_add_strkey(&icon_names, "MAGNIFYING_GLASS", PHOS_GUI_ICON_MAGNIFYING_GLASS, 0);
+	map_add_strkey(&icon_names, "MAIL_CLOSED", PHOS_GUI_ICON_MAIL_CLOSED, 0);
+	map_add_strkey(&icon_names, "MAIL_OPENED", PHOS_GUI_ICON_MAIL_OPENED, 0);
+	map_add_strkey(&icon_names, "PENCIL", PHOS_GUI_ICON_PENCIL, 0);
+	map_add_strkey(&icon_names, "PIN", PHOS_GUI_ICON_PIN, 0);
+	map_add_strkey(&icon_names, "PLUS", PHOS_GUI_ICON_PLUS, 0);
+	map_add_strkey(&icon_names, "POINTER", PHOS_GUI_ICON_POINTER, 0);
+	map_add_strkey(&icon_names, "POWER_OFF", PHOS_GUI_ICON_POWER_OFF, 0);
+	map_add_strkey(&icon_names, "QUESTION_MARK", PHOS_GUI_ICON_QUESTION_MARK, 0);
+	map_add_strkey(&icon_names, "SLIDERS", PHOS_GUI_ICON_SLIDERS, 0);
+	map_add_strkey(&icon_names, "STAR", PHOS_GUI_ICON_STAR, 0);
+	map_add_strkey(&icon_names, "TRASH", PHOS_GUI_ICON_TRASH, 0);
+	map_add_strkey(&icon_names, "UPLOAD", PHOS_GUI_ICON_UPLOAD, 0);
+	map_add_strkey(&icon_names, "USER", PHOS_GUI_ICON_USER, 0);
+	map_add_strkey(&icon_names, "VERTICAL_BARS", PHOS_GUI_ICON_VERTICAL_BARS, 0);
+	map_add_strkey(&icon_names, "VERTICAL_DOTS", PHOS_GUI_ICON_VERTICAL_DOTS, 0);
+	map_add_strkey(&icon_names, "VOLUME_FULL", PHOS_GUI_ICON_VOLUME_FULL, 0);
+	map_add_strkey(&icon_names, "VOLUME_HALF", PHOS_GUI_ICON_VOLUME_HALF, 0);
+	map_add_strkey(&icon_names, "VOLUME_LOW", PHOS_GUI_ICON_VOLUME_LOW, 0);
+	map_add_strkey(&icon_names, "VOLUME_MUTE", PHOS_GUI_ICON_VOLUME_MUTE, 0);
+	map_add_strkey(&icon_names, "X", PHOS_GUI_ICON_X, 0);
+
+	// register alignment strings
+	map_add_strkey(&alignment_names, "INNER_LEFT", PHOS_GUI_ALIGN_INNER_LEFT, 0);
+	map_add_strkey(&alignment_names, "INNER_TOP", PHOS_GUI_ALIGN_INNER_TOP, 0);
+	map_add_strkey(&alignment_names, "INNER_RIGHT", PHOS_GUI_ALIGN_INNER_RIGHT, 0);
+	map_add_strkey(&alignment_names, "INNER_BOTTOM", PHOS_GUI_ALIGN_INNER_BOTTOM, 0);
+	map_add_strkey(&alignment_names, "INNER_CENTER", PHOS_GUI_ALIGN_INNER_CENTER, 0);
+	map_add_strkey(&alignment_names, "INNER_TOP_LEFT", PHOS_GUI_ALIGN_INNER_TOP_LEFT, 0);
+	map_add_strkey(&alignment_names, "INNER_TOP_RIGHT", PHOS_GUI_ALIGN_INNER_TOP_RIGHT, 0);
+	map_add_strkey(&alignment_names, "INNER_BOTTOM_LEFT", PHOS_GUI_ALIGN_INNER_BOTTOM_LEFT, 0);
+	map_add_strkey(&alignment_names, "INNER_BOTTOM_RIGHT", PHOS_GUI_ALIGN_INNER_BOTTOM_RIGHT, 0);
+	map_add_strkey(&alignment_names, "LEFT", PHOS_GUI_ALIGN_LEFT, 0);
+	map_add_strkey(&alignment_names, "TOP", PHOS_GUI_ALIGN_TOP, 0);
+	map_add_strkey(&alignment_names, "RIGHT", PHOS_GUI_ALIGN_RIGHT, 0);
+	map_add_strkey(&alignment_names, "BOTTOM", PHOS_GUI_ALIGN_BOTTOM, 0);
+	map_add_strkey(&alignment_names, "TOP_LEFT_CORNER", PHOS_GUI_ALIGN_TOP_LEFT_CORNER, 0);
+	map_add_strkey(&alignment_names, "TOP_RIGHT_CORNER", PHOS_GUI_ALIGN_TOP_RIGHT_CORNER, 0);
+	map_add_strkey(&alignment_names, "BOTTOM_LEFT_CORNER", PHOS_GUI_ALIGN_BOTTOM_LEFT_CORNER, 0);
+	map_add_strkey(&alignment_names, "BOTTOM_RIGHT_CORNER", PHOS_GUI_ALIGN_BOTTOM_RIGHT_CORNER, 0);
+	map_add_strkey(&alignment_names, "TOP_LEFT_EDGE", PHOS_GUI_ALIGN_TOP_LEFT_EDGE, 0);
+	map_add_strkey(&alignment_names, "TOP_RIGHT_EDGE", PHOS_GUI_ALIGN_TOP_RIGHT_EDGE, 0);
+	map_add_strkey(&alignment_names, "BOTTOM_LEFT_EDGE", PHOS_GUI_ALIGN_BOTTOM_LEFT_EDGE, 0);
+	map_add_strkey(&alignment_names, "BOTTOM_RIGHT_EDGE", PHOS_GUI_ALIGN_BOTTOM_RIGHT_EDGE, 0);
 
 	// enforce no additional text line spacing
 	SetTextLineSpacing(0);
@@ -827,6 +865,7 @@ void phos_gui_shutdown()
 	dynas_free(&elem_registry);
 	dynas_free(&blueprint_registry);
 	dynas_free(&gui_registry);
+	dynmaps_free(&alignment_names);
 
 	// resources:
 
@@ -2420,6 +2459,98 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 
 	prepare_elem_rects_for_caching(elem);
 }
+
+static bool get_icon_name(const char *str, char *buffer, size_t buffer_size)
+{
+	if(buffer_size == 0)
+		return false;
+
+	if(strncmp(str, "<icon=", 6) == 0)
+	{
+		// go to equals sign
+		const char *equals = str + 6;
+
+		char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
+
+		size_t i = 0;
+		while(*equals != '>' && *equals != ',' && i < sizeof(icon_name))
+			icon_name[i++] = *equals++;
+
+		icon_name[i] = '\0';
+
+		// place icon name into buffer
+		snprintf(buffer, buffer_size, "%s", icon_name);
+
+		return true;
+	}
+
+	return false;
+}
+static bool get_alignment_name(const char *str, char *buffer, size_t buffer_size)
+{
+	if(buffer_size == 0)
+		return false;
+
+	// if no icon name parsed, automatic failure
+	char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
+	if(!get_icon_name(str, icon_name, sizeof(icon_name)))
+		return false;
+
+	// go to end of icon name in the string (the 6 comes from '<icon='
+	const char *args_start = str + 6 + strlen(icon_name);
+
+	// walk until a ',' character is found
+	for(const char *p = args_start; *p; ++p)
+	{
+		// get char from *p
+		char c = *p;
+
+		// when a ',' is encountered, see if the next arg is 'align='
+		if(c == ',')
+		{
+			if(strncmp(p, ",align=", 7) == 0)
+			{
+				// go to equals sign
+				const char *equals = p + 7;
+
+				// now walk forward until another ',' or '>' is found
+				char alignment_name[PHOS_GUI_MAX_ALIGNMENT_NAME_LEN + 1];
+
+				size_t i = 0;
+				while(*equals != '>' && *equals != ',' && i < sizeof(alignment_name))
+					alignment_name[i++] = *equals++;
+
+				alignment_name[i] = '\0';
+
+				// place alignment name into buffer
+				snprintf(buffer, buffer_size, "%s", alignment_name);
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+// try to parse an 'align=' argument within an icon string
+static phos_gui_alignment parse_alignment_arg(const char *icon_str)
+{
+	// see if it's a valid icon string first
+	char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
+	if(!get_icon_name(icon_str, icon_name, sizeof(icon_name)))
+		return PHOS_GUI_ALIGN_INVALID;
+
+	// now see if an alignment is provided
+	char alignment_name[PHOS_GUI_MAX_ALIGNMENT_NAME_LEN + 1];
+	if(!get_alignment_name(icon_str, alignment_name, sizeof(alignment_name)))
+		return PHOS_GUI_ALIGN_INVALID;
+
+	// match alignment name in map
+	phos_gui_alignment *alignment = NULL;
+	dynmaps_get_strkey(&alignment_names, alignment_name, alignment);
+
+	return alignment ? *alignment : PHOS_GUI_ALIGN_INVALID;
+}
 void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text)
 {
 	if(!elem)
@@ -2735,7 +2866,7 @@ void phos_gui_init_slider(phos_gui_elem *elem, const char *ID, float x, float y,
 		if(!label)
 			phos_gui_exit(EXIT_FAILURE);
 		phos_gui_write_str(label->str, "%s", label_text);
-		label->font_size = PHOS_GUI_FONT_SIZE_MED;
+		label->font_size = h * 1.5f;
 		phos_gui_align_elem_label(label, PHOS_GUI_ALIGN_TOP_LEFT_EDGE);
 	}
 }
@@ -3485,6 +3616,13 @@ int phos_gui_add_event_listener(phos_gui_elem *elem, phos_gui_event_listener lis
 		return 0;
 	}
 
+	// ensure event listener has a valid action function
+	if(!listener.action)
+	{
+		vl_log(VL_ERROR, "Cannot create an event listener with a NULL action function!\n");
+		return 0;
+	}
+
 	// add the listener to the gui
 	if(elem->num_listeners >= PHOS_GUI_MAX_EVENT_LISTENERS)
 	{
@@ -3500,6 +3638,11 @@ int phos_gui_new_event_listener(phos_gui_elem *elem, phos_gui_event_type event, 
 	if(!elem)
 	{
 		vl_log(VL_ERROR, "Cannot add an event listener to a NULL element!\n");
+		return 0;
+	}
+	if(!action)
+	{
+		vl_log(VL_ERROR, "Cannot create an event listener with a NULL action function!\n");
 		return 0;
 	}
 
@@ -3606,6 +3749,16 @@ int phos_gui_create_animation(phos_gui *gui, phos_gui_elem *elem, float *curr_va
 	{
 		vl_log(VL_ERROR, "Cannot create an animation with a NULL starting value.\n");
 		return 0;
+	}
+
+	// see if an animation already exists with these exact values
+	for(size_t i = 0; i < gui->num_anims; ++i)
+	{
+		phos_gui_animation *anim = &gui->anims[i];
+
+		// match elem and value being animated
+		if(anim->elem == elem && anim->curr_value == curr_value)
+			return 0;
 	}
 
 	phos_gui_animation anim = {0};
@@ -4599,11 +4752,6 @@ static void run_event_listener(phos_gui_event_listener *listener)
 		vl_log(VL_ERROR, "Invalid event listener event: %d!\n", event);
 		return;
 	}
-	if(!action)
-	{
-		vl_log(VL_WARNING, "This event listener has a null action!\n");
-		return;
-	}
 
 	Rectangle window_rect = { 0, 0, GetRenderWidth(), GetRenderHeight() };
 
@@ -4639,6 +4787,28 @@ static void run_event_listener(phos_gui_event_listener *listener)
 		case PHOS_GUI_EVENT_HOVER:
 			can_execute = mouse_hovered;
 			break;
+
+		case PHOS_GUI_EVENT_SLIDER_RELEASED:
+		{
+			// see if elem has a value bar component
+			if(elem)
+			{
+				phos_gui_value_bar_component *value_bar = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_VALUE_BAR);
+				if(value_bar)
+					can_execute = value_bar->slider_knob_released;
+			}
+			break;
+		}
+		case PHOS_GUI_EVENT_SLIDER_GRABBED:
+		{
+			if(elem)
+			{
+				phos_gui_value_bar_component *value_bar = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_VALUE_BAR);
+				if(value_bar)
+					can_execute = value_bar->slider_knob_grabbed;
+			}
+			break;
+		}
 		default:
 			break;
 	}
@@ -5066,9 +5236,9 @@ static void render_elem(phos_gui_elem *e)
 
 					// determine if text's main text, or placeholder text should be rendered
 					if(placeholder_text && strlen(text->str) == 0 && strlen(placeholder_text->str) > 0)
-						phos_gui_render_text(*text->font, placeholder_text->str, draw_pos, text->font_size, placeholder_text->color);
+						phos_gui_render_text(e, *text->font, placeholder_text->str, draw_pos, text->font_size, placeholder_text->color);
 					else
-						phos_gui_render_text(*text->font, text->str, draw_pos, text->font_size, text->color);
+						phos_gui_render_text(e, *text->font, text->str, draw_pos, text->font_size, text->color);
 
 					// render cursor (only if placeholder text is not being rendered and text has focus)
 					if(strlen(text->str) > 0 && text->editable && mouse_listener && mouse_listener->has_focus)
@@ -5096,7 +5266,7 @@ static void render_elem(phos_gui_elem *e)
 			if(label->font_size <= 0.0f || ColorIsEqual(label->color, BLANK))
 				vl_delay_log(VL_WARNING, 1.0f, "This element's ('%s') label component will not render correctly due to invalid font size, or the color's alpha is 0!\n", e->ID);
 			else
-				phos_gui_render_text(*label->font, label->str, get_label_draw_pos(label), label->font_size, label->color);
+				phos_gui_render_text(e, *label->font, label->str, get_label_draw_pos(label), label->font_size, label->color);
 		}
 		else
 			vl_delay_log(VL_ERROR, 5.0f, "Cannot render label component on element '%s' because it does not have a valid font!\n");
@@ -6047,32 +6217,6 @@ void phos_gui_render_icon(phos_gui_icon *icon)
 	Rectangle src_rect = { 0, 0, PHOS_GUI_ICON_SIZE_DEFAULT, PHOS_GUI_ICON_SIZE_DEFAULT };
 	DrawTexturePro(*tex, src_rect, icon->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, icon->color);
 }
-static bool get_icon_name(const char *str, char *buffer, size_t buffer_size)
-{
-	if(buffer_size == 0)
-		return false;
-
-	if(strncmp(str, "<icon=", 6) == 0)
-	{
-		// go to equals sign
-		const char *equals = str + 6;
-
-		char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
-
-		size_t i = 0;
-		while(*equals != '>' && i < sizeof(icon_name))
-			icon_name[i++] = *equals++;
-
-		icon_name[i] = '\0';
-
-		// place icon name into buffer
-		snprintf(buffer, buffer_size, "%s", icon_name);
-
-		return true;
-	}
-
-	return false;
-}
 Vector2 phos_gui_measure_text(Font font, const char *text, float font_size)
 {
 	Vector2 v = {0};
@@ -6118,14 +6262,30 @@ Vector2 phos_gui_measure_text(Font font, const char *text, float font_size)
 
 	return v;
 }
-void phos_gui_render_text(Font font, const char *text, Vector2 pos, float font_size, Color color)
+void phos_gui_render_text_component(phos_gui_text_component *text)
 {
-	if(!IsFontValid(font) || !text || font_size <= 0.0f)
+	if(!text || !text->font)
+	{
+		vl_delay_log(VL_ERROR, 3.0f, "Cannot render a NULL text component!\n");
+	}
+	if(!IsFontValid(*text->font) || text->font_size <= 0.0f)
 	{
 		vl_delay_log(VL_ERROR, 3.0f, "Failed to render text!\n");
 		return;
 	}
 
+	// get scroll pane off text component's owner
+	phos_gui_elem *owner = pluto_cs_get_owner(text);
+	if(!owner)
+	{
+		vl_delay_log(VL_ERROR, 3.0f, "Failed to render the text component! It must have a valid owner element!\n");
+		return;
+	}
+
+	phos_gui_render_text(owner, *text->font, text->str, get_text_draw_pos(text, pluto_cs_get_component(owner, PHOS_GUI_COMPONENT_SCROLL_PANE)), text->font_size, text->color);
+}
+void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *text, Vector2 pos, float font_size, Color color)
+{
 	// where each char is drawn individually
 	Vector2 draw_pos = pos;
 
@@ -6159,6 +6319,15 @@ void phos_gui_render_text(Font font, const char *text, Vector2 pos, float font_s
 				icon.color = color;
 				icon.visible = true;
 				icon.bounds = (Rectangle) { draw_pos.x, draw_pos.y, font_size, font_size };
+
+				// see if this icon should be aligned specifically:
+				phos_gui_alignment icon_alignment = parse_alignment_arg(p);
+				if(icon_alignment != PHOS_GUI_ALIGN_INVALID)
+				{
+					Vector2 aligned_pos = get_proposed_align_pos(phos_gui_get_rect_size(icon.bounds), icon_alignment, reference_elem);
+					icon.bounds.x = aligned_pos.x;
+					icon.bounds.y = aligned_pos.y;
+				}
 
 				phos_gui_render_icon(&icon);
 
