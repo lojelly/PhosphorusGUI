@@ -92,13 +92,18 @@ typedef struct icon_name_map
 	phos_gui_icon_id *values;
 	size_t size, capacity;
 } icon_name_map;
-
 typedef struct alignment_name_map
 {
 	char **keys;
 	phos_gui_alignment *values;
 	size_t size, capacity;
 } alignment_name_map;
+typedef struct color_name_map
+{
+	char **keys;
+	Color *values;
+	size_t size, capacity;
+} color_name_map;
 
 // core info and registries
 static bool init = false;
@@ -107,6 +112,7 @@ static elem_arr elem_registry = {0};
 static blueprint_arr blueprint_registry = {0};
 static gui_arr gui_registry = {0};
 static alignment_name_map alignment_names = {0};
+static color_name_map color_names = {0};
 
 // resources
 static tex_arr textures = {0};
@@ -694,6 +700,7 @@ int phos_gui_init()
 	init_arr(&blueprint_registry, 0);
 	init_arr(&gui_registry, 0);
 	init_map(&alignment_names, 0);
+	init_map(&color_names, 0);
 
 	// resources:
 	init_arr(&textures, 0);
@@ -821,7 +828,7 @@ int phos_gui_init()
 	map_add_strkey(&icon_names, "VOLUME_MUTE", PHOS_GUI_ICON_VOLUME_MUTE, 0);
 	map_add_strkey(&icon_names, "X", PHOS_GUI_ICON_X, 0);
 
-	// register alignment strings
+	// register alignment names
 	map_add_strkey(&alignment_names, "INNER_LEFT", PHOS_GUI_ALIGN_INNER_LEFT, 0);
 	map_add_strkey(&alignment_names, "INNER_TOP", PHOS_GUI_ALIGN_INNER_TOP, 0);
 	map_add_strkey(&alignment_names, "INNER_RIGHT", PHOS_GUI_ALIGN_INNER_RIGHT, 0);
@@ -843,6 +850,18 @@ int phos_gui_init()
 	map_add_strkey(&alignment_names, "TOP_RIGHT_EDGE", PHOS_GUI_ALIGN_TOP_RIGHT_EDGE, 0);
 	map_add_strkey(&alignment_names, "BOTTOM_LEFT_EDGE", PHOS_GUI_ALIGN_BOTTOM_LEFT_EDGE, 0);
 	map_add_strkey(&alignment_names, "BOTTOM_RIGHT_EDGE", PHOS_GUI_ALIGN_BOTTOM_RIGHT_EDGE, 0);
+
+	// register color names
+	map_add_strkey(&color_names, "WHITE", PHOS_GUI_COLOR_WHITE, 0);
+	map_add_strkey(&color_names, "BLACK", PHOS_GUI_COLOR_BLACK, 0);
+	map_add_strkey(&color_names, "GRAY", PHOS_GUI_COLOR_GRAY, 0);
+	map_add_strkey(&color_names, "LIGHT_GRAY", PHOS_GUI_COLOR_LIGHT_GRAY, 0);
+	map_add_strkey(&color_names, "DARK_GRAY", PHOS_GUI_COLOR_DARK_GRAY, 0);
+	map_add_strkey(&color_names, "RED", PHOS_GUI_COLOR_RED, 0);
+	map_add_strkey(&color_names, "LIGHT_RED", PHOS_GUI_COLOR_LIGHT_RED, 0);
+	map_add_strkey(&color_names, "DARK_RED", PHOS_GUI_COLOR_DARK_RED, 0);
+	map_add_strkey(&color_names, "BRIGHT_RED", PHOS_GUI_COLOR_BRIGHT_RED, 0);
+	map_add_strkey(&color_names, "DULL_RED", PHOS_GUI_COLOR_DULL_RED, 0);
 
 	// enforce no additional text line spacing
 	SetTextLineSpacing(0);
@@ -866,6 +885,7 @@ void phos_gui_shutdown()
 	dynas_free(&blueprint_registry);
 	dynas_free(&gui_registry);
 	dynmaps_free(&alignment_names);
+	dynmaps_free(&color_names);
 
 	// resources:
 
@@ -2484,6 +2504,7 @@ static bool get_icon_name(const char *str, char *buffer, size_t buffer_size)
 		return true;
 	}
 
+	vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon string. Make sure you are using the '<icon=ICON_NAME>' format!\n");
 	return false;
 }
 static bool get_alignment_name(const char *str, char *buffer, size_t buffer_size)
@@ -2496,7 +2517,7 @@ static bool get_alignment_name(const char *str, char *buffer, size_t buffer_size
 	if(!get_icon_name(str, icon_name, sizeof(icon_name)))
 		return false;
 
-	// go to end of icon name in the string (the 6 comes from '<icon='
+	// go to end of icon name in the string (the 6 comes from '<icon=')
 	const char *args_start = str + 6 + strlen(icon_name);
 
 	// walk until a ',' character is found
@@ -2535,11 +2556,6 @@ static bool get_alignment_name(const char *str, char *buffer, size_t buffer_size
 // try to parse an 'align=' argument within an icon string
 static phos_gui_alignment parse_alignment_arg(const char *icon_str)
 {
-	// see if it's a valid icon string first
-	char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
-	if(!get_icon_name(icon_str, icon_name, sizeof(icon_name)))
-		return PHOS_GUI_ALIGN_INVALID;
-
 	// now see if an alignment is provided
 	char alignment_name[PHOS_GUI_MAX_ALIGNMENT_NAME_LEN + 1];
 	if(!get_alignment_name(icon_str, alignment_name, sizeof(alignment_name)))
@@ -2549,7 +2565,129 @@ static phos_gui_alignment parse_alignment_arg(const char *icon_str)
 	phos_gui_alignment *alignment = NULL;
 	dynmaps_get_strkey(&alignment_names, alignment_name, alignment);
 
+	if(!alignment)
+		vl_delay_log(VL_ERROR, 3.0f, "Unknown icon alignment name: '%s'!\n", alignment_name);
+
 	return alignment ? *alignment : PHOS_GUI_ALIGN_INVALID;
+}
+static bool get_color_name(const char *str, char *buffer, size_t buffer_size)
+{
+	if(buffer_size == 0)
+		return false;
+
+	// if no icon name parsed, automatic failure
+	char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
+	if(!get_icon_name(str, icon_name, sizeof(icon_name)))
+		return false;
+
+	// go to end of icon name in the string (6 comes from '<icon=')
+	const char *args_start = str + 6 + strlen(icon_name);
+
+	// walk until a ',' character is found
+	for(const char *p = args_start; *p; ++p)
+	{
+		// get char from *p
+		char c = *p;
+
+		// when a ',' is encountered, see if the next arg is 'color='
+		if(c == ',')
+		{
+			if(strncmp(p, ",color=", 7) == 0)
+			{
+				// go to equals sign
+				const char *equals = p + 7;
+
+				// now walk forward until another ',' or '>' is found
+				char color_name[PHOS_GUI_MAX_COLOR_NAME_LEN + 1];
+
+				size_t i = 0;
+				while(*equals != '>' && *equals != ',' && i < sizeof(color_name))
+					color_name[i++] = *equals++;
+
+				color_name[i] = '\0';
+
+				// place color name into buffer
+				snprintf(buffer, buffer_size, "%s", color_name);
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+// try to parse a 'color=' argument within an icon string
+static Color parse_color_arg(const char *icon_str)
+{
+	// now see if a color is provided
+	char color_name[PHOS_GUI_MAX_COLOR_NAME_LEN + 1];
+	if(!get_color_name(icon_str, color_name, sizeof(color_name)))
+		return BLANK;
+
+	// match color name in map
+	Color *color = NULL;
+	dynmaps_get_strkey(&color_names, color_name, color);
+
+	if(!color)
+		vl_delay_log(VL_ERROR, 3.0f, "Unknown icon color argument: '%s'!\n", color_name);
+
+	return color ? *color : BLANK;
+}
+static bool get_size(const char *str, char *buffer, size_t buffer_size)
+{
+	if(buffer_size == 0)
+		return false;
+
+	// if no icon name parsed, automatic failure
+	char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
+	if(!get_icon_name(str, icon_name, sizeof(icon_name)))
+		return false;
+
+	// go to end of icon name in the string (6 comes from '<icon=')
+	const char *args_start = str + 6 + strlen(icon_name);
+
+	// walk until a ',' character is found
+	for(const char *p = args_start; *p; ++p)
+	{
+		// get char from *p
+		char c = *p;
+
+		// when a ',' is encountered, see if the next arg is 'color='
+		if(c == ',')
+		{
+			if(strncmp(p, ",size=", 6) == 0)
+			{
+				// go to equals sign
+				const char *equals = p + 6;
+
+				// now walk forward until another ',' or '>' is found
+				char size_str[10];
+
+				size_t i = 0;
+				while(*equals != '>' && *equals != ',' && i < sizeof(size_str))
+					size_str[i++] = *equals++;
+
+				size_str[i] = '\0';
+
+				// place color name into buffer
+				snprintf(buffer, buffer_size, "%s", size_str);
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+// try to parse a 'size=' argument within an icon string
+static float parse_size_arg(const char *icon_str)
+{
+	// now see if a size is provided
+	char size_str[10];
+	if(!get_size(icon_str, size_str, sizeof(size_str)))
+		return 0.0f;
+
+	return strtof(size_str, NULL);
 }
 void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text)
 {
@@ -6319,6 +6457,16 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 				icon.color = color;
 				icon.visible = true;
 				icon.bounds = (Rectangle) { draw_pos.x, draw_pos.y, font_size, font_size };
+
+				// see if this icon should be colored differently:
+				Color icon_color = parse_color_arg(p);
+				if(!ColorIsEqual(icon_color, BLANK))
+					icon.color = icon_color;
+
+				// see if the icon size should be overridden
+				float icon_size = parse_size_arg(p);
+				if(icon_size != 0.0f)
+					icon.bounds.width = icon.bounds.height = icon_size;
 
 				// see if this icon should be aligned specifically:
 				phos_gui_alignment icon_alignment = parse_alignment_arg(p);
