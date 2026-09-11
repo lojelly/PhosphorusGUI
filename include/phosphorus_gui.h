@@ -41,11 +41,6 @@
 #define PHOS_GUI_MAX_CHILDREN 48
 
 /**
-  The max number of icons an element can store.
-*/
-#define PHOS_GUI_MAX_ICONS 16
-
-/**
   The max number of event listeners that a
   single phos_gui_elem can hold.
 */
@@ -166,40 +161,15 @@
 #define PHOS_GUI_ICON_SIZE_LARGEST 128.0f
 
 /**
-  The max length of an icon name in PhosphorusGUI.
-
-  An example of an icon name is 'CHECK_MARK.' Note
-  that PHOS_GUI_CHECK_MARK is not the icon name.
-  PhosphorusGUI does not use the 'PHOS_GUI' prefix
-  in icon names.
-*/
-#define PHOS_GUI_MAX_ICON_NAME_LEN 32
-/**
-  The max length of an alignment name in PhosphorusGUI.
-
-  An example of an alignment name is 'LEFT' or 'INNER_TOP.'
-  Note that PHOS_GUI_ALIGN_LEFT is not the alignment name.
-  PhosphorusGUI does not use the 'PHOS_GUI' prefix
-  in alignment names.
-*/
-#define PHOS_GUI_MAX_ALIGNMENT_NAME_LEN 32
-/**
-  The max length of a color name in PhosphorusGUI.
-
-  An example of a color name is 'WHITE' or 'BLUE.'
-  Some custom PhosphorusGUI colors can also be
-  used, such as 'LIGHT_GREEN' or 'DULL_ORANGE.'
-  Note that the 'PHOS_GUI' prefix is not present
-  in the color names.
-*/
-#define PHOS_GUI_MAX_COLOR_NAME_LEN 24
-
-/**
   The window's origin.
 */
 #define PHOS_GUI_WINDOW_ORIGIN (Vector2) { 0.0f, 0.0f }
 /**
   The window's current size.
+
+  @note This macro uses GetRenderWidth() and GetRenderHeight()
+  which also returns the current virtual size of the program
+  if a render texture is being used.
 */
 #define PHOS_GUI_WINDOW_SIZE (Vector2) { GetRenderWidth(), GetRenderHeight() }
 /**
@@ -1263,10 +1233,6 @@ typedef enum phos_gui_component_type
 	  @see phos_gui_value_bar_component
 	*/
 	PHOS_GUI_COMPONENT_VALUE_BAR,
-	/**
-	  @see phos_gui_icon_list_component
-	*/
-	PHOS_GUI_COMPONENT_ICON_LIST,
 
 	/**
 	  Represents the last component ID in PhosphorusGUI.
@@ -2570,25 +2536,6 @@ typedef struct phos_gui_icon
 } phos_gui_icon;
 
 /**
-  A phos_gui_icon_list_component gives an
-  element the ability to store and render
-  icons.
-*/
-typedef struct phos_gui_icon_list_component
-{
-	/**
-	  The actual list of icons on the element.
-	*/
-	phos_gui_icon icons[PHOS_GUI_MAX_ICONS];
-
-	/**
-	  The number of icons currently stored
-	  on the element.
-	*/
-	size_t num_icons;
-} phos_gui_icon_list_component;
-
-/**
   Represents an actual bounding box for an element.
 */
 typedef struct phos_gui_elem_rect
@@ -3698,7 +3645,9 @@ PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_g
   icons, there are additional optional arguments you can use to edit the icon.
   For example, to align the icon with the element, use the 'align' argument like
   this: "<icon=ICON_NAME,align=LEFT>." Note that you should not add any spaces
-  in the string.
+  in the string. For more info on icon strings: see phos_gui_get_icon_str(...).
+
+  @see phos_gui_get_icon_str(const char*, phos_gui_icon_id*)
 */
 PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text);
 /**
@@ -3897,29 +3846,7 @@ PHOS_GUI_API int phos_gui_remove_child_id(phos_gui_elem *parent, const char *ID)
   @see phos_gui_layout_component
 */
 PHOS_GUI_API int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts);
-/**
-  Adds an icon to an element.
 
-  @note An element cannot contain duplicate icons.
-
-  @return 1 on success, 0 on failure.
-*/
-PHOS_GUI_API int phos_gui_add_icon(phos_gui_icon_list_component *icon_list, phos_gui_icon icon);
-/**
-  Removes an icon from an element.
-
-  @note This function expects the ID of the
-  icon to remove.
-
-  @return 1 on success, 0 on failure.
-*/
-PHOS_GUI_API int phos_gui_remove_icon(phos_gui_icon_list_component *icon_list, phos_gui_icon_id ID);
-/**
-  Determines if an element contains the given icon,
-  and if it does, it returns a pointer to the icon on the element.
-  If the element does not have the icon, NULL is returned instead.
-*/
-PHOS_GUI_API phos_gui_icon *phos_gui_find_elem_icon(phos_gui_elem *elem, phos_gui_icon_id ID);
 /**
   Obtains a UI element with a specific ID.
 */
@@ -4337,9 +4264,41 @@ PHOS_GUI_API Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon);
   Obtains a texture for a specific icon using an icon string.
 
   An icon string must follow this format: "<icon=ICON_NAME>."
+  Icon strings also support custom arguments that will modify
+  the icon.
 
-  For example, to obtain the check mark icon, use
-  "<icon=CHECK_MARK>."
+
+  Possible arguments include:
+
+  'align'  : changes the alignment of the icon relative to its parent element
+
+  'size'   : changes the width and height of the icon. Note that this argument makes the
+  icon a square since the width and height are the same. Additionally, if
+  you use the 'size' argument, you cannot also use the 'width' or 'height'
+  arguments. The 'size' argument takes the most priority.
+
+  'width'  : changes only the width of the icon
+
+  'height' : changes only the height of the icon
+
+  'color'  : modifies the color of the icon
+
+
+  There are also flags you can pass into an icon string. Unlike arguments,
+  flags are lone values that do not equal anything. Flags are either on or off
+  in an icon string. When a flag is not present, it is off. When you pass
+  the flag into the icon string, it is then turned on.
+
+
+  Possible flags include:
+
+  // TODO
+
+
+  Arguments must be provided in this format:
+  "<icon=ICON_NAME,ARG_NAME=arg_value>."
+  Note that you cannot have whitespace in the
+  icon string.
 
   @note You can also obtain the ID of the icon if a valid pointer
   is passed into 'out_icon_id.'

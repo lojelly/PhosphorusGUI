@@ -24,6 +24,8 @@
 
 #define DEFAULT_SCROLL_BAR (phos_gui_scroll_bar) { .bg_color = PHOS_GUI_COLOR_LIGHT_GRAY, .thumb_color = PHOS_GUI_COLOR_GRAY, .thumb_focus_color = PHOS_GUI_COLOR_DARK_GRAY, .thumb_shape = PHOS_GUI_SHAPE_RECT, .thumb_corner_radius = 0.0f, .span = 15.0f, .thumb_grab_offset = 0.0f, .thumb_has_focus = false, .thumb_grabbed = false, .rendered = true, .active = true }
 
+#define MAX_ICON_PARSED_STR_LEN 32
+
 // array of element pointers
 typedef struct elem_arr
 {
@@ -676,15 +678,6 @@ static void init_value_bar_component(void *value_bar_component)
 	// re-apply default theme to elem
 	phos_gui_apply_theme_to_elem(owner, phos_gui_get_theme());
 }
-static void init_icon_list_component(void *icon_list_component)
-{
-	if(!icon_list_component)
-		return;
-
-	phos_gui_icon_list_component *icon_list = icon_list_component;
-
-	icon_list->num_icons = 0;
-}
 
 int phos_gui_init()
 {
@@ -731,7 +724,6 @@ int phos_gui_init()
 	pluto_cs_register(PHOS_GUI_COMPONENT_DROP_DOWN, sizeof(phos_gui_drop_down_component), init_drop_down_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_CHECKBOX_LIST, sizeof(phos_gui_checkbox_list_component), init_checkbox_list_component, NULL);
 	pluto_cs_register(PHOS_GUI_COMPONENT_VALUE_BAR, sizeof(phos_gui_value_bar_component), init_value_bar_component, NULL);
-	pluto_cs_register(PHOS_GUI_COMPONENT_ICON_LIST, sizeof(phos_gui_icon_list_component), init_icon_list_component, NULL);
 
 	// set default theme
 	curr_theme = PHOS_GUI_THEME_MONOTONE;
@@ -857,11 +849,102 @@ int phos_gui_init()
 	map_add_strkey(&color_names, "GRAY", PHOS_GUI_COLOR_GRAY, 0);
 	map_add_strkey(&color_names, "LIGHT_GRAY", PHOS_GUI_COLOR_LIGHT_GRAY, 0);
 	map_add_strkey(&color_names, "DARK_GRAY", PHOS_GUI_COLOR_DARK_GRAY, 0);
+
 	map_add_strkey(&color_names, "RED", PHOS_GUI_COLOR_RED, 0);
 	map_add_strkey(&color_names, "LIGHT_RED", PHOS_GUI_COLOR_LIGHT_RED, 0);
 	map_add_strkey(&color_names, "DARK_RED", PHOS_GUI_COLOR_DARK_RED, 0);
 	map_add_strkey(&color_names, "BRIGHT_RED", PHOS_GUI_COLOR_BRIGHT_RED, 0);
 	map_add_strkey(&color_names, "DULL_RED", PHOS_GUI_COLOR_DULL_RED, 0);
+
+	map_add_strkey(&color_names, "GREEN", PHOS_GUI_COLOR_GREEN, 0);
+	map_add_strkey(&color_names, "LIGHT_GREEN", PHOS_GUI_COLOR_LIGHT_GREEN, 0);
+	map_add_strkey(&color_names, "DARK_GREEN", PHOS_GUI_COLOR_DARK_GREEN, 0);
+	map_add_strkey(&color_names, "BRIGHT_GREEN", PHOS_GUI_COLOR_BRIGHT_GREEN, 0);
+	map_add_strkey(&color_names, "DULL_GREEN", PHOS_GUI_COLOR_DULL_GREEN, 0);
+
+	map_add_strkey(&color_names, "BLUE", PHOS_GUI_COLOR_BLUE, 0);
+	map_add_strkey(&color_names, "LIGHT_BLUE", PHOS_GUI_COLOR_LIGHT_BLUE, 0);
+	map_add_strkey(&color_names, "DARK_BLUE", PHOS_GUI_COLOR_DARK_BLUE, 0);
+	map_add_strkey(&color_names, "BRIGHT_BLUE", PHOS_GUI_COLOR_BRIGHT_BLUE, 0);
+	map_add_strkey(&color_names, "DULL_BLUE", PHOS_GUI_COLOR_DULL_BLUE, 0);
+
+	map_add_strkey(&color_names, "ORANGE", PHOS_GUI_COLOR_ORANGE, 0);
+	map_add_strkey(&color_names, "LIGHT_ORANGE", PHOS_GUI_COLOR_LIGHT_ORANGE, 0);
+	map_add_strkey(&color_names, "DARK_ORANGE", PHOS_GUI_COLOR_DARK_ORANGE, 0);
+	map_add_strkey(&color_names, "BRIGHT_ORANGE", PHOS_GUI_COLOR_BRIGHT_ORANGE, 0);
+	map_add_strkey(&color_names, "DULL_ORANGE", PHOS_GUI_COLOR_DULL_ORANGE, 0);
+
+	map_add_strkey(&color_names, "YELLOW", PHOS_GUI_COLOR_YELLOW, 0);
+	map_add_strkey(&color_names, "LIGHT_YELLOW", PHOS_GUI_COLOR_LIGHT_YELLOW, 0);
+	map_add_strkey(&color_names, "DARK_YELLOW", PHOS_GUI_COLOR_DARK_YELLOW, 0);
+	map_add_strkey(&color_names, "BRIGHT_YELLOW", PHOS_GUI_COLOR_BRIGHT_YELLOW, 0);
+	map_add_strkey(&color_names, "DULL_YELLOW", PHOS_GUI_COLOR_DULL_YELLOW, 0);
+
+	map_add_strkey(&color_names, "VIOLET", PHOS_GUI_COLOR_VIOLET, 0);
+	map_add_strkey(&color_names, "LIGHT_VIOLET", PHOS_GUI_COLOR_LIGHT_VIOLET, 0);
+	map_add_strkey(&color_names, "DARK_VIOLET", PHOS_GUI_COLOR_DARK_VIOLET, 0);
+	map_add_strkey(&color_names, "BRIGHT_VIOLET", PHOS_GUI_COLOR_BRIGHT_VIOLET, 0);
+	map_add_strkey(&color_names, "DULL_VIOLET", PHOS_GUI_COLOR_DULL_VIOLET,0);
+
+	map_add_strkey(&color_names, "INDIGO", PHOS_GUI_COLOR_INDIGO, 0);
+	map_add_strkey(&color_names, "LIGHT_INDIGO", PHOS_GUI_COLOR_LIGHT_INDIGO, 0);
+	map_add_strkey(&color_names, "DARK_INDIGO", PHOS_GUI_COLOR_DARK_INDIGO, 0);
+	map_add_strkey(&color_names, "BRIGHT_INDIGO", PHOS_GUI_COLOR_BRIGHT_INDIGO, 0);
+	map_add_strkey(&color_names, "DULL_INDIGO", PHOS_GUI_COLOR_DULL_INDIGO,0);
+
+	map_add_strkey(&color_names, "CYAN", PHOS_GUI_COLOR_CYAN, 0);
+	map_add_strkey(&color_names, "LIGHT_CYAN", PHOS_GUI_COLOR_LIGHT_CYAN, 0);
+	map_add_strkey(&color_names, "DARK_CYAN", PHOS_GUI_COLOR_DARK_CYAN, 0);
+	map_add_strkey(&color_names, "BRIGHT_CYAN", PHOS_GUI_COLOR_BRIGHT_CYAN, 0);
+	map_add_strkey(&color_names, "DULL_CYAN", PHOS_GUI_COLOR_DULL_CYAN,0);
+
+	map_add_strkey(&color_names, "MINT", PHOS_GUI_COLOR_MINT, 0);
+	map_add_strkey(&color_names, "LIGHT_MINT", PHOS_GUI_COLOR_LIGHT_MINT, 0);
+	map_add_strkey(&color_names, "DARK_MINT", PHOS_GUI_COLOR_DARK_MINT, 0);
+	map_add_strkey(&color_names, "BRIGHT_MINT", PHOS_GUI_COLOR_BRIGHT_MINT, 0);
+	map_add_strkey(&color_names, "DULL_MINT", PHOS_GUI_COLOR_DULL_MINT,0);
+
+	map_add_strkey(&color_names, "TEAL", PHOS_GUI_COLOR_TEAL, 0);
+	map_add_strkey(&color_names, "LIGHT_TEAL", PHOS_GUI_COLOR_LIGHT_TEAL, 0);
+	map_add_strkey(&color_names, "DARK_TEAL", PHOS_GUI_COLOR_DARK_TEAL, 0);
+	map_add_strkey(&color_names, "BRIGHT_TEAL", PHOS_GUI_COLOR_BRIGHT_TEAL, 0);
+	map_add_strkey(&color_names, "DULL_TEAL", PHOS_GUI_COLOR_DULL_TEAL,0);
+
+	map_add_strkey(&color_names, "PINK", PHOS_GUI_COLOR_PINK, 0);
+	map_add_strkey(&color_names, "LIGHT_PINK", PHOS_GUI_COLOR_LIGHT_PINK, 0);
+	map_add_strkey(&color_names, "DARK_PINK", PHOS_GUI_COLOR_DARK_PINK, 0);
+	map_add_strkey(&color_names, "BRIGHT_PINK", PHOS_GUI_COLOR_BRIGHT_PINK, 0);
+	map_add_strkey(&color_names, "DULL_PINK", PHOS_GUI_COLOR_DULL_PINK,0);
+
+	map_add_strkey(&color_names, "MAGENTA", PHOS_GUI_COLOR_MAGENTA, 0);
+	map_add_strkey(&color_names, "LIGHT_MAGENTA", PHOS_GUI_COLOR_LIGHT_MAGENTA, 0);
+	map_add_strkey(&color_names, "DARK_MAGENTA", PHOS_GUI_COLOR_DARK_MAGENTA, 0);
+	map_add_strkey(&color_names, "BRIGHT_MAGENTA", PHOS_GUI_COLOR_BRIGHT_MAGENTA, 0);
+	map_add_strkey(&color_names, "DULL_MAGENTA", PHOS_GUI_COLOR_DULL_MAGENTA,0);
+
+	map_add_strkey(&color_names, "CRYSTAL", PHOS_GUI_COLOR_CRYSTAL, 0);
+	map_add_strkey(&color_names, "LIGHT_CRYSTAL", PHOS_GUI_COLOR_LIGHT_CRYSTAL, 0);
+	map_add_strkey(&color_names, "DARK_CRYSTAL", PHOS_GUI_COLOR_DARK_CRYSTAL, 0);
+	map_add_strkey(&color_names, "BRIGHT_CRYSTAL", PHOS_GUI_COLOR_BRIGHT_CRYSTAL, 0);
+	map_add_strkey(&color_names, "DULL_CRYSTAL", PHOS_GUI_COLOR_DULL_CRYSTAL,0);
+
+	map_add_strkey(&color_names, "SKY_BLUE", PHOS_GUI_COLOR_SKY_BLUE, 0);
+	map_add_strkey(&color_names, "LIGHT_SKY_BLUE", PHOS_GUI_COLOR_LIGHT_SKY_BLUE, 0);
+	map_add_strkey(&color_names, "DARK_SKY_BLUE", PHOS_GUI_COLOR_DARK_SKY_BLUE, 0);
+	map_add_strkey(&color_names, "BRIGHT_SKY_BLUE", PHOS_GUI_COLOR_BRIGHT_SKY_BLUE, 0);
+	map_add_strkey(&color_names, "DULL_SKY_BLUE", PHOS_GUI_COLOR_DULL_SKY_BLUE,0);
+
+	map_add_strkey(&color_names, "CORAL", PHOS_GUI_COLOR_CORAL, 0);
+	map_add_strkey(&color_names, "LIGHT_CORAL", PHOS_GUI_COLOR_LIGHT_CORAL, 0);
+	map_add_strkey(&color_names, "DARK_CORAL", PHOS_GUI_COLOR_DARK_CORAL, 0);
+	map_add_strkey(&color_names, "BRIGHT_CORAL", PHOS_GUI_COLOR_BRIGHT_CORAL, 0);
+	map_add_strkey(&color_names, "DULL_CORAL", PHOS_GUI_COLOR_DULL_CORAL,0);
+
+	map_add_strkey(&color_names, "AMBER", PHOS_GUI_COLOR_AMBER, 0);
+	map_add_strkey(&color_names, "LIGHT_AMBER", PHOS_GUI_COLOR_LIGHT_AMBER, 0);
+	map_add_strkey(&color_names, "DARK_AMBER", PHOS_GUI_COLOR_DARK_AMBER, 0);
+	map_add_strkey(&color_names, "BRIGHT_AMBER", PHOS_GUI_COLOR_BRIGHT_AMBER, 0);
+	map_add_strkey(&color_names, "DULL_AMBER", PHOS_GUI_COLOR_DULL_AMBER,0);
 
 	// enforce no additional text line spacing
 	SetTextLineSpacing(0);
@@ -1067,18 +1150,10 @@ static void move_icon(phos_gui_icon *icon, float x, float y)
 	icon->bounds.x += x;
 	icon->bounds.y += y;
 }
-static void move_children_and_icons(phos_gui_elem *elem, float x, float y, phos_gui_opts opts)
+static void move_children(phos_gui_elem *elem, float x, float y, phos_gui_opts opts)
 {
 	for(size_t i = 0; i < elem->num_children; ++i)
 		phos_gui_move_elem(elem->children[i], x, y, opts);
-
-	// pass changes down to icons as well
-	phos_gui_icon_list_component *icon_list = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
-	if(icon_list)
-	{
-		for(size_t i = 0; i < icon_list->num_icons; ++i)
-			move_icon(&icon_list->icons[i], x, y);
-	}
 }
 void phos_gui_move_elem(phos_gui_elem *elem, float x, float y, phos_gui_opts opts)
 {
@@ -1154,7 +1229,7 @@ void phos_gui_move_elem(phos_gui_elem *elem, float x, float y, phos_gui_opts opt
 	}
 	// if no collision occurred on the parent, its children can move
 	else
-		move_children_and_icons(elem, x, y, opts);
+		move_children(elem, x, y, opts);
 
 	// calculate all rects of elem in update loop
 	prepare_elem_rects_for_caching(elem);
@@ -1353,14 +1428,6 @@ static void resize_inner_contents(phos_gui_elem *elem, float w, float h, phos_gu
 
 		// but always realign text
 		realign_elem_texts(child);
-	}
-
-	// pass changes down to icons
-	phos_gui_icon_list_component *icon_list = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
-	if(icon_list)
-	{
-		for(size_t i = 0; i < icon_list->num_icons; ++i)
-			resize_icon(&icon_list->icons[i], w, h);
 	}
 
 	// pass changes down to text
@@ -2480,215 +2547,6 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 	prepare_elem_rects_for_caching(elem);
 }
 
-static bool get_icon_name(const char *str, char *buffer, size_t buffer_size)
-{
-	if(buffer_size == 0)
-		return false;
-
-	if(strncmp(str, "<icon=", 6) == 0)
-	{
-		// go to equals sign
-		const char *equals = str + 6;
-
-		char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
-
-		size_t i = 0;
-		while(*equals != '>' && *equals != ',' && i < sizeof(icon_name))
-			icon_name[i++] = *equals++;
-
-		icon_name[i] = '\0';
-
-		// place icon name into buffer
-		snprintf(buffer, buffer_size, "%s", icon_name);
-
-		return true;
-	}
-
-	vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon string. Make sure you are using the '<icon=ICON_NAME>' format!\n");
-	return false;
-}
-static bool get_alignment_name(const char *str, char *buffer, size_t buffer_size)
-{
-	if(buffer_size == 0)
-		return false;
-
-	// if no icon name parsed, automatic failure
-	char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
-	if(!get_icon_name(str, icon_name, sizeof(icon_name)))
-		return false;
-
-	// go to end of icon name in the string (the 6 comes from '<icon=')
-	const char *args_start = str + 6 + strlen(icon_name);
-
-	// walk until a ',' character is found
-	for(const char *p = args_start; *p; ++p)
-	{
-		// get char from *p
-		char c = *p;
-
-		// when a ',' is encountered, see if the next arg is 'align='
-		if(c == ',')
-		{
-			if(strncmp(p, ",align=", 7) == 0)
-			{
-				// go to equals sign
-				const char *equals = p + 7;
-
-				// now walk forward until another ',' or '>' is found
-				char alignment_name[PHOS_GUI_MAX_ALIGNMENT_NAME_LEN + 1];
-
-				size_t i = 0;
-				while(*equals != '>' && *equals != ',' && i < sizeof(alignment_name))
-					alignment_name[i++] = *equals++;
-
-				alignment_name[i] = '\0';
-
-				// place alignment name into buffer
-				snprintf(buffer, buffer_size, "%s", alignment_name);
-
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-// try to parse an 'align=' argument within an icon string
-static phos_gui_alignment parse_alignment_arg(const char *icon_str)
-{
-	// now see if an alignment is provided
-	char alignment_name[PHOS_GUI_MAX_ALIGNMENT_NAME_LEN + 1];
-	if(!get_alignment_name(icon_str, alignment_name, sizeof(alignment_name)))
-		return PHOS_GUI_ALIGN_INVALID;
-
-	// match alignment name in map
-	phos_gui_alignment *alignment = NULL;
-	dynmaps_get_strkey(&alignment_names, alignment_name, alignment);
-
-	if(!alignment)
-		vl_delay_log(VL_ERROR, 3.0f, "Unknown icon alignment name: '%s'!\n", alignment_name);
-
-	return alignment ? *alignment : PHOS_GUI_ALIGN_INVALID;
-}
-static bool get_color_name(const char *str, char *buffer, size_t buffer_size)
-{
-	if(buffer_size == 0)
-		return false;
-
-	// if no icon name parsed, automatic failure
-	char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
-	if(!get_icon_name(str, icon_name, sizeof(icon_name)))
-		return false;
-
-	// go to end of icon name in the string (6 comes from '<icon=')
-	const char *args_start = str + 6 + strlen(icon_name);
-
-	// walk until a ',' character is found
-	for(const char *p = args_start; *p; ++p)
-	{
-		// get char from *p
-		char c = *p;
-
-		// when a ',' is encountered, see if the next arg is 'color='
-		if(c == ',')
-		{
-			if(strncmp(p, ",color=", 7) == 0)
-			{
-				// go to equals sign
-				const char *equals = p + 7;
-
-				// now walk forward until another ',' or '>' is found
-				char color_name[PHOS_GUI_MAX_COLOR_NAME_LEN + 1];
-
-				size_t i = 0;
-				while(*equals != '>' && *equals != ',' && i < sizeof(color_name))
-					color_name[i++] = *equals++;
-
-				color_name[i] = '\0';
-
-				// place color name into buffer
-				snprintf(buffer, buffer_size, "%s", color_name);
-
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-// try to parse a 'color=' argument within an icon string
-static Color parse_color_arg(const char *icon_str)
-{
-	// now see if a color is provided
-	char color_name[PHOS_GUI_MAX_COLOR_NAME_LEN + 1];
-	if(!get_color_name(icon_str, color_name, sizeof(color_name)))
-		return BLANK;
-
-	// match color name in map
-	Color *color = NULL;
-	dynmaps_get_strkey(&color_names, color_name, color);
-
-	if(!color)
-		vl_delay_log(VL_ERROR, 3.0f, "Unknown icon color argument: '%s'!\n", color_name);
-
-	return color ? *color : BLANK;
-}
-static bool get_size(const char *str, char *buffer, size_t buffer_size)
-{
-	if(buffer_size == 0)
-		return false;
-
-	// if no icon name parsed, automatic failure
-	char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
-	if(!get_icon_name(str, icon_name, sizeof(icon_name)))
-		return false;
-
-	// go to end of icon name in the string (6 comes from '<icon=')
-	const char *args_start = str + 6 + strlen(icon_name);
-
-	// walk until a ',' character is found
-	for(const char *p = args_start; *p; ++p)
-	{
-		// get char from *p
-		char c = *p;
-
-		// when a ',' is encountered, see if the next arg is 'color='
-		if(c == ',')
-		{
-			if(strncmp(p, ",size=", 6) == 0)
-			{
-				// go to equals sign
-				const char *equals = p + 6;
-
-				// now walk forward until another ',' or '>' is found
-				char size_str[10];
-
-				size_t i = 0;
-				while(*equals != '>' && *equals != ',' && i < sizeof(size_str))
-					size_str[i++] = *equals++;
-
-				size_str[i] = '\0';
-
-				// place color name into buffer
-				snprintf(buffer, buffer_size, "%s", size_str);
-
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-// try to parse a 'size=' argument within an icon string
-static float parse_size_arg(const char *icon_str)
-{
-	// now see if a size is provided
-	char size_str[10];
-	if(!get_size(icon_str, size_str, sizeof(size_str)))
-		return 0.0f;
-
-	return strtof(size_str, NULL);
-}
 void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text)
 {
 	if(!elem)
@@ -2854,9 +2712,10 @@ static void unselect_first_checkbox(phos_gui_checkbox_list_component *list)
 	phos_gui_elem *first = list->selections[0];
 
 	// stop rendering its check mark icon
-	phos_gui_icon *check_mark_icon = phos_gui_find_elem_icon(first, PHOS_GUI_ICON_CHECK_MARK);
+	/*phos_gui_icon *check_mark_icon = phos_gui_find_elem_icon(first, PHOS_GUI_ICON_CHECK_MARK);
 	if(check_mark_icon)
-		check_mark_icon->visible = false;
+		check_mark_icon->visible = false;*/
+	// TODO FIXME add way to modify text args directly, maybe even make a function to do it
 
 	// remove first elem
 	memmove(list->selections, list->selections + 1, (list->num_options_selected - 1) * sizeof(phos_gui_elem*));
@@ -2878,15 +2737,17 @@ static void unselect_checkbox(phos_gui_elem *checkbox, phos_gui_checkbox_list_co
 static void toggle_checkbox(phos_gui_elem *elem, void *args, phos_gui_opts opts)
 {
 	// first, ensure elem has check mark icon
-	phos_gui_icon *check_mark_icon = phos_gui_find_elem_icon(elem, PHOS_GUI_ICON_CHECK_MARK);
+	/*phos_gui_icon *check_mark_icon = phos_gui_find_elem_icon(elem, PHOS_GUI_ICON_CHECK_MARK);
 	if(!check_mark_icon)
-		return;
+		return;*/
+	// TODO FIXME add way to modify text args directly, maybe even make a function do it
 
 	// see if elem belongs to a checkbox list
 	phos_gui_checkbox_list_component *checkbox_list = NULL;
 	if(elem->parent)
 		checkbox_list = pluto_cs_get_component(elem->parent, PHOS_GUI_COMPONENT_CHECKBOX_LIST);
-	if(checkbox_list)
+	// TODO FIXME
+	/*if(checkbox_list)
 	{
 		if(check_mark_icon->visible)
 			unselect_checkbox(elem, checkbox_list, check_mark_icon);
@@ -2899,7 +2760,7 @@ static void toggle_checkbox(phos_gui_elem *elem, void *args, phos_gui_opts opts)
 		}
 	}
 	else
-		check_mark_icon->visible = !check_mark_icon->visible;
+		check_mark_icon->visible = !check_mark_icon->visible;*/
 }
 void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *label_text)
 {
@@ -2910,18 +2771,7 @@ void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float 
 	}
 
 	// first init elem as a button (without text component)
-	phos_gui_init_button(elem, ID, x, y, w, h, PHOS_GUI_NO_TEXT);
-
-	// add check mark icon to checkbox
-	phos_gui_icon check_mark = {0};
-	phos_gui_init_icon(&check_mark, PHOS_GUI_ICON_CHECK_MARK, elem->bounds.x + (elem->bounds.width - PHOS_GUI_ICON_SIZE_DEFAULT) / 2.0f, elem->bounds.y + (elem->bounds.height - PHOS_GUI_ICON_SIZE_DEFAULT) / 2.0f);
-	// checkbox is not selected by default
-	check_mark.visible= false;
-
-	phos_gui_icon_list_component *icon_list = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
-	if(!icon_list)
-		phos_gui_exit(EXIT_FAILURE);
-	phos_gui_add_icon(icon_list, check_mark);
+	phos_gui_init_button(elem, ID, x, y, w, h, "<icon=CHECK_MARK,align=INNER_CENTER>");
 
 	// add way to toggle check mark
 	phos_gui_new_event_listener(elem, PHOS_GUI_EVENT_MOUSE_CLICK, MOUSE_BUTTON_LEFT, toggle_checkbox, NULL, PHOS_GUI_OPTS_NONE);
@@ -3448,96 +3298,7 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 
 	return 1;
 }
-int phos_gui_add_icon(phos_gui_icon_list_component *icon_list, phos_gui_icon icon)
-{
-	if(!icon_list)
-	{
-		vl_log(VL_ERROR, "Unable to add icon to a NULL icon list!\n");
-		return 0;
-	}
 
-	// get owner of icon list
-	phos_gui_elem *elem = pluto_cs_get_owner(icon_list);
-	if(!elem)
-	{
-		vl_log(VL_ERROR, "To add an icon to an icon list, it must have a valid owner!\n");
-		return 0;
-	}
-
-	if(icon_list->num_icons >= PHOS_GUI_MAX_ICONS)
-	{
-		vl_log(VL_ERROR, "This element cannot contain any more icons: '%s'!\n", elem->ID);
-		return 0;
-	}
-
-	// see if this would be a duplicate icon
-	if(phos_gui_find_elem_icon(elem, icon.ID))
-	{
-		vl_log(VL_ERROR, "This element '%s' already has this icon: %d!\n", elem->ID, icon.ID);
-		return 0;
-	}
-
-	icon_list->icons[icon_list->num_icons++] = icon;
-
-	vl_log(VL_SUCCESS, "Icon %d added to element '%s'!\n", icon.ID, elem->ID);
-
-	return 1;
-}
-int phos_gui_remove_icon(phos_gui_icon_list_component *icon_list, phos_gui_icon_id ID)
-{
-	if(!icon_list)
-	{
-		vl_log(VL_ERROR, "Cannot remove an icon from a NULL icon list!\n");
-		return 0;
-	}
-
-	// get owner of icon list
-	phos_gui_elem *elem = pluto_cs_get_owner(icon_list);
-	if(!elem)
-	{
-		vl_log(VL_ERROR, "To remove an icon from an icon list, it must have a valid owner!\n");
-		return 0;
-	}
-
-	// find icon in icons array
-	for(size_t i = 0; i < icon_list->num_icons; ++i)
-	{
-		phos_gui_icon *icon = &icon_list->icons[i];
-
-		if(icon->ID == ID)
-		{
-			// shift all icons to left
-			memmove(icon_list->icons + i, icon_list->icons + i + 1, (icon_list->num_icons - i - 1) * sizeof(phos_gui_icon));
-			icon_list->num_icons--;
-
-			vl_log(VL_SUCCESS, "Removed icon %d from element '%s'!\n", ID, elem->ID);
-			return 1;
-		}
-	}
-
-	// no match found
-	vl_log(VL_ERROR, "Failed to remove this icon %d from the element '%s'!\n", ID, elem->ID);
-	return 0;
-}
-phos_gui_icon *phos_gui_find_elem_icon(phos_gui_elem *elem, phos_gui_icon_id ID)
-{
-	if(!elem)
-	{
-		vl_delay_log(VL_ERROR, 5.0f, "Cannot determine if a NULL element has an icon!\n");
-		return NULL;
-	}
-
-	// get icon list
-	phos_gui_icon_list_component *icon_list = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
-	if(icon_list)
-	{
-		for(size_t i = 0; i < icon_list->num_icons; ++i)
-			if(icon_list->icons[i].ID == ID)
-				return &icon_list->icons[i];
-	}
-
-	return NULL;
-}
 phos_gui_elem *phos_gui_get_elem(const char *ID)
 {
 	if(!ID || strlen(ID) == 0)
@@ -4997,9 +4758,9 @@ static void update_anim(phos_gui_animation *anim, float dt)
 		if(anim->elem)
 		{
 			if(anim->curr_value == &anim->elem->bounds.x)
-				move_children_and_icons(anim->elem, total_change, 0.0f, anim->opts);
+				move_children(anim->elem, total_change, 0.0f, anim->opts);
 			else if(anim->curr_value == &anim->elem->bounds.y)
-				move_children_and_icons(anim->elem, 0.0f, total_change, anim->opts);
+				move_children(anim->elem, 0.0f, total_change, anim->opts);
 
 			if(anim->curr_value == &anim->elem->bounds.width)
 				resize_inner_contents(anim->elem, total_change, 0.0f, anim->opts);
@@ -5250,438 +5011,6 @@ static Color resolve_elem_outline_color(const phos_gui_elem *const e)
 	return color;	
 }
 
-static void render_children(phos_gui_elem *e, phos_gui_elem_bounding_box bounds);
-static void render_elem(phos_gui_elem *e)
-{
-	// skip disabled elems or elems that should not be auto-rendered
-	if(!e->visible)
-		return;
-
-	// cannot render invalid elements
-	if(e->type == PHOS_GUI_TYPE_INVALID)
-	{
-		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element with invalid type: '%s'!\n", e->ID);
-		return;
-	}
-	// skip elements with no render mode by going to render_children tag
-	else if(e->render_mode == PHOS_GUI_RENDER_BLANK)
-		goto render_children;
-
-	// get color of elem
-	const Color primary_color = resolve_elem_bg_color(e);
-
-	// if empty size, cannot render
-	if(e->bounds.width <= 0 || e->bounds.height <= 0)
-	{
-		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element '%s' with negative visual bounds: %.2f, %.2f!\n", e->ID, e->bounds.width, e->bounds.height);
-		return;
-	}
-
-	// create elem rects:
-	const Rectangle whole_content_bounds = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
-	const Rectangle usable_content_bounds = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
-
-	if(whole_content_bounds.width <= 0 || whole_content_bounds.height <= 0)
-	{
-		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element '%s' with negative content bounds: %.2f, %.2f!\n", e->ID, whole_content_bounds.width, whole_content_bounds.height);
-		return;
-	}
-	if(usable_content_bounds.width <= 0 || usable_content_bounds.height <= 0)
-	{
-		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element '%s' with negative usable content bounds: %.2f, %.2f!\n", e->ID, usable_content_bounds.width, usable_content_bounds.height);
-		return;
-	}
-
-	// draw elem texture if it has a texture component and render mode indicates the texture should be rendered
-	phos_gui_texture_component *texture = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXTURE);
-	if(e->render_mode == PHOS_GUI_RENDER_TEXTURE && texture && texture->src && IsTextureValid(*texture->src))
-	{
-		if(primary_color.a == 0)
-			vl_delay_log(VL_WARNING, 5.0f, "Cannot render element with 0 alpha: '%s'!\n", e->ID);
-
-		Rectangle src_rect = { 0, 0, texture->src->width, texture->src->height };
-		DrawTexturePro(*texture->src, src_rect, e->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, primary_color);
-	}
-	// else just draw base shape (if set)
-	else if(e->render_mode == PHOS_GUI_RENDER_FILL_OUTLINE || e->render_mode == PHOS_GUI_RENDER_FILL)
-	{
-		if(primary_color.a == 0)
-			vl_delay_log(VL_WARNING, 5.0f, "Cannot render element with 0 alpha: '%s'!\n", e->ID);
-
-		phos_gui_fill_shape(e->shape, e->bounds.x, e->bounds.y, e->bounds.width, e->bounds.height, e->outline_thickness, e->corner_radius, primary_color);
-	}
-
-	// render progress bar over background immediately
-	phos_gui_value_bar_component *value_bar = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_VALUE_BAR);
-	if(value_bar)
-	{
-		// calculate percentage of progress (curr / max)
-		float max_value = value_bar->max_value;
-		float curr_value = value_bar->curr_value;
-		float percentage_complete = curr_value / max_value;
-
-		/*
-		   draw rectangle starting at same position as element.
-		   it size is equal to 'percentage_complete' *
-		   element's width.
-		   */
-		float value_bar_width = percentage_complete * usable_content_bounds.width;
-
-		Rectangle progress_bar_rect = usable_content_bounds;
-		progress_bar_rect.width = value_bar_width;
-		DrawRectangleRec(progress_bar_rect, value_bar->progress_color);
-
-		// if value bar is a slider, render slider knob
-		if(value_bar->editable)
-		{
-			Rectangle slider_knob_rect;
-			get_slider_knob_rect(value_bar, &slider_knob_rect);
-
-			Color slider_knob_color = value_bar->slider_knob_has_focus ? value_bar->slider_knob_focus_color : value_bar->slider_knob_color;
-			phos_gui_fill_shape(value_bar->slider_knob_shape, slider_knob_rect.x, slider_knob_rect.y, slider_knob_rect.width, slider_knob_rect.height, 1.0f, value_bar->slider_knob_corner_radius, slider_knob_color);
-		}
-	}
-
-	// get mouse listener component
-	const phos_gui_mouse_listener_component *const mouse_listener = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
-
-	// get scroll pane component
-	const phos_gui_scroll_pane_component *const scroll_pane = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_SCROLL_PANE);
-
-	// render text component of element (if valid):
-	const phos_gui_text_component *const text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXT);
-	if(text)
-	{
-		// get placeholder data as well (will be NULL if no placeholder text extension found)
-		const phos_gui_placeholder_text_extension *const placeholder_text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
-
-		if(text->font && IsFontValid(*text->font))
-		{
-			if(text->font_size <= 0.0f || ColorIsEqual(text->color, BLANK))
-				vl_delay_log(VL_WARNING, 1.0f, "This element's ('%s') text component will not render correctly due to invalid font size, or the color's alpha is 0!\n", e->ID);
-			else
-			{
-				// create clip around text
-				Rectangle text_clip_bounds = usable_content_bounds;
-
-				/*
-				   begin scissor mode to cut off text that has been scrolled off (use usable content bounds)
-				*/
-				if(phos_gui_new_clip_r(text_clip_bounds))
-				{
-					// calculate where to draw the text
-					const Vector2 draw_pos = get_text_draw_pos(text, scroll_pane);
-
-					// determine if text's main text, or placeholder text should be rendered
-					if(placeholder_text && strlen(text->str) == 0 && strlen(placeholder_text->str) > 0)
-						phos_gui_render_text(e, *text->font, placeholder_text->str, draw_pos, text->font_size, placeholder_text->color);
-					else
-						phos_gui_render_text(e, *text->font, text->str, draw_pos, text->font_size, text->color);
-
-					// render cursor (only if placeholder text is not being rendered and text has focus)
-					if(strlen(text->str) > 0 && text->editable && mouse_listener && mouse_listener->has_focus)
-					{
-						Vector2 cursor_pos = get_cursor_draw_pos(text, scroll_pane);
-						Rectangle cursor_rect = { cursor_pos.x, cursor_pos.y, CURSOR_WIDTH, text->font_size };
-						DrawRectangleRec(cursor_rect, text->color);
-					}
-
-					// end clip
-					phos_gui_end_clip();
-				}
-			}
-		}
-		else
-			vl_delay_log(VL_ERROR, 5.0f, "Cannot render text component on element '%s' because it does not have a valid font!\n", e->ID);
-	}
-
-	// render label component of element (if valid):
-	const phos_gui_label_component *const label = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_LABEL);
-	if(label)
-	{
-		if(label->font && IsFontValid(*label->font))
-		{
-			if(label->font_size <= 0.0f || ColorIsEqual(label->color, BLANK))
-				vl_delay_log(VL_WARNING, 1.0f, "This element's ('%s') label component will not render correctly due to invalid font size, or the color's alpha is 0!\n", e->ID);
-			else
-				phos_gui_render_text(e, *label->font, label->str, get_label_draw_pos(label), label->font_size, label->color);
-		}
-		else
-			vl_delay_log(VL_ERROR, 5.0f, "Cannot render label component on element '%s' because it does not have a valid font!\n");
-	}
-
-	// see if this elem has a shadow component
-	phos_gui_shadow_component *shadow = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_SHADOW);
-	if(shadow)
-	{
-		// first, imagine shadow over entire element's visual bounds
-		Rectangle shadow_rect = e->bounds;
-
-		switch(shadow->edges)
-		{
-			case PHOS_GUI_SHADOW_LEFT:
-				shadow_rect.x = e->bounds.x - shadow->length;
-				shadow_rect.width = shadow->length;
-				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
-				break;
-
-			case PHOS_GUI_SHADOW_TOP:
-				shadow_rect.y = e->bounds.y - shadow->length;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
-				break;
-
-			case PHOS_GUI_SHADOW_RIGHT:
-				shadow_rect.x = e->bounds.x + e->bounds.width;
-				shadow_rect.width = shadow->length;
-				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
-				break;
-
-			case PHOS_GUI_SHADOW_BOTTOM:
-				shadow_rect.y = e->bounds.y + e->bounds.height;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
-				break;
-
-			case PHOS_GUI_SHADOW_TOP_LEFT:
-				shadow_rect.y = e->bounds.y - shadow->length;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
-
-				shadow_rect = e->bounds;
-				shadow_rect.x = e->bounds.x - shadow->length;
-				shadow_rect.width = shadow->length;
-				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
-
-				shadow_rect.x = e->bounds.x - shadow->length;
-				shadow_rect.y = e->bounds.y - shadow->length;
-				shadow_rect.width = shadow->length;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->fade_color, shadow->initial_color, shadow->fade_color);
-				break;
-
-			case PHOS_GUI_SHADOW_TOP_RIGHT:
-				shadow_rect.y = e->bounds.y - shadow->length;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
-
-				shadow_rect = e->bounds;
-				shadow_rect.x = e->bounds.x + e->bounds.width;
-				shadow_rect.width = shadow->length;
-				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
-
-				shadow_rect.x = e->bounds.x + e->bounds.width;
-				shadow_rect.y = e->bounds.y - shadow->length;
-				shadow_rect.width = shadow->length;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->initial_color, shadow->fade_color, shadow->fade_color);
-				break;
-
-			case PHOS_GUI_SHADOW_BOTTOM_LEFT:
-				shadow_rect.y = e->bounds.y + e->bounds.height;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
-
-				shadow_rect = e->bounds;
-				shadow_rect.x = e->bounds.x - shadow->length;
-				shadow_rect.width = shadow->length;
-				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
-
-				shadow_rect.x = e->bounds.x - shadow->length;
-				shadow_rect.y = e->bounds.y + e->bounds.height;
-				shadow_rect.width = shadow->length;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->fade_color, shadow->fade_color, shadow->initial_color);
-				break;
-
-			case PHOS_GUI_SHADOW_BOTTOM_RIGHT:
-				shadow_rect.y = e->bounds.y + e->bounds.height;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
-
-				shadow_rect = e->bounds;
-				shadow_rect.x = e->bounds.x + e->bounds.width;
-				shadow_rect.width = shadow->length;
-				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
-
-				shadow_rect.x = e->bounds.x + e->bounds.width;
-				shadow_rect.y = e->bounds.y + e->bounds.height;
-				shadow_rect.width = shadow->length;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientEx(shadow_rect, shadow->initial_color, shadow->fade_color, shadow->fade_color, shadow->fade_color);
-				break;
-
-			case PHOS_GUI_SHADOW_ALL:
-				// top left shadow
-				shadow_rect.y = e->bounds.y - shadow->length;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
-
-				shadow_rect = e->bounds;
-				shadow_rect.x = e->bounds.x - shadow->length;
-				shadow_rect.width = shadow->length;
-				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
-
-				shadow_rect.x = e->bounds.x - shadow->length;
-				shadow_rect.y = e->bounds.y - shadow->length;
-				shadow_rect.width = shadow->length;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->fade_color, shadow->initial_color, shadow->fade_color);
-
-				// bottom right shadow
-				shadow_rect = e->bounds;
-				shadow_rect.y = e->bounds.y + e->bounds.height;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
-
-				shadow_rect = e->bounds;
-				shadow_rect.x = e->bounds.x + e->bounds.width;
-				shadow_rect.width = shadow->length;
-				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
-
-				shadow_rect.x = e->bounds.x + e->bounds.width;
-				shadow_rect.y = e->bounds.y + e->bounds.height;
-				shadow_rect.width = shadow->length;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientEx(shadow_rect, shadow->initial_color, shadow->fade_color, shadow->fade_color, shadow->fade_color);
-
-				// top right corner
-				shadow_rect.x = e->bounds.x + e->bounds.width;
-				shadow_rect.y = e->bounds.y - shadow->length;
-				shadow_rect.width = shadow->length;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->initial_color, shadow->fade_color, shadow->fade_color);
-
-				// bottom left corner
-				shadow_rect.x = e->bounds.x - shadow->length;
-				shadow_rect.y = e->bounds.y + e->bounds.height;
-				shadow_rect.width = shadow->length;
-				shadow_rect.height = shadow->length;
-				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->fade_color, shadow->fade_color, shadow->initial_color);
-				break;
-
-			default:
-				vl_log(VL_ERROR, "A shadow component requires a valid position. See phos_gui_shadow_component.edges!\n");
-				break;
-		}
-	}
-
-	// render outline (if set)
-	if(e->render_mode == PHOS_GUI_RENDER_FILL_OUTLINE || e->render_mode == PHOS_GUI_RENDER_OUTLINE)
-	{
-		// if thickness is 0 or less, warn
-		if(e->outline_thickness <= 0.0f)
-			vl_delay_log(VL_WARNING, 5.0f, "Element's ('%s') outline thickness is invalid: %f\n", e->ID, e->outline_thickness);
-		else
-		{
-			// get outline color
-			Color outline_color = resolve_elem_outline_color(e);
-
-			if(outline_color.a == 0)
-				vl_delay_log(VL_WARNING, 5.0f, "Cannot render element outline with 0 alpha: '%s'!\n", e->ID);
-
-			phos_gui_outline_shape(e->shape, e->bounds.x, e->bounds.y, e->bounds.width, e->bounds.height, e->outline_thickness, e->corner_radius, outline_color);
-		}
-	}
-
-	// render drag bar if necessary (use_drag_bar is true)
-	phos_gui_drag_pane_component *drag_pane = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_DRAG_PANE);
-	if(drag_pane && drag_pane->use_drag_bar)
-	{
-		// get drag bar bounds
-		Rectangle drag_bar_rect;
-		get_drag_bar_rect(drag_pane, &drag_bar_rect);
-
-		// render drag bar
-		DrawRectangleRec(drag_bar_rect, drag_pane->drag_bar_color);
-	}
-
-	// should there be a clip rect around the element's children?
-	phos_gui_elem_bounding_box child_clip_bounds = PHOS_GUI_ELEM_BOUNDS_NONE;
-
-	// render scroll bar if necessary
-	if(scroll_pane)
-	{
-		// when using a scroll pane, clip around free content rect
-		child_clip_bounds = PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE;
-
-		// obtain bar and thumb rects
-		Rectangle v_bar, v_thumb, h_bar, h_thumb;
-		get_scroll_bar_rects(scroll_pane, &v_bar, &v_thumb, &h_bar, &h_thumb);
-
-		// resolve thumb color
-		Color v_thumb_color = scroll_pane->v_bar.thumb_has_focus || scroll_pane->v_bar.thumb_grabbed ? scroll_pane->v_bar.thumb_focus_color : scroll_pane->v_bar.thumb_color;
-		Color h_thumb_color = scroll_pane->h_bar.thumb_has_focus || scroll_pane->h_bar.thumb_grabbed ? scroll_pane->h_bar.thumb_focus_color : scroll_pane->h_bar.thumb_color;
-
-		// if rendering scroll bar:
-		if(scroll_pane->v_bar.rendered && scroll_pane->v_bar.active)
-		{
-			// render vertical scroll bar
-			DrawRectangleRec(v_bar, scroll_pane->v_bar.bg_color);
-
-			// render vertical scroll thumb based on thumb shape
-			switch(scroll_pane->v_bar.thumb_shape)
-			{
-				case PHOS_GUI_SHAPE_RECT:
-					DrawRectangleRec(v_thumb, v_thumb_color);
-					break;
-				case PHOS_GUI_SHAPE_ELLIPSE:
-					{
-						float v_thumb_rx = v_thumb.width / 2.0f;
-						float v_thumb_ry = v_thumb.height / 2.0f;
-
-						DrawEllipse(v_thumb.x + v_thumb_rx, v_thumb.y + v_thumb_ry, v_thumb_rx, v_thumb_ry, v_thumb_color);
-						break;
-					}
-				case PHOS_GUI_SHAPE_ROUND_RECT:
-					DrawRectangleRounded(v_thumb, scroll_pane->v_bar.thumb_corner_radius, ROUND_RECT_SEGMENTS, v_thumb_color);
-					break;
-				default:
-					vl_log(VL_ERROR, "Invalid scroll thumb shape: %d!\n", scroll_pane->v_bar.thumb_shape);
-					break;
-			}
-		}
-		if(scroll_pane->h_bar.rendered && scroll_pane->h_bar.active)
-		{
-			// render horizontal scroll bar
-			DrawRectangleRec(h_bar, scroll_pane->h_bar.bg_color);
-
-			// render horizontal scroll thumb based on thumb shape
-			switch(scroll_pane->h_bar.thumb_shape)
-			{
-				case PHOS_GUI_SHAPE_RECT:
-					DrawRectangleRec(h_thumb, h_thumb_color);
-					break;
-				case PHOS_GUI_SHAPE_ELLIPSE:
-					{
-						float h_thumb_rx = h_thumb.width / 2.0f;
-						float h_thumb_ry = h_thumb.height / 2.0f;
-
-						DrawEllipse(h_thumb.x + h_thumb_rx, h_thumb.y + h_thumb_ry, h_thumb_rx, h_thumb_ry, h_thumb_color);
-						break;
-					}
-				case PHOS_GUI_SHAPE_ROUND_RECT:
-					DrawRectangleRounded(h_thumb, scroll_pane->h_bar.thumb_corner_radius, ROUND_RECT_SEGMENTS, h_thumb_color);
-					break;
-				default:
-					vl_log(VL_ERROR, "Invalid scroll thumb shape: %d!\n", scroll_pane->h_bar.thumb_shape);
-					break;
-			}
-		}
-	}
-
-	// render child elements:
-	render_children:
-	render_children(e, child_clip_bounds);
-
-	// render icons on the element:
-	phos_gui_icon_list_component *icon_list = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_ICON_LIST);
-	if(icon_list)
-	{
-		for(size_t i = 0; i < icon_list->num_icons; ++i)
-			phos_gui_render_icon(&icon_list->icons[i]);
-	}
-}
 static void render_children(phos_gui_elem *e, phos_gui_elem_bounding_box bounds)
 {
 	// start a new clip around children based on bounding box given
@@ -5714,7 +5043,7 @@ static void render_children(phos_gui_elem *e, phos_gui_elem_bounding_box bounds)
 		else*/
 
 		// automatically inherit parent clip
-		render_elem(child);
+		phos_gui_render_elem(child);
 	}
 
 	// end clip if necessary
@@ -5735,7 +5064,7 @@ void phos_gui_render()
 		phos_gui_elem *elem = curr_gui->elems[i];
 
 		// render the element and its children
-		render_elem(elem);
+		phos_gui_render_elem(elem);
 	}
 
 	// handle screen tint
@@ -6330,7 +5659,426 @@ void phos_gui_render_elem(phos_gui_elem *elem)
 		return;
 	}
 
-	render_elem(elem);
+	// skip disabled elems or elems that should not be auto-rendered
+	if(!elem->visible)
+		return;
+
+	// cannot render invalid elements
+	if(elem->type == PHOS_GUI_TYPE_INVALID)
+	{
+		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element with invalid type: '%s'!\n", elem->ID);
+		return;
+	}
+	// skip elements with no render mode by going to render_children tag
+	else if(elem->render_mode == PHOS_GUI_RENDER_BLANK)
+		goto render_children;
+
+	// get color of elem
+	const Color primary_color = resolve_elem_bg_color(elem);
+
+	// if empty size, cannot render
+	if(elem->bounds.width <= 0 || elem->bounds.height <= 0)
+	{
+		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element '%s' with negative visual bounds: %.2f, %.2f!\n", elem->ID, elem->bounds.width, elem->bounds.height);
+		return;
+	}
+
+	// create elem rects:
+	const Rectangle whole_content_bounds = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	const Rectangle usable_content_bounds = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+
+	if(whole_content_bounds.width <= 0 || whole_content_bounds.height <= 0)
+	{
+		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element '%s' with negative content bounds: %.2f, %.2f!\n", elem->ID, whole_content_bounds.width, whole_content_bounds.height);
+		return;
+	}
+	if(usable_content_bounds.width <= 0 || usable_content_bounds.height <= 0)
+	{
+		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element '%s' with negative usable content bounds: %.2f, %.2f!\n", elem->ID, usable_content_bounds.width, usable_content_bounds.height);
+		return;
+	}
+
+	// draw elem texture if it has a texture component and render mode indicates the texture should be rendered
+	phos_gui_texture_component *texture = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXTURE);
+	if(elem->render_mode == PHOS_GUI_RENDER_TEXTURE && texture && texture->src && IsTextureValid(*texture->src))
+	{
+		if(primary_color.a == 0)
+			vl_delay_log(VL_WARNING, 5.0f, "Cannot render element with 0 alpha: '%s'!\n", elem->ID);
+
+		Rectangle src_rect = { 0, 0, texture->src->width, texture->src->height };
+		DrawTexturePro(*texture->src, src_rect, elem->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, primary_color);
+	}
+	// else just draw base shape (if set)
+	else if(elem->render_mode == PHOS_GUI_RENDER_FILL_OUTLINE || elem->render_mode == PHOS_GUI_RENDER_FILL)
+	{
+		if(primary_color.a == 0)
+			vl_delay_log(VL_WARNING, 5.0f, "Cannot render element with 0 alpha: '%s'!\n", elem->ID);
+
+		phos_gui_fill_shape(elem->shape, elem->bounds.x, elem->bounds.y, elem->bounds.width, elem->bounds.height, elem->outline_thickness, elem->corner_radius, primary_color);
+	}
+
+	// render progress bar over background immediately
+	phos_gui_value_bar_component *value_bar = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_VALUE_BAR);
+	if(value_bar)
+	{
+		// calculate percentage of progress (curr / max)
+		float max_value = value_bar->max_value;
+		float curr_value = value_bar->curr_value;
+		float percentage_complete = curr_value / max_value;
+
+		/*
+		   draw rectangle starting at same position as element.
+		   it size is equal to 'percentage_complete' *
+		   element's width.
+		   */
+		float value_bar_width = percentage_complete * usable_content_bounds.width;
+
+		Rectangle progress_bar_rect = usable_content_bounds;
+		progress_bar_rect.width = value_bar_width;
+		DrawRectangleRec(progress_bar_rect, value_bar->progress_color);
+
+		// if value bar is a slider, render slider knob
+		if(value_bar->editable)
+		{
+			Rectangle slider_knob_rect;
+			get_slider_knob_rect(value_bar, &slider_knob_rect);
+
+			Color slider_knob_color = value_bar->slider_knob_has_focus ? value_bar->slider_knob_focus_color : value_bar->slider_knob_color;
+			phos_gui_fill_shape(value_bar->slider_knob_shape, slider_knob_rect.x, slider_knob_rect.y, slider_knob_rect.width, slider_knob_rect.height, 1.0f, value_bar->slider_knob_corner_radius, slider_knob_color);
+		}
+	}
+
+	// get mouse listener component
+	const phos_gui_mouse_listener_component *const mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
+
+	// get scroll pane component
+	const phos_gui_scroll_pane_component *const scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
+
+	// render text component of element (if valid):
+	const phos_gui_text_component *const text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	if(text)
+	{
+		// get placeholder data as well (will be NULL if no placeholder text extension found)
+		const phos_gui_placeholder_text_extension *const placeholder_text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_PLACEHOLDER_TEXT);
+
+		if(text->font && IsFontValid(*text->font))
+		{
+			if(text->font_size <= 0.0f || ColorIsEqual(text->color, BLANK))
+				vl_delay_log(VL_WARNING, 1.0f, "This element's ('%s') text component will not render correctly due to invalid font size, or the color's alpha is 0!\n", elem->ID);
+			else
+			{
+				// create clip around text
+				Rectangle text_clip_bounds = usable_content_bounds;
+
+				/*
+				   begin scissor mode to cut off text that has been scrolled off (use usable content bounds)
+				*/
+				if(phos_gui_new_clip_r(text_clip_bounds))
+				{
+					// calculate where to draw the text
+					const Vector2 draw_pos = get_text_draw_pos(text, scroll_pane);
+
+					// determine if text's main text, or placeholder text should be rendered
+					if(placeholder_text && strlen(text->str) == 0 && strlen(placeholder_text->str) > 0)
+						phos_gui_render_text(elem, *text->font, placeholder_text->str, draw_pos, text->font_size, placeholder_text->color);
+					else
+						phos_gui_render_text(elem, *text->font, text->str, draw_pos, text->font_size, text->color);
+
+					// render cursor (only if placeholder text is not being rendered and text has focus)
+					if(strlen(text->str) > 0 && text->editable && mouse_listener && mouse_listener->has_focus)
+					{
+						Vector2 cursor_pos = get_cursor_draw_pos(text, scroll_pane);
+						Rectangle cursor_rect = { cursor_pos.x, cursor_pos.y, CURSOR_WIDTH, text->font_size };
+						DrawRectangleRec(cursor_rect, text->color);
+					}
+
+					// end clip
+					phos_gui_end_clip();
+				}
+			}
+		}
+		else
+			vl_delay_log(VL_ERROR, 5.0f, "Cannot render text component on element '%s' because it does not have a valid font!\n", elem->ID);
+	}
+
+	// render label component of element (if valid):
+	const phos_gui_label_component *const label = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_LABEL);
+	if(label)
+	{
+		if(label->font && IsFontValid(*label->font))
+		{
+			if(label->font_size <= 0.0f || ColorIsEqual(label->color, BLANK))
+				vl_delay_log(VL_WARNING, 1.0f, "This element's ('%s') label component will not render correctly due to invalid font size, or the color's alpha is 0!\n", elem->ID);
+			else
+				phos_gui_render_text(elem, *label->font, label->str, get_label_draw_pos(label), label->font_size, label->color);
+		}
+		else
+			vl_delay_log(VL_ERROR, 5.0f, "Cannot render label component on element '%s' because it does not have a valid font!\n");
+	}
+
+	// see if this elem has a shadow component
+	phos_gui_shadow_component *shadow = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SHADOW);
+	if(shadow)
+	{
+		// first, imagine shadow over entire element's visual bounds
+		Rectangle shadow_rect = elem->bounds;
+
+		switch(shadow->edges)
+		{
+			case PHOS_GUI_SHADOW_LEFT:
+				shadow_rect.x = elem->bounds.x - shadow->length;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+				break;
+
+			case PHOS_GUI_SHADOW_TOP:
+				shadow_rect.y = elem->bounds.y - shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+				break;
+
+			case PHOS_GUI_SHADOW_RIGHT:
+				shadow_rect.x = elem->bounds.x + elem->bounds.width;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+				break;
+
+			case PHOS_GUI_SHADOW_BOTTOM:
+				shadow_rect.y = elem->bounds.y + elem->bounds.height;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+				break;
+
+			case PHOS_GUI_SHADOW_TOP_LEFT:
+				shadow_rect.y = elem->bounds.y - shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+
+				shadow_rect = elem->bounds;
+				shadow_rect.x = elem->bounds.x - shadow->length;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+
+				shadow_rect.x = elem->bounds.x - shadow->length;
+				shadow_rect.y = elem->bounds.y - shadow->length;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->fade_color, shadow->initial_color, shadow->fade_color);
+				break;
+
+			case PHOS_GUI_SHADOW_TOP_RIGHT:
+				shadow_rect.y = elem->bounds.y - shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+
+				shadow_rect = elem->bounds;
+				shadow_rect.x = elem->bounds.x + elem->bounds.width;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+
+				shadow_rect.x = elem->bounds.x + elem->bounds.width;
+				shadow_rect.y = elem->bounds.y - shadow->length;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->initial_color, shadow->fade_color, shadow->fade_color);
+				break;
+
+			case PHOS_GUI_SHADOW_BOTTOM_LEFT:
+				shadow_rect.y = elem->bounds.y + elem->bounds.height;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+
+				shadow_rect = elem->bounds;
+				shadow_rect.x = elem->bounds.x - shadow->length;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+
+				shadow_rect.x = elem->bounds.x - shadow->length;
+				shadow_rect.y = elem->bounds.y + elem->bounds.height;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->fade_color, shadow->fade_color, shadow->initial_color);
+				break;
+
+			case PHOS_GUI_SHADOW_BOTTOM_RIGHT:
+				shadow_rect.y = elem->bounds.y + elem->bounds.height;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+
+				shadow_rect = elem->bounds;
+				shadow_rect.x = elem->bounds.x + elem->bounds.width;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+
+				shadow_rect.x = elem->bounds.x + elem->bounds.width;
+				shadow_rect.y = elem->bounds.y + elem->bounds.height;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->initial_color, shadow->fade_color, shadow->fade_color, shadow->fade_color);
+				break;
+
+			case PHOS_GUI_SHADOW_ALL:
+				// top left shadow
+				shadow_rect.y = elem->bounds.y - shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+
+				shadow_rect = elem->bounds;
+				shadow_rect.x = elem->bounds.x - shadow->length;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->fade_color, shadow->initial_color);
+
+				shadow_rect.x = elem->bounds.x - shadow->length;
+				shadow_rect.y = elem->bounds.y - shadow->length;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->fade_color, shadow->initial_color, shadow->fade_color);
+
+				// bottom right shadow
+				shadow_rect = elem->bounds;
+				shadow_rect.y = elem->bounds.y + elem->bounds.height;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientV(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+
+				shadow_rect = elem->bounds;
+				shadow_rect.x = elem->bounds.x + elem->bounds.width;
+				shadow_rect.width = shadow->length;
+				DrawRectangleGradientH(shadow_rect.x, shadow_rect.y, shadow_rect.width, shadow_rect.height, shadow->initial_color, shadow->fade_color);
+
+				shadow_rect.x = elem->bounds.x + elem->bounds.width;
+				shadow_rect.y = elem->bounds.y + elem->bounds.height;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->initial_color, shadow->fade_color, shadow->fade_color, shadow->fade_color);
+
+				// top right corner
+				shadow_rect.x = elem->bounds.x + elem->bounds.width;
+				shadow_rect.y = elem->bounds.y - shadow->length;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->initial_color, shadow->fade_color, shadow->fade_color);
+
+				// bottom left corner
+				shadow_rect.x = elem->bounds.x - shadow->length;
+				shadow_rect.y = elem->bounds.y + elem->bounds.height;
+				shadow_rect.width = shadow->length;
+				shadow_rect.height = shadow->length;
+				DrawRectangleGradientEx(shadow_rect, shadow->fade_color, shadow->fade_color, shadow->fade_color, shadow->initial_color);
+				break;
+
+			default:
+				vl_log(VL_ERROR, "A shadow component requires a valid position. See phos_gui_shadow_component.edges!\n");
+				break;
+		}
+	}
+
+	// render outline (if set)
+	if(elem->render_mode == PHOS_GUI_RENDER_FILL_OUTLINE || elem->render_mode == PHOS_GUI_RENDER_OUTLINE)
+	{
+		// if thickness is 0 or less, warn
+		if(elem->outline_thickness <= 0.0f)
+			vl_delay_log(VL_WARNING, 5.0f, "Element's ('%s') outline thickness is invalid: %f\n", elem->ID, elem->outline_thickness);
+		else
+		{
+			// get outline color
+			Color outline_color = resolve_elem_outline_color(elem);
+
+			if(outline_color.a == 0)
+				vl_delay_log(VL_WARNING, 5.0f, "Cannot render element outline with 0 alpha: '%s'!\n", elem->ID);
+
+			phos_gui_outline_shape(elem->shape, elem->bounds.x, elem->bounds.y, elem->bounds.width, elem->bounds.height, elem->outline_thickness, elem->corner_radius, outline_color);
+		}
+	}
+
+	// render drag bar if necessary (use_drag_bar is true)
+	phos_gui_drag_pane_component *drag_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_DRAG_PANE);
+	if(drag_pane && drag_pane->use_drag_bar)
+	{
+		// get drag bar bounds
+		Rectangle drag_bar_rect;
+		get_drag_bar_rect(drag_pane, &drag_bar_rect);
+
+		// render drag bar
+		DrawRectangleRec(drag_bar_rect, drag_pane->drag_bar_color);
+	}
+
+	// should there be a clip rect around the element's children?
+	phos_gui_elem_bounding_box child_clip_bounds = PHOS_GUI_ELEM_BOUNDS_NONE;
+
+	// render scroll bar if necessary
+	if(scroll_pane)
+	{
+		// when using a scroll pane, clip around free content rect
+		child_clip_bounds = PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE;
+
+		// obtain bar and thumb rects
+		Rectangle v_bar, v_thumb, h_bar, h_thumb;
+		get_scroll_bar_rects(scroll_pane, &v_bar, &v_thumb, &h_bar, &h_thumb);
+
+		// resolve thumb color
+		Color v_thumb_color = scroll_pane->v_bar.thumb_has_focus || scroll_pane->v_bar.thumb_grabbed ? scroll_pane->v_bar.thumb_focus_color : scroll_pane->v_bar.thumb_color;
+		Color h_thumb_color = scroll_pane->h_bar.thumb_has_focus || scroll_pane->h_bar.thumb_grabbed ? scroll_pane->h_bar.thumb_focus_color : scroll_pane->h_bar.thumb_color;
+
+		// if rendering scroll bar:
+		if(scroll_pane->v_bar.rendered && scroll_pane->v_bar.active)
+		{
+			// render vertical scroll bar
+			DrawRectangleRec(v_bar, scroll_pane->v_bar.bg_color);
+
+			// render vertical scroll thumb based on thumb shape
+			switch(scroll_pane->v_bar.thumb_shape)
+			{
+				case PHOS_GUI_SHAPE_RECT:
+					DrawRectangleRec(v_thumb, v_thumb_color);
+					break;
+				case PHOS_GUI_SHAPE_ELLIPSE:
+					{
+						float v_thumb_rx = v_thumb.width / 2.0f;
+						float v_thumb_ry = v_thumb.height / 2.0f;
+
+						DrawEllipse(v_thumb.x + v_thumb_rx, v_thumb.y + v_thumb_ry, v_thumb_rx, v_thumb_ry, v_thumb_color);
+						break;
+					}
+				case PHOS_GUI_SHAPE_ROUND_RECT:
+					DrawRectangleRounded(v_thumb, scroll_pane->v_bar.thumb_corner_radius, ROUND_RECT_SEGMENTS, v_thumb_color);
+					break;
+				default:
+					vl_log(VL_ERROR, "Invalid scroll thumb shape: %d!\n", scroll_pane->v_bar.thumb_shape);
+					break;
+			}
+		}
+		if(scroll_pane->h_bar.rendered && scroll_pane->h_bar.active)
+		{
+			// render horizontal scroll bar
+			DrawRectangleRec(h_bar, scroll_pane->h_bar.bg_color);
+
+			// render horizontal scroll thumb based on thumb shape
+			switch(scroll_pane->h_bar.thumb_shape)
+			{
+				case PHOS_GUI_SHAPE_RECT:
+					DrawRectangleRec(h_thumb, h_thumb_color);
+					break;
+				case PHOS_GUI_SHAPE_ELLIPSE:
+					{
+						float h_thumb_rx = h_thumb.width / 2.0f;
+						float h_thumb_ry = h_thumb.height / 2.0f;
+
+						DrawEllipse(h_thumb.x + h_thumb_rx, h_thumb.y + h_thumb_ry, h_thumb_rx, h_thumb_ry, h_thumb_color);
+						break;
+					}
+				case PHOS_GUI_SHAPE_ROUND_RECT:
+					DrawRectangleRounded(h_thumb, scroll_pane->h_bar.thumb_corner_radius, ROUND_RECT_SEGMENTS, h_thumb_color);
+					break;
+				default:
+					vl_log(VL_ERROR, "Invalid scroll thumb shape: %d!\n", scroll_pane->h_bar.thumb_shape);
+					break;
+			}
+		}
+	}
+
+	// render child elements:
+	render_children:
+	render_children(elem, child_clip_bounds);
 }
 void phos_gui_render_icon(phos_gui_icon *icon)
 {
@@ -6344,6 +6092,10 @@ void phos_gui_render_icon(phos_gui_icon *icon)
 	if(!icon->visible)
 		return;
 
+	// icons with empty or invalid size do not render
+	if(icon->bounds.width <= 0.0f || icon->bounds.height <= 0.0f)
+		return;
+
 	// try to obtain icon texture
 	Texture2D *tex = phos_gui_get_icon_id(icon->ID);
 	if(!tex)
@@ -6355,6 +6107,147 @@ void phos_gui_render_icon(phos_gui_icon *icon)
 	Rectangle src_rect = { 0, 0, PHOS_GUI_ICON_SIZE_DEFAULT, PHOS_GUI_ICON_SIZE_DEFAULT };
 	DrawTexturePro(*tex, src_rect, icon->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, icon->color);
 }
+static bool parse_icon_name(const char *str, char *buffer, size_t buffer_size)
+{
+	if(buffer_size == 0)
+		return false;
+
+	if(strncmp(str, "<icon=", 6) == 0)
+	{
+		// go to equals sign
+		const char *equals = str + 6;
+
+		char icon_name[MAX_ICON_PARSED_STR_LEN + 1];
+
+		size_t i = 0;
+		while(*equals != '>' && *equals != ',' && i < sizeof(icon_name))
+			icon_name[i++] = *equals++;
+
+		icon_name[i] = '\0';
+
+		// place icon name into buffer
+		snprintf(buffer, buffer_size, "%s", icon_name);
+
+		return true;
+	}
+
+	return false;
+}
+/*
+   parse a generic 'ARG' argument within an icon string:
+
+   str: should point to the first character directly after the end of the icon name
+   buffer: where the parsed icon arg value should be printed
+   buffer_size: size of 'buffer'
+   arg: the argument to search for
+   arg_len: the length of 'arg'
+*/
+static bool parse_icon_arg(const char *str, char *buffer, size_t buffer_size, const char *arg, size_t arg_len)
+{
+	if(buffer_size == 0)
+		return false;
+
+	/*
+	   begin at the start of the args list and walk forward until a ',' is found:
+
+	   since args_start points to the first character after the icon's name, if
+	   there are any arguments present, p should point to the first ',' in the string.
+	*/
+	for(const char *p = str; *p; ++p)
+	{
+		// get char
+		char c = *p;
+
+		// when a ',' is encountered, compare arg to the string after ','
+		if(c == ',')
+		{
+			// push 'p' forward one character to skip the ','
+			p++;
+
+			// compare the next region of the string against the target arg
+			if(strncmp(p, arg, arg_len) == 0)
+			{
+				// go to where a '=' should be, and ensure there is one
+				const char *equals = p + arg_len;
+
+				// ensure this char is '='
+				if(*equals != '=')
+				{
+					vl_delay_log(VL_ERROR, 3.0f, "Expected '=' after icon argument: '%s'!\n", arg);
+					return false;
+				}
+				// then move onto the character after the '='
+				equals++;
+
+				// place arg value into buffer
+				char arg_value[MAX_ICON_PARSED_STR_LEN + 1];
+
+				size_t i = 0;
+				while(*equals != '>' && *equals != ',' && i < sizeof(arg_value))
+					arg_value[i++] = *equals++;
+
+				arg_value[i] = '\0';
+
+				snprintf(buffer, buffer_size, "%s", arg_value);
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+/*
+   parse a generic flag within an icon string:
+
+   str: should point to the first character directly after the end of the icon name
+   flag: the flag to search for
+   flag_len: the length of 'flag'
+
+   unlike parsing arguments, flags do not have '=value' regions
+*/
+static bool parse_icon_flag(const char *str, const char *flag, size_t flag_len)
+{
+	/*
+	   begin at the start of the args/flags list and walk forward until a ',' is found:
+
+	   just like in parse_icon_arg, p should point to the first ',' after the icon name
+	*/
+	for(const char *p = str; *p; ++p)
+	{
+		// get char
+		char c = *p;
+
+		// when a ',' is encountered, compare flag to the string after ','
+		if(c == ',')
+		{
+			// push 'p' forward one character to skip the ','
+			p++;
+
+			// compare the next region of the string against the target flag
+			if(strncmp(p, flag, flag_len) == 0)
+			{
+				// go to where the next ',' should be, and ensure there is one
+				const char *next_comma = p + flag_len;
+
+				// ensure this char is ','
+				if(*next_comma != ',')
+				{
+					vl_delay_log(VL_ERROR, 3.0f, "Expected ',' after icon flag: '%s'!\n", flag);
+					return false;
+				}
+
+				// as long as the region of the string matched and a comma was found, the flag is present
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+// generic macro for finding start of args list within an icon string (origin + 6 (length of '<icon=') + length of icon name)
+#define icon_args_start(origin, icon_name) (origin) + 6 + strlen((icon_name))
+
 Vector2 phos_gui_measure_text(Font font, const char *text, float font_size)
 {
 	Vector2 v = {0};
@@ -6377,11 +6270,26 @@ Vector2 phos_gui_measure_text(Font font, const char *text, float font_size)
 		}
 
 		// see if it's start of an icon
-		char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
-		if(get_icon_name(p, icon_name, sizeof(icon_name)))
+		char icon_name[MAX_ICON_PARSED_STR_LEN + 1];
+		if(parse_icon_name(p, icon_name, sizeof(icon_name)))
 		{
-			// width of an icon is just the font size
-			line_width += font_size;
+			// search for a size arg:
+			char size_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
+			bool size_arg_present = parse_icon_arg(icon_args_start(p, icon_name), size_arg_buf, sizeof(size_arg_buf), "size", 4);
+			if(size_arg_present)
+			{
+				// get actual float value from string
+				char *endptr = NULL;
+				float icon_size = strtof(size_arg_buf, &endptr);
+				if(endptr != size_arg_buf && icon_size != 0.0f)
+					line_width += icon_size;
+				else
+					// if parsing icon size failed, default to font size
+					line_width += font_size;
+			}
+			else
+				// if no size specified by user, default to font size
+				line_width += font_size;
 
 			// p should now point to the first char after the ending '>' char
 			while(*p && *p != '>')
@@ -6441,15 +6349,15 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 		}
 
 		// see if an icon should be rendered
-		char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
+		char icon_name[MAX_ICON_PARSED_STR_LEN + 1];
 		phos_gui_icon_id icon_id = -1;
-		if(get_icon_name(p, icon_name, sizeof(icon_name)))
+		if(parse_icon_name(p, icon_name, sizeof(icon_name)))
 		{
 			phos_gui_icon_id *icon_id = NULL;
 			dynmaps_get_strkey(&icon_names, icon_name, icon_id);
 			if(icon_id)
 			{
-				// render icon texture
+				// get icon data
 				Texture2D *icon_tex = phos_gui_get_icon_id(*icon_id);
 
 				phos_gui_icon icon = {0};
@@ -6458,23 +6366,94 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 				icon.visible = true;
 				icon.bounds = (Rectangle) { draw_pos.x, draw_pos.y, font_size, font_size };
 
+				// icon args start directly after name of icon
+				const char *args_start = icon_args_start(p, icon_name);
+
 				// see if this icon should be colored differently:
-				Color icon_color = parse_color_arg(p);
-				if(!ColorIsEqual(icon_color, BLANK))
-					icon.color = icon_color;
+				char color_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
+				bool color_arg_present = parse_icon_arg(args_start, color_arg_buf, sizeof(color_arg_buf), "color", 5);
+				if(color_arg_present)
+				{
+					// get actual color value from color map
+					Color *icon_color = NULL;
+					dynmaps_get_strkey(&color_names, color_arg_buf, icon_color);
+					if(icon_color && !ColorIsEqual(*icon_color, BLANK))
+						icon.color = *icon_color;
+					else
+						vl_delay_log(VL_ERROR, 3.0f, "Unknown color argument: '%s'!\n", color_arg_buf);
+				}
 
 				// see if the icon size should be overridden
-				float icon_size = parse_size_arg(p);
-				if(icon_size != 0.0f)
-					icon.bounds.width = icon.bounds.height = icon_size;
+				char size_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
+				bool size_arg_present = parse_icon_arg(args_start, size_arg_buf, sizeof(size_arg_buf), "size", 4);
+				if(size_arg_present)
+				{
+					// get actual float value from string
+					char *endptr = NULL;
+					float icon_size = strtof(size_arg_buf, &endptr);
+					if(endptr != size_arg_buf && icon_size >= 0.0f)
+					{
+						if(icon_size == 0.0f)
+							vl_delay_log(VL_WARNING, 5.0f, "An icon size argument of 0 results in the icon not rendering!\n");
+						icon.bounds.width = icon.bounds.height = icon_size;
+					}
+					else
+						vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon size argument: '%s'!\n", size_arg_buf);
+				}
+
+				// if the user provides a 'size' argument, that takes priority over any 'width' or 'height' arguments:
+				char width_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
+				bool width_arg_present = parse_icon_arg(args_start, width_arg_buf, sizeof(width_arg_buf), "width", 5);
+				if(!size_arg_present && width_arg_present)
+				{
+					char *endptr = NULL;
+					float icon_width = strtof(width_arg_buf, &endptr);
+					if(endptr != width_arg_buf && icon_width >= 0.0f)
+					{
+						if(icon_width == 0.0f)
+							vl_delay_log(VL_WARNING, 5.0f, "An icon width of 0 results in the icon not rendering!\n");
+						icon.bounds.width = icon_width;
+					}
+					else
+						vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon width argument: '%s'!\n", width_arg_buf);
+				}
+				else if(size_arg_present && width_arg_present)
+					vl_delay_log(VL_WARNING, 5.0f, "Cannot use the 'width' argument as well as the 'size' argument in an icon string! The 'size' argument takes priority.\n");
+
+				char height_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
+				bool height_arg_present = parse_icon_arg(args_start, height_arg_buf, sizeof(height_arg_buf), "height", 6);
+				if(!size_arg_present && height_arg_present)
+				{
+					char *endptr = NULL;
+					float icon_height = strtof(height_arg_buf, &endptr);
+					if(endptr != height_arg_buf && icon_height >= 0.0f)
+					{
+						if(icon_height == 0.0f)
+							vl_delay_log(VL_WARNING, 5.0f, "An icon height of 0 results in the icon not rendering!\n");
+						icon.bounds.height = icon_height;
+					}
+					else
+						vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon height argument: '%s'!\n", height_arg_buf);
+				}
+				else if(size_arg_present && height_arg_present)
+					vl_delay_log(VL_WARNING, 5.0f, "Cannot use the 'height' argument as well as the 'size' argument in an icon string! The 'size' argument takes priority.\n");
 
 				// see if this icon should be aligned specifically:
-				phos_gui_alignment icon_alignment = parse_alignment_arg(p);
-				if(icon_alignment != PHOS_GUI_ALIGN_INVALID)
+				char alignment_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
+				bool alignment_arg_present = parse_icon_arg(args_start, alignment_arg_buf, sizeof(alignment_arg_buf), "align", 5);
+				if(alignment_arg_present)
 				{
-					Vector2 aligned_pos = get_proposed_align_pos(phos_gui_get_rect_size(icon.bounds), icon_alignment, reference_elem);
-					icon.bounds.x = aligned_pos.x;
-					icon.bounds.y = aligned_pos.y;
+					// get actual alignment value from alignment map
+					phos_gui_alignment *icon_alignment = NULL;
+					dynmaps_get_strkey(&alignment_names, alignment_arg_buf, icon_alignment);
+					if(icon_alignment && *icon_alignment != PHOS_GUI_ALIGN_INVALID)
+					{
+						Vector2 aligned_pos = get_proposed_align_pos(phos_gui_get_rect_size(icon.bounds), *icon_alignment, reference_elem);
+						icon.bounds.x = aligned_pos.x;
+						icon.bounds.y = aligned_pos.y;
+					}
+					else
+						vl_delay_log(VL_ERROR, 3.0f, "Unknown alignment argument: '%s'!\n", alignment_arg_buf);
 				}
 
 				phos_gui_render_icon(&icon);
@@ -6629,17 +6608,6 @@ void phos_gui_apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
 		value_bar->progress_color = ColorBrightness(theme.bg_color, -0.2f);
 		value_bar->slider_knob_color = ColorBrightness(value_bar->progress_color, -0.4f);
 		value_bar->slider_knob_focus_color = ColorBrightness(value_bar->progress_color, -0.2f);
-	}
-
-	// apply icon color to all icons in the elem
-	phos_gui_icon_list_component *icon_list = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_ICON_LIST);
-	if(icon_list)
-	{
-		for(size_t i = 0; i < icon_list->num_icons; ++i)
-		{
-			phos_gui_icon *icon = &icon_list->icons[i];
-			icon->color = theme.icon_color;
-		}
 	}
 
 	// force recalculation of elem rects because outline thickness changed:
@@ -6806,8 +6774,8 @@ Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon)
 }
 Texture2D *phos_gui_get_icon_str(const char *str, phos_gui_icon_id *out_icon_id)
 {
-	char icon_name[PHOS_GUI_MAX_ICON_NAME_LEN + 1];
-	if(get_icon_name(str, icon_name, sizeof(icon_name)))
+	char icon_name[MAX_ICON_PARSED_STR_LEN + 1];
+	if(parse_icon_name(str, icon_name, sizeof(icon_name)))
 	{
 		// now use icon name to obtain icon ID
 		phos_gui_icon_id *icon_id = NULL;
