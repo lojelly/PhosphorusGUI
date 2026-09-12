@@ -142,7 +142,7 @@
 /**
   The default size of icons in PhosphorusGUI.
 */
-#define PHOS_GUI_ICON_SIZE_DEFAULT PHOS_GUI_ICON_SIZE_MED
+#define PHOS_GUI_ICON_SIZE_DEFAULT PHOS_GUI_ICON_SIZE_LARGEST
 /**
   Small icon size.
 */
@@ -912,6 +912,10 @@ typedef enum phos_gui_shape
 typedef enum phos_gui_elem_render_mode
 {
 	/**
+	  Indicates the element should not be rendered.
+	*/
+	PHOS_GUI_RENDER_NONE,
+	/**
 	  The default type of all elements.
 
 	  Results in the element's shape being filled,
@@ -927,10 +931,8 @@ typedef enum phos_gui_elem_render_mode
 	*/
 	PHOS_GUI_RENDER_OUTLINE,
 	/**
-	  Indicates the element should not be rendered.
-
-	  In most cases, this will be combined with PHOS_GUI_TYPE_BLANK
-	  to create invisible elements.
+	  Indicates the element should just render without any
+	  background color or outline.
 	*/
 	PHOS_GUI_RENDER_BLANK,
 	/**
@@ -2346,6 +2348,10 @@ typedef enum phos_gui_icon_id
 	*/
 	PHOS_GUI_ICON_CHECK_MARK,
 	/**
+	  The copyright icon.
+	*/
+	PHOS_GUI_ICON_COPYRIGHT,
+	/**
 	  The download icon.
 	*/
 	PHOS_GUI_ICON_DOWNLOAD,
@@ -2453,6 +2459,14 @@ typedef enum phos_gui_icon_id
 	  The star icon.
 	*/
 	PHOS_GUI_ICON_STAR,
+	/**
+	  The registered trademark icon.
+	*/
+	PHOS_GUI_ICON_TRADEMARK_REGISTERED,
+	/**
+	  The unregistered trademark icon.
+	*/
+	PHOS_GUI_ICON_TRADEMARK_UNREGISTERED,
 	/**
 	  The trash can icon.
 	*/
@@ -3651,6 +3665,14 @@ PHOS_GUI_API void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_g
 */
 PHOS_GUI_API void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text);
 /**
+  Initializes an element and turns it into a label element.
+
+  Label elements are only used to render uneditable text.
+
+  By default, label elements come with just label components.
+*/
+PHOS_GUI_API void phos_gui_init_label(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *label_text);
+/**
   Initializes an element and turns it into a text field element.
 
   By default, text field elements come with mouse listener components,
@@ -3941,12 +3963,6 @@ PHOS_GUI_API bool phos_gui_is_mouse_over_rect(Rectangle r);
 PHOS_GUI_API phos_gui_elem *phos_gui_get_mouse_target(void);
 
 /**
-  Adds an event listener to the given phos_gui_elem.
-
-  @return 1 on success, 0 on failure.
-*/
-PHOS_GUI_API int phos_gui_add_event_listener(phos_gui_elem *elem, phos_gui_event_listener listener);
-/**
   Creates and adds an event listener to the given phos_gui.
 
   @param elem Points to the target element.
@@ -3960,10 +3976,8 @@ PHOS_GUI_API int phos_gui_add_event_listener(phos_gui_elem *elem, phos_gui_event
   into the action function.
   @param opts Any additional options you want to pass
   into the action function.
-
-  @see phos_gui_add_event_listener(phos_gui*, phos_gui_event_listener)
 */
-PHOS_GUI_API int phos_gui_new_event_listener(phos_gui_elem *elem, phos_gui_event_type event, int target_button, phos_gui_event_listener_action action, void *args, phos_gui_opts opts);
+PHOS_GUI_API int phos_gui_add_event_listener(phos_gui_elem *elem, phos_gui_event_type event, int target_button, phos_gui_event_listener_action action, void *args, phos_gui_opts opts);
 /**
   Removes an event listener from a phos_gui_elem.
 
@@ -3976,19 +3990,11 @@ PHOS_GUI_API int phos_gui_new_event_listener(phos_gui_elem *elem, phos_gui_event
 */
 PHOS_GUI_API int phos_gui_remove_event_listener(phos_gui_elem *elem, phos_gui_event_type event);
 /**
-  Adds a timer to the given phos_gui.
-
-  @return 1 on success, 0 on failure.
-*/
-PHOS_GUI_API int phos_gui_add_timer(phos_gui *gui, phos_gui_timer timer);
-/**
   Creates and adds a timer to the given phos_gui.
 
-  @see phos_gui_add_timer(phos_gui*, phos_gui_timer)
-
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_new_timer(phos_gui *gui, phos_gui_timer_action action, void *args, float target_time, int execution_count);
+PHOS_GUI_API int phos_gui_create_timer(phos_gui *gui, phos_gui_timer_action action, void *args, float target_time, int execution_count);
 /**
   Creates and adds an animation to the given phos_gui.
 
@@ -4270,18 +4276,22 @@ PHOS_GUI_API Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon);
 
   Possible arguments include:
 
-  'align'  : changes the alignment of the icon relative to its parent element
+  'align'    : changes the alignment of the icon relative to its parent element
 
-  'size'   : changes the width and height of the icon. Note that this argument makes the
+  'size'     : changes the width and height of the icon. Note that this argument makes the
   icon a square since the width and height are the same. Additionally, if
   you use the 'size' argument, you cannot also use the 'width' or 'height'
   arguments. The 'size' argument takes the most priority.
 
-  'width'  : changes only the width of the icon
+  'width'    : changes only the width of the icon
 
-  'height' : changes only the height of the icon
+  'height'   : changes only the height of the icon
 
-  'color'  : modifies the color of the icon
+  'color'    : modifies the color of the icon
+
+  'x-offset' " an offset to the icon's x-position
+
+  'y-offset' : an offset to the icon's y-position
 
 
   There are also flags you can pass into an icon string. Unlike arguments,

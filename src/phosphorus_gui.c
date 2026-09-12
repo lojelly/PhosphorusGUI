@@ -736,6 +736,7 @@ int phos_gui_init()
 	phos_gui_set_icon(PHOS_GUI_ICON_BOLT, "icons/bolt.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_CALENDAR, "icons/calendar.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_CHECK_MARK, "icons/check_mark.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_COPYRIGHT, "icons/copyright.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_DOWNLOAD, "icons/download.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_EXCLAMATION_MARK, "icons/exclamation_mark.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_EYE_CLOSED, "icons/eye_closed.png");
@@ -763,6 +764,8 @@ int phos_gui_init()
 	phos_gui_set_icon(PHOS_GUI_ICON_QUESTION_MARK, "icons/question_mark.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_SLIDERS, "icons/sliders.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_STAR, "icons/star.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_TRADEMARK_REGISTERED, "icons/trademark_registered.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_TRADEMARK_UNREGISTERED, "icons/trademark_unregistered.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_TRASH, "icons/trash.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_UPLOAD, "icons/upload.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_USER, "icons/user.png");
@@ -782,6 +785,7 @@ int phos_gui_init()
 	map_add_strkey(&icon_names, "BOLT", PHOS_GUI_ICON_BOLT, 0);
 	map_add_strkey(&icon_names, "CALENDAR", PHOS_GUI_ICON_CALENDAR, 0);
 	map_add_strkey(&icon_names, "CHECK_MARK", PHOS_GUI_ICON_CHECK_MARK, 0);
+	map_add_strkey(&icon_names, "COPYRIGHT", PHOS_GUI_ICON_COPYRIGHT, 0);
 	map_add_strkey(&icon_names, "DOWNLOAD", PHOS_GUI_ICON_DOWNLOAD, 0);
 	map_add_strkey(&icon_names, "EXCLAMATION_MARK", PHOS_GUI_ICON_EXCLAMATION_MARK, 0);
 	map_add_strkey(&icon_names, "EYE_CLOSED", PHOS_GUI_ICON_EYE_CLOSED, 0);
@@ -809,6 +813,8 @@ int phos_gui_init()
 	map_add_strkey(&icon_names, "QUESTION_MARK", PHOS_GUI_ICON_QUESTION_MARK, 0);
 	map_add_strkey(&icon_names, "SLIDERS", PHOS_GUI_ICON_SLIDERS, 0);
 	map_add_strkey(&icon_names, "STAR", PHOS_GUI_ICON_STAR, 0);
+	map_add_strkey(&icon_names, "TRADEMARK_REGISTERED", PHOS_GUI_ICON_TRADEMARK_REGISTERED, 0);
+	map_add_strkey(&icon_names, "TRADEMARK_UNREGISTERED", PHOS_GUI_ICON_TRADEMARK_UNREGISTERED, 0);
 	map_add_strkey(&icon_names, "TRASH", PHOS_GUI_ICON_TRASH, 0);
 	map_add_strkey(&icon_names, "UPLOAD", PHOS_GUI_ICON_UPLOAD, 0);
 	map_add_strkey(&icon_names, "USER", PHOS_GUI_ICON_USER, 0);
@@ -1588,7 +1594,7 @@ static Vector2 get_text_draw_pos(const phos_gui_text_component *const text, cons
 	Vector2 text_elem_pos = phos_gui_get_rect_pos(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE));
 	Vector2 text_pos = Vector2Add(text_elem_pos, text->offset);
 
-	// calculate where to draw the text based on scrolling (only if scroll pane is not null)
+	// calculate where to draw the text based on scrolling (only if scroll pane is not NULL)
 	if(scroll_pane)
 	{
 		if(scroll_pane->h_bar.active)
@@ -2494,7 +2500,7 @@ void phos_gui_init_icon(phos_gui_icon *icon, phos_gui_icon_id ID, float x, float
 {
 	if(!icon)
 	{
-		vl_log(VL_ERROR, "Cannot intitialize a null icon!\n");
+		vl_log(VL_ERROR, "Cannot intitialize a NULL icon!\n");
 		return;
 	}
 
@@ -2570,6 +2576,30 @@ void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y,
 		if(!text_component)
 			phos_gui_exit(EXIT_FAILURE);
 		phos_gui_set_text_contents(text_component, PHOS_GUI_TARGET_MAIN_TEXT, text, PHOS_GUI_OPTS_FIT_TEXT);
+	}
+
+	// re-apply theme to elem
+	phos_gui_apply_theme_to_elem(elem, phos_gui_get_theme());
+}
+void phos_gui_init_label(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *label_text)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot initialize a NULL element!\n");
+		return;
+	}
+
+	// init elem's basic attributes first
+	phos_gui_init_elem(elem, ID, PHOS_GUI_TYPE_BLANK, PHOS_GUI_RENDER_BLANK, x, y, w, h);
+
+	// create label component only if str is not "<no-text>"
+	if(strcmp(label_text, PHOS_GUI_NO_TEXT) != 0)
+	{
+		phos_gui_label_component *label_component = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_LABEL);
+		if(!label_component)
+			phos_gui_exit(EXIT_FAILURE);
+		phos_gui_write_str(label_component->str, "%s", label_text);
+		phos_gui_align_elem_label(label_component, PHOS_GUI_ALIGN_INNER_CENTER);
 	}
 
 	// re-apply theme to elem
@@ -2774,7 +2804,7 @@ void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float 
 	phos_gui_init_button(elem, ID, x, y, w, h, "<icon=CHECK_MARK,align=INNER_CENTER>");
 
 	// add way to toggle check mark
-	phos_gui_new_event_listener(elem, PHOS_GUI_EVENT_MOUSE_CLICK, MOUSE_BUTTON_LEFT, toggle_checkbox, NULL, PHOS_GUI_OPTS_NONE);
+	phos_gui_add_event_listener(elem, PHOS_GUI_EVENT_MOUSE_CLICK, MOUSE_BUTTON_LEFT, toggle_checkbox, NULL, PHOS_GUI_OPTS_NONE);
 
 	// make mouse listener a toggle mouse listener
 	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
@@ -2863,7 +2893,7 @@ void phos_gui_gen_bg_colors(phos_gui_mouse_listener_component *mouse_listener, f
 {
 	if(!mouse_listener)
 	{
-		vl_log(VL_ERROR, "Cannot generate colors on a null mouse listener component!\n");
+		vl_log(VL_ERROR, "Cannot generate colors on a NULL mouse listener component!\n");
 		return;
 	}
 
@@ -2882,7 +2912,7 @@ void phos_gui_gen_outline_colors(phos_gui_mouse_listener_component *mouse_listen
 {
 	if(!mouse_listener)
 	{
-		vl_log(VL_ERROR, "Cannot generate colors on a null mouse listener component!\n");
+		vl_log(VL_ERROR, "Cannot generate colors on a NULL mouse listener component!\n");
 		return;
 	}
 
@@ -3507,7 +3537,7 @@ phos_gui_elem *phos_gui_get_mouse_target()
 	return mouse_target;
 }
 
-int phos_gui_add_event_listener(phos_gui_elem *elem, phos_gui_event_listener listener)
+static int add_event_listener(phos_gui_elem *elem, phos_gui_event_listener listener)
 {
 	if(!elem)
 	{
@@ -3532,7 +3562,7 @@ int phos_gui_add_event_listener(phos_gui_elem *elem, phos_gui_event_listener lis
 
 	return 1;
 }
-int phos_gui_new_event_listener(phos_gui_elem *elem, phos_gui_event_type event, int target_button, phos_gui_event_listener_action action, void *args, phos_gui_opts opts)
+int phos_gui_add_event_listener(phos_gui_elem *elem, phos_gui_event_type event, int target_button, phos_gui_event_listener_action action, void *args, phos_gui_opts opts)
 {
 	if(!elem)
 	{
@@ -3553,7 +3583,7 @@ int phos_gui_new_event_listener(phos_gui_elem *elem, phos_gui_event_type event, 
 	listener.args = args;
 	listener.opts = opts;
 
-	return phos_gui_add_event_listener(elem, listener);
+	return add_event_listener(elem, listener);
 }
 int phos_gui_remove_event_listener(phos_gui_elem *elem, phos_gui_event_type event)
 {
@@ -3582,7 +3612,7 @@ int phos_gui_remove_event_listener(phos_gui_elem *elem, phos_gui_event_type even
 	vl_delay_log(VL_WARNING, 3.0f, "Failed to remove the event listener on '%s'! No matching event listener found!", elem->ID);
 	return 0;
 }
-int phos_gui_add_timer(phos_gui *gui, phos_gui_timer timer)
+static int add_timer(phos_gui *gui, phos_gui_timer timer)
 {
 	if(!gui)
 	{
@@ -3600,7 +3630,7 @@ int phos_gui_add_timer(phos_gui *gui, phos_gui_timer timer)
 
 	return 1;
 }
-int phos_gui_new_timer(phos_gui *gui, phos_gui_timer_action action, void *args, float target_time, int execution_count)
+int phos_gui_create_timer(phos_gui *gui, phos_gui_timer_action action, void *args, float target_time, int execution_count)
 {
 	phos_gui_timer timer = {0};
 	timer.target_time = target_time;
@@ -3608,7 +3638,7 @@ int phos_gui_new_timer(phos_gui *gui, phos_gui_timer_action action, void *args, 
 	timer.action = action;
 	timer.args = args;
 
-	return phos_gui_add_timer(gui, timer);
+	return add_timer(gui, timer);
 }
 static int add_animation(phos_gui *gui, phos_gui_animation animation)
 {
@@ -3905,7 +3935,7 @@ static void insert_char_text(phos_gui_text_component *text, char c, phos_gui_scr
 	// if the char inserted is '\n', reset scroll x on text component
 	if(c == '\n')
 	{
-		// only update scroll pane if it's not null
+		// only update scroll pane if it's not NULL
 		if(scroll_pane)
 			scroll_pane->scroll_x = 0.0f;
 		text->curr_line_len = 0;
@@ -5670,7 +5700,7 @@ void phos_gui_render_elem(phos_gui_elem *elem)
 		return;
 	}
 	// skip elements with no render mode by going to render_children tag
-	else if(elem->render_mode == PHOS_GUI_RENDER_BLANK)
+	else if(elem->render_mode == PHOS_GUI_RENDER_NONE)
 		goto render_children;
 
 	// get color of elem
@@ -6104,7 +6134,7 @@ void phos_gui_render_icon(phos_gui_icon *icon)
 		return;
 	}
 
-	Rectangle src_rect = { 0, 0, PHOS_GUI_ICON_SIZE_DEFAULT, PHOS_GUI_ICON_SIZE_DEFAULT };
+	Rectangle src_rect = { 0, 0, tex->width, tex->height };
 	DrawTexturePro(*tex, src_rect, icon->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, icon->color);
 }
 static bool parse_icon_name(const char *str, char *buffer, size_t buffer_size)
@@ -6115,18 +6145,21 @@ static bool parse_icon_name(const char *str, char *buffer, size_t buffer_size)
 	if(strncmp(str, "<icon=", 6) == 0)
 	{
 		// go to equals sign
-		const char *equals = str + 6;
+		const char *equals = str + 5;
 
-		char icon_name[MAX_ICON_PARSED_STR_LEN + 1];
+		if(*equals != '=')
+		{
+			vl_delay_log(VL_ERROR, 3.0f, "Expected '=' after icon name in string: '%s'!\n", str);
+			return false;
+		}
+		// then move onto character after '='
+		equals++;
 
 		size_t i = 0;
-		while(*equals != '>' && *equals != ',' && i < sizeof(icon_name))
-			icon_name[i++] = *equals++;
+		while(*equals && *equals != '>' && *equals != ',' && i + 1 < buffer_size)
+			buffer[i++] = *equals++;
 
-		icon_name[i] = '\0';
-
-		// place icon name into buffer
-		snprintf(buffer, buffer_size, "%s", icon_name);
+		buffer[i] = '\0';
 
 		return true;
 	}
@@ -6153,7 +6186,7 @@ static bool parse_icon_arg(const char *str, char *buffer, size_t buffer_size, co
 	   since args_start points to the first character after the icon's name, if
 	   there are any arguments present, p should point to the first ',' in the string.
 	*/
-	for(const char *p = str; *p; ++p)
+	for(const char *p = str; *p && *p != '>'; ++p)
 	{
 		// get char
 		char c = *p;
@@ -6179,16 +6212,11 @@ static bool parse_icon_arg(const char *str, char *buffer, size_t buffer_size, co
 				// then move onto the character after the '='
 				equals++;
 
-				// place arg value into buffer
-				char arg_value[MAX_ICON_PARSED_STR_LEN + 1];
-
 				size_t i = 0;
-				while(*equals != '>' && *equals != ',' && i < sizeof(arg_value))
-					arg_value[i++] = *equals++;
+				while(*equals && *equals != '>' && *equals != ',' && i + 1 < buffer_size)
+					buffer[i++] = *equals++;
 
-				arg_value[i] = '\0';
-
-				snprintf(buffer, buffer_size, "%s", arg_value);
+				buffer[i] = '\0';
 
 				return true;
 			}
@@ -6227,11 +6255,11 @@ static bool parse_icon_flag(const char *str, const char *flag, size_t flag_len)
 			// compare the next region of the string against the target flag
 			if(strncmp(p, flag, flag_len) == 0)
 			{
-				// go to where the next ',' should be, and ensure there is one
-				const char *next_comma = p + flag_len;
+				// go to where the next ',' or '>' should be, and ensure there is one
+				const char *next = p + flag_len;
 
-				// ensure this char is ','
-				if(*next_comma != ',')
+				// ensure this char is ',' or '>'
+				if(*next != ',' || *next != '>')
 				{
 					vl_delay_log(VL_ERROR, 3.0f, "Expected ',' after icon flag: '%s'!\n", flag);
 					return false;
@@ -6245,7 +6273,7 @@ static bool parse_icon_flag(const char *str, const char *flag, size_t flag_len)
 
 	return false;
 }
-// generic macro for finding start of args list within an icon string (origin + 6 (length of '<icon=') + length of icon name)
+// generic macro for finding start of args list within an icon string (origin + (length of '<icon=') + (length of '<icon=') + length of icon name)
 #define icon_args_start(origin, icon_name) (origin) + 6 + strlen((icon_name))
 
 Vector2 phos_gui_measure_text(Font font, const char *text, float font_size)
@@ -6454,6 +6482,32 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 					}
 					else
 						vl_delay_log(VL_ERROR, 3.0f, "Unknown alignment argument: '%s'!\n", alignment_arg_buf);
+				}
+
+				// see if icon should be moved
+				char x_offset_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
+				bool x_offset_arg_present = parse_icon_arg(args_start, x_offset_arg_buf, sizeof(x_offset_arg_buf), "x-offset", 8);
+				if(x_offset_arg_present)
+				{
+					// get actual x-offset value
+					char *endptr = NULL;
+					float x_offset = strtof(x_offset_arg_buf, &endptr);
+					if(endptr != x_offset_arg_buf)
+						icon.bounds.x += x_offset;
+					else
+						vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon x-offset argument: '%s'!\n", x_offset_arg_buf);
+				}
+				char y_offset_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
+				bool y_offset_arg_present = parse_icon_arg(args_start, y_offset_arg_buf, sizeof(y_offset_arg_buf), "y-offset", 8);
+				if(y_offset_arg_present)
+				{
+					// get actual y-offset value
+					char *endptr = NULL;
+					float y_offset = strtof(y_offset_arg_buf, &endptr);
+					if(endptr != y_offset_arg_buf)
+						icon.bounds.y += y_offset;
+					else
+						vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon y-offset argument: '%s'!\n", y_offset_arg_buf);
 				}
 
 				phos_gui_render_icon(&icon);
@@ -6740,19 +6794,19 @@ Texture2D *phos_gui_load_texture(const char *file_path)
 		if(strcmp(textures.data[i].file_path, file_path) == 0)
 			return &textures.data[i].tex;
 	
-	Texture2D tex = LoadTexture(file_path);
+	Texture2D rl_tex = LoadTexture(file_path);
 
-	if(!IsTextureValid(tex))
+	if(!IsTextureValid(rl_tex))
 	{
 		vl_log(VL_ERROR, "Failed to load texture: '%s'!\n", file_path);
 		return NULL;
 	}
 
-	SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+	SetTextureFilter(rl_tex, TEXTURE_FILTER_POINT);
 
-	texture pg_tex = { .tex = tex, .file_path = file_path };
+	texture tex = { .tex = rl_tex, .file_path = file_path };
 
-	arr_add(&textures, pg_tex, NULL);
+	arr_add(&textures, tex, NULL);
 
 	vl_log(VL_SUCCESS, "Loaded texture: '%s'!\n", file_path);
 
@@ -6812,19 +6866,19 @@ Font *phos_gui_load_font(const char *file_path)
 		if(strcmp(fonts.data[i].file_path, file_path) == 0)
 			return &fonts.data[i].font;
 
-	Font f = LoadFontEx(file_path, PHOS_GUI_FONT_SIZE_GIGANTIC, NULL, 0);
+	Font rl_font = LoadFontEx(file_path, PHOS_GUI_FONT_SIZE_GIGANTIC, NULL, 0);
 
-	if(!IsFontValid(f))
+	if(!IsFontValid(rl_font))
 	{
 		vl_log(VL_ERROR, "Failed to load font: '%s'!\n", file_path);
 		return NULL;
 	}
 
-	SetTextureFilter(f.texture, TEXTURE_FILTER_POINT);
+	SetTextureFilter(rl_font.texture, TEXTURE_FILTER_POINT);
 
-	font pg_font = { .font = f, .file_path = file_path };
+	font font = { .font = rl_font, .file_path = file_path };
 
-	arr_add(&fonts, pg_font, NULL);
+	arr_add(&fonts, font, NULL);
 
 	vl_log(VL_SUCCESS, "Loaded font: '%s'!\n", file_path);
 
