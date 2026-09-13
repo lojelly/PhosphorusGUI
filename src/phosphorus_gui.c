@@ -173,8 +173,6 @@ static Rectangle clips[MAX_CLIPS];
 // current mouse target
 static phos_gui_elem *mouse_target = NULL;
 
-static Color screen_tint = BLANK;
-static Color window_bg_color = WHITE;
 static phos_gui_theme curr_theme = {0};
 
 #define assert_obj_ptr(obj, ptr, ...) \
@@ -286,7 +284,6 @@ static void init_mouse_listener_component(void *mouse_listener_component)
 	// re-apply theme to elem
 	phos_gui_apply_theme_to_elem(owner, phos_gui_get_theme());
 }
-static void force_calculate_elem_rects(phos_gui_elem *elem);
 static void init_text_component(void *text_component)
 {
 	if(!text_component)
@@ -404,158 +401,6 @@ static void init_layout_component(void *layout_component)
 	layout->auto_fit_children = true;
 	layout->clamp_parent = false;
 }
-
-static void calculate_elem_rects(phos_gui_elem *e);
-static Rectangle get_calculated_elem_rect(phos_gui_elem *elem, phos_gui_elem_bounding_box bounds)
-{
-	Rectangle r = {0};
-
-	// if no calculation for all rects necessary, perform exact calculation necessary
-	switch(bounds)
-	{
-		// skip switch statement and return invalid rect below
-		case PHOS_GUI_ELEM_BOUNDS_NONE:
-			return r;
-
-		// if obtaining real bounds, just return the elem's real bounds rect, as it never needs calculating
-		case PHOS_GUI_ELEM_BOUNDS_REAL:
-			r = elem->bounds;
-			break;
-
-		case PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL:
-			// if should cache, recalculate rect:
-			if(elem->content_total_bounds.should_calculate)
-			{
-				elem->content_total_bounds.rect = elem->bounds;
-				elem->content_total_bounds.rect.x += elem->left_padding;
-				elem->content_total_bounds.rect.y += elem->top_padding;
-				elem->content_total_bounds.rect.width -= (elem->right_padding + elem->left_padding);
-				elem->content_total_bounds.rect.height -= (elem->bottom_padding + elem->top_padding);
-
-				// include outline thickness when necessary
-				if(elem->render_mode == PHOS_GUI_RENDER_OUTLINE || elem->render_mode == PHOS_GUI_RENDER_FILL_OUTLINE)
-				{
-					elem->content_total_bounds.rect.x += elem->outline_thickness;
-					elem->content_total_bounds.rect.y += elem->outline_thickness;
-					elem->content_total_bounds.rect.width -= (elem->outline_thickness * 2.0f);
-					elem->content_total_bounds.rect.height -= (elem->outline_thickness * 2.0f);
-				}
-
-				// mark it as cached
-				elem->content_total_bounds.should_calculate = false;
-			}
-			r = elem->content_total_bounds.rect;
-			break;
-		case PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE:
-			// if should cache, recalculate rect:
-			if(elem->content_free_bounds.should_calculate)
-			{
-				elem->content_free_bounds.rect = elem->content_total_bounds.rect;
-
-				// check for scroll pane on this elem or its parent
-				phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
-				if((scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE)))
-				{
-					if(scroll_pane->v_bar.active && scroll_pane->v_bar.rendered)
-						elem->content_free_bounds.rect.width -= scroll_pane->v_bar.span;
-					if(scroll_pane->h_bar.active && scroll_pane->h_bar.rendered)
-						elem->content_free_bounds.rect.height -= scroll_pane->h_bar.span;
-				}
-				else
-				{
-					// get upper-most scroll pane on elem tree:
-					phos_gui_elem *parent = elem->parent;
-					while(parent && parent->parent)
-						parent = parent->parent;
-
-					if(parent)
-						scroll_pane = pluto_cs_get_component(parent, PHOS_GUI_COMPONENT_SCROLL_PANE);
-
-					if(scroll_pane)
-					{
-						if(scroll_pane->v_bar.active && scroll_pane->v_bar.rendered)
-							elem->content_free_bounds.rect.width -= scroll_pane->v_bar.span;
-						if(scroll_pane->h_bar.active && scroll_pane->h_bar.rendered)
-							elem->content_free_bounds.rect.height -= scroll_pane->h_bar.span;
-					}
-				}
-
-				// check for drag pane and drag bar
-				phos_gui_drag_pane_component *drag_pane = NULL;
-				if((drag_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_DRAG_PANE)))
-				{
-					// only modify usable content area if drag pane uses a drag bar
-					if(drag_pane->use_drag_bar)
-					{
-						// resize and shift content rect based on drag bar pos and orientation:
-						switch(drag_pane->drag_bar_orientation)
-						{
-							case PHOS_GUI_DRAG_BAR_HORIZONTAL_TOP:
-								elem->content_free_bounds.rect.y += drag_pane->span;
-								elem->content_free_bounds.rect.height -= drag_pane->span;
-								break;
-							case PHOS_GUI_DRAG_BAR_VERTICAL_LEFT:
-								elem->content_free_bounds.rect.x += drag_pane->span;
-								elem->content_free_bounds.rect.width -= drag_pane->span;
-								break;
-							case PHOS_GUI_DRAG_BAR_VERTICAL_RIGHT:
-								elem->content_free_bounds.rect.width -= drag_pane->span;
-								break;
-							case PHOS_GUI_DRAG_BAR_HORIZONTAL_BOTTOM:
-								elem->content_free_bounds.rect.height -= drag_pane->span;
-								break;
-							default:
-								vl_log(VL_ERROR, "Invalid drag bar orientation: %d!\n", drag_pane->drag_bar_orientation);
-								break;
-						}
-					}
-				}
-
-				// mark it as cached
-				elem->content_free_bounds.should_calculate = false;
-			}
-			r = elem->content_free_bounds.rect;
-			break;
-		case PHOS_GUI_ELEM_BOUNDS_TOTAL:
-			// if should cache, recalculate rect:
-			if(elem->total_bounds.should_calculate)
-			{
-				elem->total_bounds.rect = elem->bounds;
-				elem->total_bounds.rect.x -= elem->left_margin;
-				elem->total_bounds.rect.y -= elem->top_margin;
-				elem->total_bounds.rect.width = elem->bounds.width + elem->left_margin + elem->right_margin;
-				elem->total_bounds.rect.height = elem->bounds.height + elem->top_margin + elem->bottom_margin;
-
-				// mark it as cached
-				elem->total_bounds.should_calculate = false;
-			}
-			r = elem->total_bounds.rect;
-			break;
-		default:
-			vl_log(VL_ERROR, "Invalid element bounding box requested: %d!\n", bounds);
-			return r; // invalid rect
-	}
-
-	return r;
-}
-static void calculate_elem_rects(phos_gui_elem *e)
-{
-	e->total_bounds.rect = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_TOTAL);
-	e->content_total_bounds.rect = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
-	e->content_free_bounds.rect = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
-}
-static void prepare_elem_rects_for_caching(phos_gui_elem *elem)
-{
-	elem->total_bounds.should_calculate = true;
-	elem->content_total_bounds.should_calculate = true;
-	elem->content_free_bounds.should_calculate = true;
-}
-static void force_calculate_elem_rects(phos_gui_elem *e)
-{
-	prepare_elem_rects_for_caching(e);
-	calculate_elem_rects(e);
-}
-
 static void init_scroll_pane_component(void *scroll_pane_component)
 {
 	if(!scroll_pane_component)
@@ -586,7 +431,7 @@ static void init_scroll_pane_component(void *scroll_pane_component)
 	scroll_pane->h_bar.active = true;
 
 	// re-calculate elem rects instantly
-	force_calculate_elem_rects(owner);
+	phos_gui_reload_elem(owner);
 
 	// re-apply default theme to elem
 	phos_gui_apply_theme_to_elem(owner, phos_gui_get_theme());
@@ -607,8 +452,8 @@ static void init_drag_pane_component(void *drag_pane_component)
 	}
 
 	// get content rect
-	force_calculate_elem_rects(owner);
-	Rectangle owner_total_content = get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	phos_gui_reload_elem(owner);
+	Rectangle owner_total_content = phos_gui_get_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
 
 	drag_pane->drag_bar_orientation = PHOS_GUI_DRAG_BAR_HORIZONTAL_TOP;
 	drag_pane->drag_bar_color = PHOS_GUI_COLOR_LIGHT_GRAY;
@@ -618,7 +463,7 @@ static void init_drag_pane_component(void *drag_pane_component)
 	drag_pane->grabbed = false;
 
 	// re-calculate elem rects instantly
-	force_calculate_elem_rects(owner);
+	phos_gui_reload_elem(owner);
 
 	// re-apply default theme to elem
 	phos_gui_apply_theme_to_elem(owner, phos_gui_get_theme());
@@ -672,7 +517,7 @@ static void init_value_bar_component(void *value_bar_component)
 	value_bar->curr_value = 0.0f;
 	value_bar->slider_knob_shape = PHOS_GUI_SHAPE_RECT;
 	value_bar->slider_knob_corner_radius = 0.0f;
-	value_bar->slider_knob_span = phos_gui_get_rect_size(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE)).y * 2.5f;
+	value_bar->slider_knob_span = phos_gui_get_rect_size(phos_gui_get_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE)).y * 2.5f;
 	value_bar->slider_knob_grab_offset = 0.0f;
 	value_bar->slider_knob_color = WHITE;
 	value_bar->slider_knob_focus_color = PHOS_GUI_COLOR_GRAY;
@@ -1253,14 +1098,14 @@ void phos_gui_move_elem(phos_gui_elem *elem, float x, float y, phos_gui_opts opt
 		move_children(elem, x, y, opts);
 
 	// calculate all rects of elem in update loop
-	prepare_elem_rects_for_caching(elem);
+	phos_gui_reload_elem(elem);
 }
 
 static Vector2 get_proposed_align_pos(Vector2 target_object_size, phos_gui_alignment alignment, phos_gui_elem *reference_elem)
 {
 	// start at reference_rect origin
-	Rectangle whole_rect = get_calculated_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_TOTAL);
-	Rectangle whole_content_rect = get_calculated_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	Rectangle whole_rect = phos_gui_get_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_TOTAL);
+	Rectangle whole_content_rect = phos_gui_get_elem_rect(reference_elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
 
 	// define bounds
 	float outer_left = whole_rect.x;
@@ -1402,7 +1247,7 @@ static void resize_single_elem(phos_gui_elem *elem, float w, float h, phos_gui_o
 	elem->bounds.height = new_h;
 
 	// force new bounds update
-	force_calculate_elem_rects(elem);
+	phos_gui_reload_elem(elem);
 
 	phos_gui_text_component *elem_tx = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
 	if(elem_tx)
@@ -1547,7 +1392,135 @@ Vector2 phos_gui_get_elem_center_with_text(phos_gui_elem *elem)
 }
 Rectangle phos_gui_get_elem_rect(phos_gui_elem *elem, phos_gui_elem_bounding_box bounds)
 {
-	return get_calculated_elem_rect(elem, bounds);
+	Rectangle r = {0};
+
+	// if no calculation for all rects necessary, perform exact calculation necessary
+	switch(bounds)
+	{
+		// skip switch statement and return invalid rect below
+		case PHOS_GUI_ELEM_BOUNDS_NONE:
+			return r;
+
+			// if obtaining real bounds, just return the elem's real bounds rect, as it never needs calculating
+		case PHOS_GUI_ELEM_BOUNDS_REAL:
+			r = elem->bounds;
+			break;
+
+		case PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL:
+			// if should cache, recalculate rect:
+			if(elem->content_total_bounds.should_calculate)
+			{
+				elem->content_total_bounds.rect = elem->bounds;
+				elem->content_total_bounds.rect.x += elem->left_padding;
+				elem->content_total_bounds.rect.y += elem->top_padding;
+				elem->content_total_bounds.rect.width -= (elem->right_padding + elem->left_padding);
+				elem->content_total_bounds.rect.height -= (elem->bottom_padding + elem->top_padding);
+
+				// include outline thickness when necessary
+				if(elem->render_mode == PHOS_GUI_RENDER_OUTLINE || elem->render_mode == PHOS_GUI_RENDER_FILL_OUTLINE)
+				{
+					elem->content_total_bounds.rect.x += elem->outline_thickness;
+					elem->content_total_bounds.rect.y += elem->outline_thickness;
+					elem->content_total_bounds.rect.width -= (elem->outline_thickness * 2.0f);
+					elem->content_total_bounds.rect.height -= (elem->outline_thickness * 2.0f);
+				}
+
+				// mark it as cached
+				elem->content_total_bounds.should_calculate = false;
+			}
+			r = elem->content_total_bounds.rect;
+			break;
+		case PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE:
+			// if should cache, recalculate rect:
+			if(elem->content_free_bounds.should_calculate)
+			{
+				elem->content_free_bounds.rect = elem->content_total_bounds.rect;
+
+				// check for scroll pane on this elem or its parent
+				phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
+				if((scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE)))
+				{
+					if(scroll_pane->v_bar.active && scroll_pane->v_bar.rendered)
+						elem->content_free_bounds.rect.width -= scroll_pane->v_bar.span;
+					if(scroll_pane->h_bar.active && scroll_pane->h_bar.rendered)
+						elem->content_free_bounds.rect.height -= scroll_pane->h_bar.span;
+				}
+				else
+				{
+					// get upper-most scroll pane on elem tree:
+					phos_gui_elem *parent = elem->parent;
+					while(parent && parent->parent)
+						parent = parent->parent;
+
+					if(parent)
+						scroll_pane = pluto_cs_get_component(parent, PHOS_GUI_COMPONENT_SCROLL_PANE);
+
+					if(scroll_pane)
+					{
+						if(scroll_pane->v_bar.active && scroll_pane->v_bar.rendered)
+							elem->content_free_bounds.rect.width -= scroll_pane->v_bar.span;
+						if(scroll_pane->h_bar.active && scroll_pane->h_bar.rendered)
+							elem->content_free_bounds.rect.height -= scroll_pane->h_bar.span;
+					}
+				}
+
+				// check for drag pane and drag bar
+				phos_gui_drag_pane_component *drag_pane = NULL;
+				if((drag_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_DRAG_PANE)))
+				{
+					// only modify usable content area if drag pane uses a drag bar
+					if(drag_pane->use_drag_bar)
+					{
+						// resize and shift content rect based on drag bar pos and orientation:
+						switch(drag_pane->drag_bar_orientation)
+						{
+							case PHOS_GUI_DRAG_BAR_HORIZONTAL_TOP:
+								elem->content_free_bounds.rect.y += drag_pane->span;
+								elem->content_free_bounds.rect.height -= drag_pane->span;
+								break;
+							case PHOS_GUI_DRAG_BAR_VERTICAL_LEFT:
+								elem->content_free_bounds.rect.x += drag_pane->span;
+								elem->content_free_bounds.rect.width -= drag_pane->span;
+								break;
+							case PHOS_GUI_DRAG_BAR_VERTICAL_RIGHT:
+								elem->content_free_bounds.rect.width -= drag_pane->span;
+								break;
+							case PHOS_GUI_DRAG_BAR_HORIZONTAL_BOTTOM:
+								elem->content_free_bounds.rect.height -= drag_pane->span;
+								break;
+							default:
+								vl_log(VL_ERROR, "Invalid drag bar orientation: %d!\n", drag_pane->drag_bar_orientation);
+								break;
+						}
+					}
+				}
+
+				// mark it as cached
+				elem->content_free_bounds.should_calculate = false;
+			}
+			r = elem->content_free_bounds.rect;
+			break;
+		case PHOS_GUI_ELEM_BOUNDS_TOTAL:
+			// if should cache, recalculate rect:
+			if(elem->total_bounds.should_calculate)
+			{
+				elem->total_bounds.rect = elem->bounds;
+				elem->total_bounds.rect.x -= elem->left_margin;
+				elem->total_bounds.rect.y -= elem->top_margin;
+				elem->total_bounds.rect.width = elem->bounds.width + elem->left_margin + elem->right_margin;
+				elem->total_bounds.rect.height = elem->bounds.height + elem->top_margin + elem->bottom_margin;
+
+				// mark it as cached
+				elem->total_bounds.should_calculate = false;
+			}
+			r = elem->total_bounds.rect;
+			break;
+		default:
+			vl_log(VL_ERROR, "Invalid element bounding box requested: %d!\n", bounds);
+			return r; // invalid rect
+	}
+
+	return r;
 }
 void phos_gui_reload_elem(phos_gui_elem *elem)
 {
@@ -1558,7 +1531,12 @@ void phos_gui_reload_elem(phos_gui_elem *elem)
 	}
 
 	// finally, update elem rectangles
-	force_calculate_elem_rects(elem);
+	elem->total_bounds.should_calculate = true;
+	elem->content_total_bounds.should_calculate = true;
+	elem->content_free_bounds.should_calculate = true;
+	elem->total_bounds.rect = phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_TOTAL);
+	elem->content_total_bounds.rect = phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	elem->content_free_bounds.rect = phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 }
 void phos_gui_reload_gui(phos_gui *gui)
 {
@@ -1606,7 +1584,7 @@ static Vector2 get_text_draw_pos(const phos_gui_text_component *const text, cons
 		return Vector2Zero();
 
 	// add text offset
-	Vector2 text_elem_pos = phos_gui_get_rect_pos(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE));
+	Vector2 text_elem_pos = phos_gui_get_rect_pos(phos_gui_get_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE));
 	Vector2 text_pos = Vector2Add(text_elem_pos, text->offset);
 
 	// calculate where to draw the text based on scrolling (only if scroll pane is not NULL)
@@ -1628,7 +1606,7 @@ static Vector2 get_label_draw_pos(const phos_gui_label_component *const label)
 		return Vector2Zero();
 
 	// add label offset
-	Vector2 label_elem_pos = phos_gui_get_rect_pos(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_TOTAL));
+	Vector2 label_elem_pos = phos_gui_get_rect_pos(phos_gui_get_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_TOTAL));
 	return Vector2Add(label_elem_pos, label->offset);
 }
 
@@ -1809,7 +1787,7 @@ static void update_text_scrolling(phos_gui_text_component *text)
 	}
 
 	// text always resides in the element's free content space:
-	Rectangle free_content_bounds = get_calculated_elem_rect(text_elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+	Rectangle free_content_bounds = phos_gui_get_elem_rect(text_elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
 	// get bounds of text
 	Rectangle text_bounds;
@@ -1999,7 +1977,7 @@ void phos_gui_set_elem_paddings(phos_gui_elem *elem, float left, float top, floa
 	elem->bottom_padding = bottom;
 
 	// force calculation of new rects
-	force_calculate_elem_rects(elem);
+	phos_gui_reload_elem(elem);
 }
 void phos_gui_set_elem_padding(phos_gui_elem *elem, float padding)
 {
@@ -2033,7 +2011,7 @@ void phos_gui_set_elem_margins(phos_gui_elem *elem, float left, float top, float
 	elem->bottom_margin = bottom;
 
 	// force calculation of new rects
-	force_calculate_elem_rects(elem);
+	phos_gui_reload_elem(elem);
 }
 void phos_gui_set_elem_margin(phos_gui_elem *elem, float margin)
 {
@@ -2202,7 +2180,7 @@ Vector2 phos_gui_align_elem_text(phos_gui_text_component *text_component, phos_g
 	v = get_proposed_align_pos(text_bounds, alignment, owner);
 
 	// position text component relative to owner
-	text_component->offset = Vector2Subtract(v, phos_gui_get_rect_pos(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE)));
+	text_component->offset = Vector2Subtract(v, phos_gui_get_rect_pos(phos_gui_get_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE)));
 	text_component->alignment = alignment;
 
 	return v;
@@ -2245,7 +2223,7 @@ Vector2 phos_gui_align_elem_label(phos_gui_label_component *label_component, pho
 	v = get_proposed_align_pos(label_bounds, alignment, owner);
 
 	// position label component relative to owner's total bounds
-	label_component->offset = Vector2Subtract(v, phos_gui_get_rect_pos(get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_TOTAL)));
+	label_component->offset = Vector2Subtract(v, phos_gui_get_rect_pos(phos_gui_get_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_TOTAL)));
 	label_component->alignment = alignment;
 
 	return v;
@@ -2315,7 +2293,7 @@ Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment align
 
 	target_elem->alignment = alignment;
 	// use the entire target_elem rect when aligning
-	v = get_proposed_align_pos(phos_gui_get_rect_size(get_calculated_elem_rect(target_elem, PHOS_GUI_ELEM_BOUNDS_TOTAL)), target_elem->alignment, reference_elem);
+	v = get_proposed_align_pos(phos_gui_get_rect_size(phos_gui_get_elem_rect(target_elem, PHOS_GUI_ELEM_BOUNDS_TOTAL)), target_elem->alignment, reference_elem);
 	phos_gui_set_elem_pos(target_elem, v.x, v.y, opts);
 
 	return v;
@@ -2324,7 +2302,7 @@ Vector2 phos_gui_align_elem(phos_gui_elem *target_elem, phos_gui_alignment align
 static bool elem_in_bounds(phos_gui_elem *elem, Vector2 origin, Vector2 size)
 {
 	// get elem rect
-	Rectangle r = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_TOTAL);
+	Rectangle r = phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_TOTAL);
 
 	// see if either rect is out of bounds (origin + size)
 	if(r.x < origin.x || r.x + r.width > origin.x + size.x ||
@@ -2370,8 +2348,7 @@ Vector2 phos_gui_align_elem_with_window(phos_gui_elem *target_elem, phos_gui_ali
 	// create temp elem representing the window
 	phos_gui_elem temp = {0};
 	phos_gui_set_elem_bounds(&temp, 0, 0, GetRenderWidth(), GetRenderHeight(), opts);
-	force_calculate_elem_rects(&temp); // force temp elem to have synced bounds
-	v = get_proposed_align_pos(phos_gui_get_rect_size(temp.bounds), target_elem->alignment, &temp);
+	v = get_proposed_align_pos(phos_gui_get_rect_size(target_elem->bounds), target_elem->alignment, &temp);
 	phos_gui_set_elem_pos(target_elem, v.x, v.y, opts);
 
 	return v;
@@ -2396,8 +2373,8 @@ void phos_gui_fill_elem_with_elem(phos_gui_elem *reference_elem, phos_gui_elem_b
 	}
 
 	// match bounds on element to the given bounding box
-	force_calculate_elem_rects(reference_elem); // but first the reference elem's bounds should be finalized
-	phos_gui_set_elem_bounds_r(target_elem, get_calculated_elem_rect(reference_elem, bounds), opts);
+	phos_gui_reload_elem(reference_elem); // but first the reference elem's bounds should be finalized
+	phos_gui_set_elem_bounds_r(target_elem, phos_gui_get_elem_rect(reference_elem, bounds), opts);
 }
 
 static void use_largest_possible_font_size(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, Rectangle rect)
@@ -2467,7 +2444,7 @@ void phos_gui_make_text_fit_elem(phos_gui_text_component *text_component, phos_g
 	}
 
 	// use element's free content bounds rect
-	use_largest_possible_font_size(text_component, target_str, get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE));
+	use_largest_possible_font_size(text_component, target_str, phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE));
 }
 void phos_gui_make_text_fit_rect(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, Rectangle rect)
 {
@@ -2498,7 +2475,7 @@ void phos_gui_make_icon_fit_elem(phos_gui_icon *icon, phos_gui_elem *elem)
 		return;
 	}
 
-	use_largest_possible_icon_size(icon, get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE));
+	use_largest_possible_icon_size(icon, phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE));
 }
 void phos_gui_make_icon_fit_rect(phos_gui_icon *icon, Rectangle rect)
 {
@@ -2565,7 +2542,7 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 	// apply default theme to element
 	phos_gui_apply_theme_to_elem(elem, phos_gui_get_theme());
 
-	prepare_elem_rects_for_caching(elem);
+	phos_gui_reload_elem(elem);
 }
 
 void phos_gui_init_button(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *text)
@@ -2741,100 +2718,6 @@ void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float
 	phos_gui_set_elem_pos(container_elem, elem->bounds.x, elem->bounds.y + elem->bounds.height, PHOS_GUI_OPTS_NONE);
 }
 
-// parse next icon name in the string given
-static bool parse_icon_name(const char *str, char *buffer, size_t buffer_size)
-{
-	if(buffer_size == 0)
-		return false;
-
-	if(strncmp(str, "<icon=", 6) == 0)
-	{
-		// go to equals sign
-		const char *equals = str + 5;
-
-		if(*equals != '=')
-		{
-			vl_delay_log(VL_ERROR, 3.0f, "Expected '=' after icon name in string: '%s'!\n", str);
-			return false;
-		}
-		// then move onto character after '='
-		equals++;
-
-		size_t i = 0;
-		while(*equals && *equals != '>' && *equals != ',' && i + 1 < buffer_size)
-			buffer[i++] = *equals++;
-
-		buffer[i] = '\0';
-
-		return true;
-	}
-
-	return false;
-}
-/*
-   parse a generic 'ARG' argument within an icon string:
-
-   str: should point to the first character directly after the end of the icon name
-   buffer: where the parsed icon arg value should be printed
-   buffer_size: size of 'buffer'
-   arg: the argument to search for
-   start_pos: where in the string the argument was found
-*/
-static bool parse_icon_arg(const char *str, char *buffer, size_t buffer_size, const char *arg, const char **start_pos)
-{
-	if(buffer_size == 0)
-		return false;
-
-	size_t arg_len = strlen(arg);
-
-	/*
-	   begin at the start of the args list and walk forward until a ',' is found:
-
-	   since args_start points to the first character after the icon's name, if
-	   there are any arguments present, p should point to the first ',' in the string.
-	*/
-	for(const char *p = str; *p && *p != '>'; ++p)
-	{
-		// get char
-		char c = *p;
-
-		// when a ',' is encountered, compare arg to the string after ','
-		if(c == ',')
-		{
-			// push 'p' forward one character to skip the ','
-			p++;
-
-			// compare the next region of the string against the target arg
-			if(strncmp(p, arg, arg_len) == 0)
-			{
-				// go to where a '=' should be, and ensure there is one
-				const char *equals = p + arg_len;
-
-				// ensure this char is '='
-				if(*equals != '=')
-				{
-					vl_delay_log(VL_ERROR, 3.0f, "Expected '=' after icon argument: '%s'!\n", arg);
-					return false;
-				}
-				// then move onto the character after the '='
-				equals++;
-
-				if(start_pos)
-					*start_pos = equals;
-
-				size_t i = 0;
-				while(*equals && *equals != '>' && *equals != ',' && i + 1 < buffer_size)
-					buffer[i++] = *equals++;
-
-				buffer[i] = '\0';
-
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
 static void select_checkbox(phos_gui_elem *checkbox, phos_gui_checkbox_list_component *list, phos_gui_text_component *text)
 {
 	if(list->num_options_selected >= list->num_available_options || list->num_options_selected >= PHOS_GUI_MAX_CHECKBOXES)
@@ -2887,11 +2770,11 @@ static void toggle_checkbox(phos_gui_elem *elem, void *args, phos_gui_opts opts)
 	for(const char *p = text->str; *p; ++p)
 	{
 		char icon_name_buf[MAX_ICON_PARSED_STR_LEN + 1];
-		if(parse_icon_name(p, icon_name_buf, sizeof(icon_name_buf)))
+		if(phos_gui_parse_icon_name(p, icon_name_buf, sizeof(icon_name_buf)))
 		{
 			if(strcmp(icon_name_buf, "CHECK_MARK") == 0)
 			{
-				if(parse_icon_arg(p, visible_arg_buf, sizeof(visible_arg_buf), "visible", NULL))
+				if(phos_gui_parse_icon_arg(p, visible_arg_buf, sizeof(visible_arg_buf), "visible", NULL))
 				{
 					can_continue = true;
 					break;
@@ -3157,8 +3040,7 @@ int phos_gui_add_elem_to_gui(phos_gui_elem *elem, phos_gui *gui)
 	elem->gui = gui;
 
 	// force calculate rectangles around elem
-	force_calculate_elem_rects(elem);
-	prepare_elem_rects_for_caching(elem);
+	phos_gui_reload_elem(elem);
 
 	vl_log(VL_SUCCESS, "Added element '%s' to GUI '%s'!\n", elem->ID, gui->ID);
 
@@ -3273,8 +3155,7 @@ int phos_gui_add_child_to_elem(phos_gui_elem *child, phos_gui_elem *parent, phos
 	child->child_opts = child_opts;
 
 	// force calculate rectangles around child
-	force_calculate_elem_rects(child);
-	prepare_elem_rects_for_caching(child);
+	phos_gui_reload_elem(child);
 
 	// apply theme to child
 	phos_gui_apply_theme_to_elem(child, phos_gui_get_theme());
@@ -3345,8 +3226,8 @@ int phos_gui_format_children(phos_gui_elem *parent, phos_gui_opts opts)
 	}
 
 	// obtain parent rects (force calculation first)
-	force_calculate_elem_rects(parent);
-	const Rectangle parent_content_area = get_calculated_elem_rect(parent, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+	phos_gui_reload_elem(parent);
+	const Rectangle parent_content_area = phos_gui_get_elem_rect(parent, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 	float parent_x = parent_content_area.x;
 	float parent_y = parent_content_area.y;
 
@@ -4473,10 +4354,10 @@ static float get_elem_total_content_width(phos_gui_elem *e)
 		return layout->total_content_width;
 
 	// get whole rect of elem
-	Rectangle whole_content = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	Rectangle whole_content = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
 
 	// with no layout, default to free content rect's width
-	Rectangle free_content = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+	Rectangle free_content = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 	tcw = free_content.width;
 
 	// manually find total content width now:
@@ -4485,7 +4366,7 @@ static float get_elem_total_content_width(phos_gui_elem *e)
 		phos_gui_elem *child = e->children[i];
 
 		// get total rect of child
-		Rectangle child_rect = get_calculated_elem_rect(child, PHOS_GUI_ELEM_BOUNDS_TOTAL);
+		Rectangle child_rect = phos_gui_get_elem_rect(child, PHOS_GUI_ELEM_BOUNDS_TOTAL);
 
 		float child_right = child_rect.x + child_rect.width;
 
@@ -4506,10 +4387,10 @@ static float get_elem_total_content_height(phos_gui_elem *e)
 
 	// see if elem rects should be calculated
 	// get whole content rect of elem
-	Rectangle whole_content = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	Rectangle whole_content = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
 
 	// with no layout, default to elem free content rect's height
-	Rectangle free_content = get_calculated_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+	Rectangle free_content = phos_gui_get_elem_rect(e, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 	tch = free_content.height;
 
 	// manually find total content height now:
@@ -4518,7 +4399,7 @@ static float get_elem_total_content_height(phos_gui_elem *e)
 		phos_gui_elem *child = e->children[i];
 
 		// get total rect of child
-		Rectangle child_rect = get_calculated_elem_rect(child, PHOS_GUI_ELEM_BOUNDS_TOTAL);
+		Rectangle child_rect = phos_gui_get_elem_rect(child, PHOS_GUI_ELEM_BOUNDS_TOTAL);
 
 		float child_bottom = child_rect.y + child_rect.height;
 
@@ -4573,8 +4454,8 @@ static void get_scroll_bar_rects(const phos_gui_scroll_pane_component *const scr
 		return;
 
 	// get elem rects
-	Rectangle whole_content_bounds = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
-	Rectangle usable_content_bounds = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+	Rectangle whole_content_bounds = phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	Rectangle usable_content_bounds = phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
 	// vertical scroll bar pos
 	float v_scroll_bar_x = whole_content_bounds.x + whole_content_bounds.width - scroll_pane->v_bar.span;
@@ -4669,7 +4550,7 @@ static void get_drag_bar_rect(phos_gui_drag_pane_component *drag_pane, Rectangle
 	}
 
 	// get total content bounds of elem
-	Rectangle whole_content_bounds = get_calculated_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	Rectangle whole_content_bounds = phos_gui_get_elem_rect(owner, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
 
 	Rectangle drag_bar_rect = {0};
 
@@ -4717,7 +4598,7 @@ static bool elem_in_parent_clip(phos_gui_elem *e, Vector2 mouse_pos)
 		// child inherits parent clip region if parent is clipped:
 		if(parent->clipped)
 		{
-			Rectangle clip_rect = get_calculated_elem_rect(parent, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+			Rectangle clip_rect = phos_gui_get_elem_rect(parent, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
 			// if mouse not in clip region, mouse cannot interact with any elems
 			if(!CheckCollisionPointRec(mouse_pos, clip_rect))
@@ -4763,7 +4644,7 @@ static phos_gui_elem *get_elem_mouse_target(phos_gui_elem *e, Vector2 mouse_pos)
 		return NULL;
 
 	// check whether the elem is clickable
-	Rectangle input_rect = e->input_test_bounds == PHOS_GUI_ELEM_BOUNDS_REAL ? e->bounds : get_calculated_elem_rect(e, e->input_test_bounds);
+	Rectangle input_rect = e->input_test_bounds == PHOS_GUI_ELEM_BOUNDS_REAL ? e->bounds : phos_gui_get_elem_rect(e, e->input_test_bounds);
 
 	if(!CheckCollisionPointRec(mouse_pos, input_rect))
 		return NULL;
@@ -4807,7 +4688,7 @@ void phos_gui_launch()
 		phos_gui_update(dt);
 
 		BeginDrawing();
-		ClearBackground(window_bg_color);
+		ClearBackground(curr_theme.window_bg_color);
 
 		phos_gui_render();
 
@@ -5195,7 +5076,7 @@ static void render_children(phos_gui_elem *e, phos_gui_elem_bounding_box bounds)
 	if(bounds != PHOS_GUI_ELEM_BOUNDS_NONE)
 	{
 		// elem must have clipping enabled and the clip rect must have been created
-		clip_rect = get_calculated_elem_rect(e, bounds);
+		clip_rect = phos_gui_get_elem_rect(e, bounds);
 		parent_clipped = e->clipped && phos_gui_new_clip_r(clip_rect);
 	}
 
@@ -5244,8 +5125,8 @@ void phos_gui_render()
 	}
 
 	// handle screen tint
-	if(!ColorIsEqual(screen_tint, BLANK))
-		DrawRectangleRec(PHOS_GUI_WINDOW_RECT, screen_tint);
+	if(!ColorIsEqual(curr_theme.window_tint, BLANK))
+		DrawRectangleRec(PHOS_GUI_WINDOW_RECT, curr_theme.window_tint);
 }
 void phos_gui_fill_shape(phos_gui_shape shape, float x, float y, float w, float h, float outline_thickness, float round_rect_corner_radius, Color color)
 {
@@ -5339,9 +5220,9 @@ void phos_gui_update_elem(phos_gui_elem *elem, float dt)
 		mouse_delta = Vector2Zero();
 
 	// calculate and get all rects for the elem:
-	elem->content_total_bounds.rect = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
-	elem->content_free_bounds.rect = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
-	elem->total_bounds.rect = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_TOTAL);
+	elem->content_total_bounds.rect = phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	elem->content_free_bounds.rect = phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+	elem->total_bounds.rect = phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_TOTAL);
 
 	// update mouse listener component:
 	phos_gui_mouse_listener_component *mouse_listener = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_MOUSE_LISTENER);
@@ -5583,7 +5464,7 @@ void phos_gui_update_elem(phos_gui_elem *elem, float dt)
 			}
 		}
 		// user is using mouse wheel instead: (requires 'use_mouse_wheel_input' to be true)
-		else if(phos_gui_is_mouse_over_rect(get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL)) && scroll_pane->use_mouse_wheel_input)
+		else if(phos_gui_is_mouse_over_rect(phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL)) && scroll_pane->use_mouse_wheel_input)
 		{
 			// user is trying to scroll using mouse wheel:
 
@@ -5860,8 +5741,8 @@ void phos_gui_render_elem(phos_gui_elem *elem)
 	}
 
 	// create elem rects:
-	const Rectangle whole_content_bounds = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
-	const Rectangle usable_content_bounds = get_calculated_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
+	const Rectangle whole_content_bounds = phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_TOTAL);
+	const Rectangle usable_content_bounds = phos_gui_get_elem_rect(elem, PHOS_GUI_ELEM_BOUNDS_CONTENT_FREE);
 
 	if(whole_content_bounds.width <= 0 || whole_content_bounds.height <= 0)
 	{
@@ -6309,11 +6190,11 @@ Vector2 phos_gui_measure_text(Font font, const char *text, float font_size)
 
 		// see if it's start of an icon
 		char icon_name[MAX_ICON_PARSED_STR_LEN + 1];
-		if(parse_icon_name(p, icon_name, sizeof(icon_name)))
+		if(phos_gui_parse_icon_name(p, icon_name, sizeof(icon_name)))
 		{
 			// search for a size arg:
 			char size_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-			bool size_arg_present = parse_icon_arg(icon_args_start(p, icon_name), size_arg_buf, sizeof(size_arg_buf), "size", NULL);
+			bool size_arg_present = phos_gui_parse_icon_arg(icon_args_start(p, icon_name), size_arg_buf, sizeof(size_arg_buf), "size", NULL);
 			if(size_arg_present)
 			{
 				// get actual float value from string
@@ -6389,7 +6270,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 		// see if an icon should be rendered
 		char icon_name[MAX_ICON_PARSED_STR_LEN + 1];
 		phos_gui_icon_id icon_id = -1;
-		if(parse_icon_name(p, icon_name, sizeof(icon_name)))
+		if(phos_gui_parse_icon_name(p, icon_name, sizeof(icon_name)))
 		{
 			phos_gui_icon_id *icon_id = NULL;
 			dynmaps_get_strkey(&icon_names, icon_name, icon_id);
@@ -6409,7 +6290,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 
 				// see if this icon should be colored differently:
 				char color_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool color_arg_present = parse_icon_arg(args_start, color_arg_buf, sizeof(color_arg_buf), "color", NULL);
+				bool color_arg_present = phos_gui_parse_icon_arg(args_start, color_arg_buf, sizeof(color_arg_buf), "color", NULL);
 				if(color_arg_present)
 				{
 					// get actual color value from color map
@@ -6423,7 +6304,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 
 				// see if the icon size should be overridden
 				char size_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool size_arg_present = parse_icon_arg(args_start, size_arg_buf, sizeof(size_arg_buf), "size", NULL);
+				bool size_arg_present = phos_gui_parse_icon_arg(args_start, size_arg_buf, sizeof(size_arg_buf), "size", NULL);
 				if(size_arg_present)
 				{
 					// get actual float value from string
@@ -6441,7 +6322,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 
 				// if the user provides a 'size' argument, that takes priority over any 'width' or 'height' arguments:
 				char width_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool width_arg_present = parse_icon_arg(args_start, width_arg_buf, sizeof(width_arg_buf), "width", NULL);
+				bool width_arg_present = phos_gui_parse_icon_arg(args_start, width_arg_buf, sizeof(width_arg_buf), "width", NULL);
 				if(!size_arg_present && width_arg_present)
 				{
 					char *endptr = NULL;
@@ -6459,7 +6340,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 					vl_delay_log(VL_WARNING, 5.0f, "Cannot use the 'width' argument as well as the 'size' argument in an icon string! The 'size' argument takes priority.\n");
 
 				char height_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool height_arg_present = parse_icon_arg(args_start, height_arg_buf, sizeof(height_arg_buf), "height", NULL);
+				bool height_arg_present = phos_gui_parse_icon_arg(args_start, height_arg_buf, sizeof(height_arg_buf), "height", NULL);
 				if(!size_arg_present && height_arg_present)
 				{
 					char *endptr = NULL;
@@ -6478,7 +6359,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 
 				// see if this icon should be aligned specifically:
 				char alignment_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool alignment_arg_present = parse_icon_arg(args_start, alignment_arg_buf, sizeof(alignment_arg_buf), "align", NULL);
+				bool alignment_arg_present = phos_gui_parse_icon_arg(args_start, alignment_arg_buf, sizeof(alignment_arg_buf), "align", NULL);
 				if(alignment_arg_present)
 				{
 					// get actual alignment value from alignment map
@@ -6496,7 +6377,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 
 				// see if icon should be moved
 				char x_offset_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool x_offset_arg_present = parse_icon_arg(args_start, x_offset_arg_buf, sizeof(x_offset_arg_buf), "x-offset", NULL);
+				bool x_offset_arg_present = phos_gui_parse_icon_arg(args_start, x_offset_arg_buf, sizeof(x_offset_arg_buf), "x-offset", NULL);
 				if(x_offset_arg_present)
 				{
 					// get actual x-offset value
@@ -6508,7 +6389,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 						vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon x-offset argument: '%s'!\n", x_offset_arg_buf);
 				}
 				char y_offset_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool y_offset_arg_present = parse_icon_arg(args_start, y_offset_arg_buf, sizeof(y_offset_arg_buf), "y-offset", NULL);
+				bool y_offset_arg_present = phos_gui_parse_icon_arg(args_start, y_offset_arg_buf, sizeof(y_offset_arg_buf), "y-offset", NULL);
 				if(y_offset_arg_present)
 				{
 					// get actual y-offset value
@@ -6521,7 +6402,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 				}
 
 				char visible_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool visible_arg_present = parse_icon_arg(args_start, visible_arg_buf, sizeof(visible_arg_buf), "visible", NULL);
+				bool visible_arg_present = phos_gui_parse_icon_arg(args_start, visible_arg_buf, sizeof(visible_arg_buf), "visible", NULL);
 				if(visible_arg_present)
 				{
 					// get actual 'visible' value
@@ -6541,7 +6422,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 				phos_gui_shape outline_shape = PHOS_GUI_SHAPE_RECT;
 
 				char outline_shape_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool outline_shape_arg_present = parse_icon_arg(args_start, outline_shape_buf, sizeof(outline_shape_buf), "outline-shape", NULL);
+				bool outline_shape_arg_present = phos_gui_parse_icon_arg(args_start, outline_shape_buf, sizeof(outline_shape_buf), "outline-shape", NULL);
 				if(outline_shape_arg_present)
 				{
 					// find matching shape value in map
@@ -6557,7 +6438,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 				Color outline_color = BLACK;
 
 				char outline_color_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool outline_color_arg_present = parse_icon_arg(args_start, outline_color_buf, sizeof(outline_color_buf), "outline-color", NULL);
+				bool outline_color_arg_present = phos_gui_parse_icon_arg(args_start, outline_color_buf, sizeof(outline_color_buf), "outline-color", NULL);
 				if(outline_color_arg_present)
 				{
 					// see if user passed 'AUTO' as color (use current theme's outline color)
@@ -6578,7 +6459,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 				float outline_thickness = 1.0f;
 
 				char outline_thickness_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool outline_thickness_arg_present = parse_icon_arg(args_start, outline_thickness_buf, sizeof(outline_thickness_buf), "outline-thickness", NULL);
+				bool outline_thickness_arg_present = phos_gui_parse_icon_arg(args_start, outline_thickness_buf, sizeof(outline_thickness_buf), "outline-thickness", NULL);
 				if(outline_thickness_arg_present)
 				{
 					char *endptr = NULL;
@@ -6593,7 +6474,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 				float corner_radius = 0.0f;
 
 				char corner_radius_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool corner_radius_arg_present = parse_icon_arg(args_start, corner_radius_buf, sizeof(corner_radius_buf), "corner-radius", NULL);
+				bool corner_radius_arg_present = phos_gui_parse_icon_arg(args_start, corner_radius_buf, sizeof(corner_radius_buf), "corner-radius", NULL);
 				if(corner_radius_arg_present)
 				{
 					char *endptr = NULL;
@@ -6765,11 +6646,7 @@ void phos_gui_apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
 	}
 
 	// force recalculation of elem rects because outline thickness changed:
-	force_calculate_elem_rects(elem);
-
-	// other attributes:
-
-	phos_gui_set_window_bg_color(theme.window_bg_color);
+	phos_gui_reload_elem(elem);
 }
 void phos_gui_set_theme(phos_gui_theme theme)
 {
@@ -6808,26 +6685,9 @@ phos_gui_theme phos_gui_saturate_theme(phos_gui_theme theme, float factor)
 	new_theme.outline_focus_color = ColorContrast(theme.outline_focus_color, factor);
 	new_theme.text_color = ColorContrast(theme.text_color, factor);
 	new_theme.window_bg_color = ColorContrast(theme.window_bg_color, factor);
+	new_theme.window_tint = ColorContrast(theme.window_tint, factor);
 
 	return new_theme;
-}
-void phos_gui_apply_screen_tint(Color color)
-{
-	screen_tint = color;
-}
-Color phos_gui_get_screen_tint()
-{
-	return screen_tint;
-}
-void phos_gui_set_window_bg_color(Color color)
-{
-	if(ColorIsEqual(color, BLANK))
-		color = WHITE;
-	window_bg_color = color;
-}
-Color phos_gui_get_window_bg_color()
-{
-	return window_bg_color;
 }
 
 int phos_gui_new_clip(int x, int y, int width, int height)
@@ -6929,7 +6789,7 @@ Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon_id)
 Texture2D *phos_gui_get_icon_str(const char *str, phos_gui_icon_id *out_icon_id)
 {
 	char icon_name[MAX_ICON_PARSED_STR_LEN + 1];
-	if(parse_icon_name(str, icon_name, sizeof(icon_name)))
+	if(phos_gui_parse_icon_name(str, icon_name, sizeof(icon_name)))
 	{
 		// now use icon name to obtain icon ID
 		phos_gui_icon_id *icon_id = NULL;
@@ -6953,6 +6813,90 @@ void phos_gui_set_icon(phos_gui_icon_id icon_id, const char *file_path)
 	vl_log(VL_INFO, "Icon %d now using texture file path: '%s'!\n", icon_id, file_path);
 }
 
+int phos_gui_parse_icon_name(const char *str, char *buffer, size_t buffer_size)
+{
+	if(buffer_size == 0)
+		return 0;
+
+	if(strncmp(str, "<icon=", 6) == 0)
+	{
+		// go to equals sign
+		const char *equals = str + 5;
+
+		if(*equals != '=')
+		{
+			vl_delay_log(VL_ERROR, 3.0f, "Expected '=' after icon name in string: '%s'!\n", str);
+			return 0;
+		}
+		// then move onto character after '='
+		equals++;
+
+		size_t i = 0;
+		while(*equals && *equals != '>' && *equals != ',' && i + 1 < buffer_size)
+			buffer[i++] = *equals++;
+
+		buffer[i] = '\0';
+
+		return 1;
+	}
+
+	return 0;
+}
+int phos_gui_parse_icon_arg(const char *str, char *buffer, size_t buffer_size, const char *arg, const char **start_pos)
+{
+	if(buffer_size == 0)
+		return 0;
+
+	size_t arg_len = strlen(arg);
+
+	/*
+	   begin at the start of the args list and walk forward until a ',' is found:
+
+	   since args_start points to the first character after the icon's name, if
+	   there are any arguments present, p should point to the first ',' in the string.
+	*/
+	for(const char *p = str; *p && *p != '>'; ++p)
+	{
+		// get char
+		char c = *p;
+
+		// when a ',' is encountered, compare arg to the string after ','
+		if(c == ',')
+		{
+			// push 'p' forward one character to skip the ','
+			p++;
+
+			// compare the next region of the string against the target arg
+			if(strncmp(p, arg, arg_len) == 0)
+			{
+				// go to where a '=' should be, and ensure there is one
+				const char *equals = p + arg_len;
+
+				// ensure this char is '='
+				if(*equals != '=')
+				{
+					vl_delay_log(VL_ERROR, 3.0f, "Expected '=' after icon argument: '%s'!\n", arg);
+					return 0;
+				}
+				// then move onto the character after the '='
+				equals++;
+
+				if(start_pos)
+					*start_pos = equals;
+
+				size_t i = 0;
+				while(*equals && *equals != '>' && *equals != ',' && i + 1 < buffer_size)
+					buffer[i++] = *equals++;
+
+				buffer[i] = '\0';
+
+				return 1;
+			}
+		}
+	}
+
+	return 0;
+}
 static void insert_char_str(char *buffer, size_t pos, char c)
 {
 	// move all chars at pos one slot over to the right
@@ -6974,7 +6918,7 @@ int phos_gui_edit_icon_arg(char *buffer, size_t buffer_size, const char *icon_na
 	for(char *t = buffer; *t; ++t)
 	{
 		char icon_name_buf[MAX_ICON_PARSED_STR_LEN + 1];
-		if(parse_icon_name(t, icon_name_buf, sizeof(icon_name_buf)))
+		if(phos_gui_parse_icon_name(t, icon_name_buf, sizeof(icon_name_buf)))
 		{
 			if(strcmp(icon_name_buf, icon_name) == 0)
 			{
@@ -7003,7 +6947,7 @@ int phos_gui_edit_icon_arg(char *buffer, size_t buffer_size, const char *icon_na
 	for(char *t = p; *t; ++t)
 	{
 		char arg_value_buf[MAX_ICON_PARSED_STR_LEN + 1];
-		if(parse_icon_arg(t, arg_value_buf, sizeof(arg_value_buf), arg_name, &arg_start))
+		if(phos_gui_parse_icon_arg(t, arg_value_buf, sizeof(arg_value_buf), arg_name, &arg_start))
 		{
 			// arg was found at p, so edit pos becomes p + 2 (skip ',' and '=') + length of arg name
 			edit_pos = (char*) arg_start;

@@ -822,6 +822,10 @@
 	.window_bg_color = GetColor(0x4F6D7AFF), \
 	.outline_thickness = PHOS_GUI_THEME_DEFAULT_OUTLINE_THICKNESS }
 /**
+  A theme revolving around orange and green.
+*/
+#define PHOS_GUI_THEME_TANGERINE phos_gui_create_theme_accented(PHOS_GUI_COLOR_ORANGE, PHOS_GUI_COLOR_DULL_GREEN)
+/**
   A theme revolving around violet and pink.
 */
 #define PHOS_GUI_THEME_TOKYO phos_gui_create_theme_accented(PHOS_GUI_COLOR_DULL_VIOLET, PHOS_GUI_COLOR_BRIGHT_PINK)
@@ -3197,6 +3201,12 @@ typedef struct phos_gui_theme
 	*/
 	Color window_bg_color;
 	/**
+	  Tint color to apply to the window.
+
+	  If equal to BLANK, no tint will be applied.
+	*/
+	Color window_tint;
+	/**
 	  Global outline thickness in the theme.
 	*/
 	float outline_thickness;
@@ -4195,35 +4205,6 @@ PHOS_GUI_API phos_gui_theme phos_gui_brighten_theme(phos_gui_theme theme, float 
   whereas a positive factor results in more vibrant colors.
 */
 PHOS_GUI_API phos_gui_theme phos_gui_saturate_theme(phos_gui_theme theme, float factor);
-/**
-  Sets a custom screen tint for the window.
-
-  If a screen tint is applied, PhosphorusGUI
-  renders it over the current phos_gui.
-
-  To remove a screen tint, pass in BLANK.
-
-  @note For most tints, the alpha value of the color
-  should be less than 255, otherwise, the screen tint
-  will cover up everything in the GUI.
-*/
-PHOS_GUI_API void phos_gui_apply_screen_tint(Color color);
-/**
-  Obtains the current screen tint or BLANK if no screen
-  tint has been applied.
-*/
-PHOS_GUI_API Color phos_gui_get_screen_tint(void);
-/**
-  Sets the background color of the window.
-
-  @note If BLANK is passed in, the function defaults to
-  WHITE for the window's background color.
-*/
-PHOS_GUI_API void phos_gui_set_window_bg_color(Color color);
-/**
-  Obtains the current background color of the window.
-*/
-PHOS_GUI_API Color phos_gui_get_window_bg_color(void);
 
 /**
   Adds a new clip region to the list of active
@@ -4338,6 +4319,25 @@ PHOS_GUI_API Texture2D *phos_gui_get_icon_str(const char *str, phos_gui_icon_id 
 */
 PHOS_GUI_API void phos_gui_set_icon(phos_gui_icon_id icon_id, const char *file_path);
 
+/**
+  Parses the next icon name in the given icon string.
+  Note that the function does not automatically traverse
+  the string for you.
+
+  @param str The icon string.
+  @param buffer Where the parsed icon name should be printed.
+  @param buffer_size How large 'buffer' is in bytes.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_parse_icon_name(const char *str, char *buffer, size_t buffer_size);
+/**
+  Searches an icon string for a particular argument and if it's found,
+  the value of the argument is printed into a buffer.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_parse_icon_arg(const char *str, char *buffer, size_t buffer_size, const char *arg, const char **start_pos);
 /**
   Modifies an argument within an icon string.
 
