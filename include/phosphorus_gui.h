@@ -4276,34 +4276,39 @@ PHOS_GUI_API Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon);
 
   Possible arguments include:
 
-  'align'    : changes the alignment of the icon relative to its parent element
+  'align'    : Changes the alignment of the icon relative to its parent element
 
-  'size'     : changes the width and height of the icon. Note that this argument makes the
+  'size'     : Changes the width and height of the icon. Note that this argument makes the
   icon a square since the width and height are the same. Additionally, if
   you use the 'size' argument, you cannot also use the 'width' or 'height'
   arguments. The 'size' argument takes the most priority.
 
-  'width'    : changes only the width of the icon
+  'width'    : Changes only the width of the icon
 
-  'height'   : changes only the height of the icon
+  'height'   : Changes only the height of the icon
 
-  'color'    : modifies the color of the icon
+  'color'    : Modifies the color of the icon
 
-  'x-offset' " an offset to the icon's x-position
+  'x-offset' " An offset to the icon's x-position
 
-  'y-offset' : an offset to the icon's y-position
+  'y-offset' : An offset to the icon's y-position
+
+  'outline-color' : The color of the icon's outline. To actually view the outline,
+  the 'outline-thickness' argument is also required. If you want to use the current
+  theme's outline color instead, set the argument to 'AUTO.'
+
+  'outline-thickness' : How thick the icon's outline should be. This argument is optional,
+  as the default outline thickness is 1.0f.
+
+  'outline-shape' : The shape of the icon's outline. Can either be 'RECT,' 'ELLIPSE,' or 'ROUND_RECT'
+  This argument is optional, as the default outline shape is PHOS_GUI_SHAPE_RECT.
+
+  'corner-radius' : Used to modify how rounded the corners of the rounded rectangle shape is.
+  This argument is optional, as the default corner radius is 1.0f.
 
 
-  There are also flags you can pass into an icon string. Unlike arguments,
-  flags are lone values that do not equal anything. Flags are either on or off
-  in an icon string. When a flag is not present, it is off. When you pass
-  the flag into the icon string, it is then turned on.
-
-
-  Possible flags include:
-
-  // TODO
-
+  Note that for an icon's outline to be rendered, at least one of the outline arguments
+  needs to be present.
 
   Arguments must be provided in this format:
   "<icon=ICON_NAME,ARG_NAME=arg_value>."
@@ -4313,9 +4318,10 @@ PHOS_GUI_API Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon);
   @note You can also obtain the ID of the icon if a valid pointer
   is passed into 'out_icon_id.'
 
-  @see phos_gui_get_icon_id(phos_gui_icon)
+  @see phos_gui_get_icon_id(phos_gui_icon_id)
 */
 PHOS_GUI_API Texture2D *phos_gui_get_icon_str(const char *str, phos_gui_icon_id *out_icon_id);
+// TODO make functions for modifying icon strings: adding args, removing args, adding icon, removing icon, etc
 /**
   Sets up an icon and its texture's file path.
 
