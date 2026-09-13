@@ -4265,7 +4265,7 @@ PHOS_GUI_API Texture2D *phos_gui_load_texture(const char *file_path);
   @see phos_gui_load_texture(const char*)
   @see phos_gui_get_icon_str(const char*)
 */
-PHOS_GUI_API Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon);
+PHOS_GUI_API Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon_id);
 /**
   Obtains a texture for a specific icon using an icon string.
 
@@ -4276,35 +4276,38 @@ PHOS_GUI_API Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon);
 
   Possible arguments include:
 
-  'align'    : Changes the alignment of the icon relative to its parent element
+  'align'             : Changes the alignment of the icon relative to its parent element
 
-  'size'     : Changes the width and height of the icon. Note that this argument makes the
+  'size'              : Changes the width and height of the icon. Note that this argument makes the
   icon a square since the width and height are the same. Additionally, if
   you use the 'size' argument, you cannot also use the 'width' or 'height'
   arguments. The 'size' argument takes the most priority.
 
-  'width'    : Changes only the width of the icon
+  'width'             : Changes only the width of the icon
 
-  'height'   : Changes only the height of the icon
+  'height'            : Changes only the height of the icon
 
-  'color'    : Modifies the color of the icon
+  'color'             : Modifies the color of the icon
 
-  'x-offset' " An offset to the icon's x-position
+  'x-offset'          : An offset to the icon's x-position
 
-  'y-offset' : An offset to the icon's y-position
+  'y-offset'          : An offset to the icon's y-position
 
-  'outline-color' : The color of the icon's outline. To actually view the outline,
+  'outline-color'     : The color of the icon's outline. To actually view the outline,
   the 'outline-thickness' argument is also required. If you want to use the current
   theme's outline color instead, set the argument to 'AUTO.'
 
   'outline-thickness' : How thick the icon's outline should be. This argument is optional,
   as the default outline thickness is 1.0f.
 
-  'outline-shape' : The shape of the icon's outline. Can either be 'RECT,' 'ELLIPSE,' or 'ROUND_RECT'
+  'outline-shape'     : The shape of the icon's outline. Can either be 'RECT,' 'ELLIPSE,' or 'ROUND_RECT'
   This argument is optional, as the default outline shape is PHOS_GUI_SHAPE_RECT.
 
-  'corner-radius' : Used to modify how rounded the corners of the rounded rectangle shape is.
+  'corner-radius'     : Used to modify how rounded the corners of the rounded rectangle shape is.
   This argument is optional, as the default corner radius is 1.0f.
+
+  'visible'           : Used to determine whether or not the icon should be rendered. Can either be
+  "TRUE" or "FALSE."
 
 
   Note that for an icon's outline to be rendered, at least one of the outline arguments
@@ -4321,7 +4324,6 @@ PHOS_GUI_API Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon);
   @see phos_gui_get_icon_id(phos_gui_icon_id)
 */
 PHOS_GUI_API Texture2D *phos_gui_get_icon_str(const char *str, phos_gui_icon_id *out_icon_id);
-// TODO make functions for modifying icon strings: adding args, removing args, adding icon, removing icon, etc
 /**
   Sets up an icon and its texture's file path.
 
@@ -4334,7 +4336,37 @@ PHOS_GUI_API Texture2D *phos_gui_get_icon_str(const char *str, phos_gui_icon_id 
   file path is validate once the icon is fully loaded and rendered
   for the first time.
 */
-PHOS_GUI_API void phos_gui_set_icon(phos_gui_icon_id icon, const char *file_path);
+PHOS_GUI_API void phos_gui_set_icon(phos_gui_icon_id icon_id, const char *file_path);
+
+/**
+  Modifies an argument within an icon string.
+
+  @important Do not use string literals for this
+  function as it expects character arrays to properly
+  determine if any allocations have to be made.
+
+  @note This function fails if the icon is not currently
+  present in the string. For example, trying to modify
+  the "CHECK_MARK" icon within this string '<icon=PIN>'
+  fails. However, the function does not fail if the
+  argument is not currently present. For example,
+  trying to modify the "color" argument in this
+  icon string '<icon=CHECK_MARK>' will not fail.
+  The function instead determines if the buffer
+  is large enough to fit the new text and if so,
+  it makes the modification and returns 1.
+  Otherwise it returns 0. The function will never
+  allocate a new string.
+
+  @param buffer The character array to modify.
+  @param buffer_size The size of 'buffer' in bytes.
+  @param icon_name The name of the icon to modify.
+  @param arg_name The name of the argument to modify.
+  @param new_arg_value The new value of the argument.
+
+  @return 1 on success, 0 on failure.
+*/
+PHOS_GUI_API int phos_gui_edit_icon_arg(char *buffer, size_t buffer_size, const char *icon_name, const char *arg_name, const char *new_arg_value);
 
 /**
   Loads a font.

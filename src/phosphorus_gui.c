@@ -1,5 +1,6 @@
 #include <math.h>
 #include <ctype.h>
+#include <string.h>
 #include "dynamic_array_spellbook.h"
 #include "dynamic_map_spellbook.h"
 #include "raylib.h"
@@ -2739,15 +2740,110 @@ void phos_gui_init_drop_down(phos_gui_elem *elem, const char *ID, float x, float
 	// move container to elem pos
 	phos_gui_set_elem_pos(container_elem, elem->bounds.x, elem->bounds.y + elem->bounds.height, PHOS_GUI_OPTS_NONE);
 }
-static void select_checkbox(phos_gui_elem *checkbox, phos_gui_checkbox_list_component *list, phos_gui_icon *check_mark_icon)
+
+// parse next icon name in the string given
+static bool parse_icon_name(const char *str, char *buffer, size_t buffer_size)
+{
+	if(buffer_size == 0)
+		return false;
+
+	if(strncmp(str, "<icon=", 6) == 0)
+	{
+		// go to equals sign
+		const char *equals = str + 5;
+
+		if(*equals != '=')
+		{
+			vl_delay_log(VL_ERROR, 3.0f, "Expected '=' after icon name in string: '%s'!\n", str);
+			return false;
+		}
+		// then move onto character after '='
+		equals++;
+
+		size_t i = 0;
+		while(*equals && *equals != '>' && *equals != ',' && i + 1 < buffer_size)
+			buffer[i++] = *equals++;
+
+		buffer[i] = '\0';
+
+		return true;
+	}
+
+	return false;
+}
+/*
+   parse a generic 'ARG' argument within an icon string:
+
+   str: should point to the first character directly after the end of the icon name
+   buffer: where the parsed icon arg value should be printed
+   buffer_size: size of 'buffer'
+   arg: the argument to search for
+   start_pos: where in the string the argument was found
+*/
+static bool parse_icon_arg(const char *str, char *buffer, size_t buffer_size, const char *arg, const char **start_pos)
+{
+	if(buffer_size == 0)
+		return false;
+
+	size_t arg_len = strlen(arg);
+
+	/*
+	   begin at the start of the args list and walk forward until a ',' is found:
+
+	   since args_start points to the first character after the icon's name, if
+	   there are any arguments present, p should point to the first ',' in the string.
+	*/
+	for(const char *p = str; *p && *p != '>'; ++p)
+	{
+		// get char
+		char c = *p;
+
+		// when a ',' is encountered, compare arg to the string after ','
+		if(c == ',')
+		{
+			// push 'p' forward one character to skip the ','
+			p++;
+
+			// compare the next region of the string against the target arg
+			if(strncmp(p, arg, arg_len) == 0)
+			{
+				// go to where a '=' should be, and ensure there is one
+				const char *equals = p + arg_len;
+
+				// ensure this char is '='
+				if(*equals != '=')
+				{
+					vl_delay_log(VL_ERROR, 3.0f, "Expected '=' after icon argument: '%s'!\n", arg);
+					return false;
+				}
+				// then move onto the character after the '='
+				equals++;
+
+				if(start_pos)
+					*start_pos = equals;
+
+				size_t i = 0;
+				while(*equals && *equals != '>' && *equals != ',' && i + 1 < buffer_size)
+					buffer[i++] = *equals++;
+
+				buffer[i] = '\0';
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+static void select_checkbox(phos_gui_elem *checkbox, phos_gui_checkbox_list_component *list, phos_gui_text_component *text)
 {
 	if(list->num_options_selected >= list->num_available_options || list->num_options_selected >= PHOS_GUI_MAX_CHECKBOXES)
 		return;
 
 	list->selections[list->num_options_selected++] = checkbox;
-	check_mark_icon->visible = true;
+	phos_gui_edit_icon_arg(text->str, sizeof(text->str), "CHECK_MARK", "visible", "TRUE");
 }
-static void unselect_first_checkbox(phos_gui_checkbox_list_component *list)
+static void unselect_oldest_checkbox(phos_gui_checkbox_list_component *list)
 {
 	if(list->num_options_selected == 0)
 		return;
@@ -2756,16 +2852,18 @@ static void unselect_first_checkbox(phos_gui_checkbox_list_component *list)
 	phos_gui_elem *first = list->selections[0];
 
 	// stop rendering its check mark icon
-	/*phos_gui_icon *check_mark_icon = phos_gui_find_elem_icon(first, PHOS_GUI_ICON_CHECK_MARK);
-	if(check_mark_icon)
-		check_mark_icon->visible = false;*/
-	// TODO FIXME add way to modify text args directly, maybe even make a function to do it
+	phos_gui_text_component *text = pluto_cs_get_component(first, PHOS_GUI_COMPONENT_TEXT);
+	if(!text)
+		return;
+
+	// modify CHECK_MARK icon to be invisible
+	phos_gui_edit_icon_arg(text->str, sizeof(text->str), "CHECK_MARK", "visible", "FALSE");
 
 	// remove first elem
 	memmove(list->selections, list->selections + 1, (list->num_options_selected - 1) * sizeof(phos_gui_elem*));
 	list->num_options_selected--;
 }
-static void unselect_checkbox(phos_gui_elem *checkbox, phos_gui_checkbox_list_component *list, phos_gui_icon *check_mark_icon)
+static void unselect_checkbox(phos_gui_elem *checkbox, phos_gui_checkbox_list_component *list, phos_gui_text_component *text)
 {
 	for(size_t i = 0; i < list->num_options_selected; ++i)
 	{
@@ -2773,38 +2871,72 @@ static void unselect_checkbox(phos_gui_elem *checkbox, phos_gui_checkbox_list_co
 		{
 			memmove(list->selections + i, list->selections + i + 1, (list->num_options_selected - i - 1) * sizeof(phos_gui_elem*));
 			list->num_options_selected--;
-			check_mark_icon->visible = false;
+			phos_gui_edit_icon_arg(text->str, sizeof(text->str), "CHECK_MARK", "visible", "FALSE");
 			return;
 		}
 	}
 }
 static void toggle_checkbox(phos_gui_elem *elem, void *args, phos_gui_opts opts)
 {
-	// first, ensure elem has check mark icon
-	/*phos_gui_icon *check_mark_icon = phos_gui_find_elem_icon(elem, PHOS_GUI_ICON_CHECK_MARK);
-	if(!check_mark_icon)
-		return;*/
-	// TODO FIXME add way to modify text args directly, maybe even make a function do it
+	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	if(!text)
+		return;
+
+	char visible_arg_buf[MAX_ICON_PARSED_STR_LEN + 1] = {0};
+	bool can_continue = false;
+	for(const char *p = text->str; *p; ++p)
+	{
+		char icon_name_buf[MAX_ICON_PARSED_STR_LEN + 1];
+		if(parse_icon_name(p, icon_name_buf, sizeof(icon_name_buf)))
+		{
+			if(strcmp(icon_name_buf, "CHECK_MARK") == 0)
+			{
+				if(parse_icon_arg(p, visible_arg_buf, sizeof(visible_arg_buf), "visible", NULL))
+				{
+					can_continue = true;
+					break;
+				}
+			}
+		}
+	}
+
+	if(!can_continue)
+		return;
+
+	bool check_mark_visible = false;
+	if(strcmp(visible_arg_buf, "TRUE") == 0)
+		check_mark_visible = true;
+	else if(strcmp(visible_arg_buf, "FALSE") == 0)
+		check_mark_visible = false;
+	else
+	{
+		vl_log(VL_ERROR, "Invalid boolean argument value '%s' in string: '%s'!\n", visible_arg_buf, text->str);
+		return;
+	}
 
 	// see if elem belongs to a checkbox list
 	phos_gui_checkbox_list_component *checkbox_list = NULL;
 	if(elem->parent)
 		checkbox_list = pluto_cs_get_component(elem->parent, PHOS_GUI_COMPONENT_CHECKBOX_LIST);
-	// TODO FIXME
-	/*if(checkbox_list)
+	if(checkbox_list)
 	{
-		if(check_mark_icon->visible)
-			unselect_checkbox(elem, checkbox_list, check_mark_icon);
+		if(check_mark_visible)
+			unselect_checkbox(elem, checkbox_list, text);
 		else
 		{
 			if(checkbox_list->num_options_selected == checkbox_list->num_available_options)
-				unselect_first_checkbox(checkbox_list);
+				unselect_oldest_checkbox(checkbox_list);
 
-			select_checkbox(elem, checkbox_list, check_mark_icon);
+			select_checkbox(elem, checkbox_list, text);
 		}
 	}
 	else
-		check_mark_icon->visible = !check_mark_icon->visible;*/
+	{
+		if(check_mark_visible)
+			phos_gui_edit_icon_arg(text->str, sizeof(text->str), "CHECK_MARK", "visible", "FALSE");
+		else
+			phos_gui_edit_icon_arg(text->str, sizeof(text->str), "CHECK_MARK", "visible", "TRUE");
+	}
 }
 void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *label_text)
 {
@@ -2815,7 +2947,7 @@ void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float 
 	}
 
 	// first init elem as a button (without text component)
-	phos_gui_init_button(elem, ID, x, y, w, h, "<icon=CHECK_MARK,align=INNER_CENTER>");
+	phos_gui_init_button(elem, ID, x, y, w, h, "<icon=CHECK_MARK,align=INNER_CENTER,visible=FALSE>");
 
 	// add way to toggle check mark
 	phos_gui_add_event_listener(elem, PHOS_GUI_EVENT_MOUSE_CLICK, MOUSE_BUTTON_LEFT, toggle_checkbox, NULL, PHOS_GUI_OPTS_NONE);
@@ -6151,95 +6283,6 @@ void phos_gui_render_icon(phos_gui_icon *icon)
 	Rectangle src_rect = { 0, 0, tex->width, tex->height };
 	DrawTexturePro(*tex, src_rect, icon->bounds, PHOS_GUI_WINDOW_ORIGIN, 0.0f, icon->color);
 }
-static bool parse_icon_name(const char *str, char *buffer, size_t buffer_size)
-{
-	if(buffer_size == 0)
-		return false;
-
-	if(strncmp(str, "<icon=", 6) == 0)
-	{
-		// go to equals sign
-		const char *equals = str + 5;
-
-		if(*equals != '=')
-		{
-			vl_delay_log(VL_ERROR, 3.0f, "Expected '=' after icon name in string: '%s'!\n", str);
-			return false;
-		}
-		// then move onto character after '='
-		equals++;
-
-		size_t i = 0;
-		while(*equals && *equals != '>' && *equals != ',' && i + 1 < buffer_size)
-			buffer[i++] = *equals++;
-
-		buffer[i] = '\0';
-
-		return true;
-	}
-
-	return false;
-}
-/*
-   parse a generic 'ARG' argument within an icon string:
-
-   str: should point to the first character directly after the end of the icon name
-   buffer: where the parsed icon arg value should be printed
-   buffer_size: size of 'buffer'
-   arg: the argument to search for
-*/
-static bool parse_icon_arg(const char *str, char *buffer, size_t buffer_size, const char *arg)
-{
-	if(buffer_size == 0)
-		return false;
-
-	size_t arg_len = strlen(arg);
-
-	/*
-	   begin at the start of the args list and walk forward until a ',' is found:
-
-	   since args_start points to the first character after the icon's name, if
-	   there are any arguments present, p should point to the first ',' in the string.
-	*/
-	for(const char *p = str; *p && *p != '>'; ++p)
-	{
-		// get char
-		char c = *p;
-
-		// when a ',' is encountered, compare arg to the string after ','
-		if(c == ',')
-		{
-			// push 'p' forward one character to skip the ','
-			p++;
-
-			// compare the next region of the string against the target arg
-			if(strncmp(p, arg, arg_len) == 0)
-			{
-				// go to where a '=' should be, and ensure there is one
-				const char *equals = p + arg_len;
-
-				// ensure this char is '='
-				if(*equals != '=')
-				{
-					vl_delay_log(VL_ERROR, 3.0f, "Expected '=' after icon argument: '%s'!\n", arg);
-					return false;
-				}
-				// then move onto the character after the '='
-				equals++;
-
-				size_t i = 0;
-				while(*equals && *equals != '>' && *equals != ',' && i + 1 < buffer_size)
-					buffer[i++] = *equals++;
-
-				buffer[i] = '\0';
-
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
 // generic macro for finding start of args list within an icon string (origin + (length of '<icon=') + (length of '<icon=') + length of icon name)
 #define icon_args_start(origin, icon_name) (origin) + 6 + strlen((icon_name))
 
@@ -6270,7 +6313,7 @@ Vector2 phos_gui_measure_text(Font font, const char *text, float font_size)
 		{
 			// search for a size arg:
 			char size_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-			bool size_arg_present = parse_icon_arg(icon_args_start(p, icon_name), size_arg_buf, sizeof(size_arg_buf), "size");
+			bool size_arg_present = parse_icon_arg(icon_args_start(p, icon_name), size_arg_buf, sizeof(size_arg_buf), "size", NULL);
 			if(size_arg_present)
 			{
 				// get actual float value from string
@@ -6366,7 +6409,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 
 				// see if this icon should be colored differently:
 				char color_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool color_arg_present = parse_icon_arg(args_start, color_arg_buf, sizeof(color_arg_buf), "color");
+				bool color_arg_present = parse_icon_arg(args_start, color_arg_buf, sizeof(color_arg_buf), "color", NULL);
 				if(color_arg_present)
 				{
 					// get actual color value from color map
@@ -6380,7 +6423,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 
 				// see if the icon size should be overridden
 				char size_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool size_arg_present = parse_icon_arg(args_start, size_arg_buf, sizeof(size_arg_buf), "size");
+				bool size_arg_present = parse_icon_arg(args_start, size_arg_buf, sizeof(size_arg_buf), "size", NULL);
 				if(size_arg_present)
 				{
 					// get actual float value from string
@@ -6398,7 +6441,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 
 				// if the user provides a 'size' argument, that takes priority over any 'width' or 'height' arguments:
 				char width_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool width_arg_present = parse_icon_arg(args_start, width_arg_buf, sizeof(width_arg_buf), "width");
+				bool width_arg_present = parse_icon_arg(args_start, width_arg_buf, sizeof(width_arg_buf), "width", NULL);
 				if(!size_arg_present && width_arg_present)
 				{
 					char *endptr = NULL;
@@ -6416,7 +6459,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 					vl_delay_log(VL_WARNING, 5.0f, "Cannot use the 'width' argument as well as the 'size' argument in an icon string! The 'size' argument takes priority.\n");
 
 				char height_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool height_arg_present = parse_icon_arg(args_start, height_arg_buf, sizeof(height_arg_buf), "height");
+				bool height_arg_present = parse_icon_arg(args_start, height_arg_buf, sizeof(height_arg_buf), "height", NULL);
 				if(!size_arg_present && height_arg_present)
 				{
 					char *endptr = NULL;
@@ -6435,7 +6478,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 
 				// see if this icon should be aligned specifically:
 				char alignment_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool alignment_arg_present = parse_icon_arg(args_start, alignment_arg_buf, sizeof(alignment_arg_buf), "align");
+				bool alignment_arg_present = parse_icon_arg(args_start, alignment_arg_buf, sizeof(alignment_arg_buf), "align", NULL);
 				if(alignment_arg_present)
 				{
 					// get actual alignment value from alignment map
@@ -6453,7 +6496,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 
 				// see if icon should be moved
 				char x_offset_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool x_offset_arg_present = parse_icon_arg(args_start, x_offset_arg_buf, sizeof(x_offset_arg_buf), "x-offset");
+				bool x_offset_arg_present = parse_icon_arg(args_start, x_offset_arg_buf, sizeof(x_offset_arg_buf), "x-offset", NULL);
 				if(x_offset_arg_present)
 				{
 					// get actual x-offset value
@@ -6465,7 +6508,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 						vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon x-offset argument: '%s'!\n", x_offset_arg_buf);
 				}
 				char y_offset_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool y_offset_arg_present = parse_icon_arg(args_start, y_offset_arg_buf, sizeof(y_offset_arg_buf), "y-offset");
+				bool y_offset_arg_present = parse_icon_arg(args_start, y_offset_arg_buf, sizeof(y_offset_arg_buf), "y-offset", NULL);
 				if(y_offset_arg_present)
 				{
 					// get actual y-offset value
@@ -6477,6 +6520,19 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 						vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon y-offset argument: '%s'!\n", y_offset_arg_buf);
 				}
 
+				char visible_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
+				bool visible_arg_present = parse_icon_arg(args_start, visible_arg_buf, sizeof(visible_arg_buf), "visible", NULL);
+				if(visible_arg_present)
+				{
+					// get actual 'visible' value
+					if(strcmp(visible_arg_buf, "FALSE") == 0)
+						icon.visible = false;
+					else if(strcmp(visible_arg_buf, "TRUE") == 0)
+						icon.visible = true;
+					else
+						vl_delay_log(VL_ERROR, 3.0f, "The 'visible' argument should either be 'TRUE' or 'FALSE.' Defaulting to TRUE.\n");
+				}
+
 				phos_gui_render_icon(&icon);
 
 				// see if icon outline should be rendered:
@@ -6485,7 +6541,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 				phos_gui_shape outline_shape = PHOS_GUI_SHAPE_RECT;
 
 				char outline_shape_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool outline_shape_arg_present = parse_icon_arg(args_start, outline_shape_buf, sizeof(outline_shape_buf), "outline-shape");
+				bool outline_shape_arg_present = parse_icon_arg(args_start, outline_shape_buf, sizeof(outline_shape_buf), "outline-shape", NULL);
 				if(outline_shape_arg_present)
 				{
 					// find matching shape value in map
@@ -6501,7 +6557,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 				Color outline_color = BLACK;
 
 				char outline_color_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool outline_color_arg_present = parse_icon_arg(args_start, outline_color_buf, sizeof(outline_color_buf), "outline-color");
+				bool outline_color_arg_present = parse_icon_arg(args_start, outline_color_buf, sizeof(outline_color_buf), "outline-color", NULL);
 				if(outline_color_arg_present)
 				{
 					// see if user passed 'AUTO' as color (use current theme's outline color)
@@ -6522,7 +6578,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 				float outline_thickness = 1.0f;
 
 				char outline_thickness_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool outline_thickness_arg_present = parse_icon_arg(args_start, outline_thickness_buf, sizeof(outline_thickness_buf), "outline-thickness");
+				bool outline_thickness_arg_present = parse_icon_arg(args_start, outline_thickness_buf, sizeof(outline_thickness_buf), "outline-thickness", NULL);
 				if(outline_thickness_arg_present)
 				{
 					char *endptr = NULL;
@@ -6537,7 +6593,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 				float corner_radius = 0.0f;
 
 				char corner_radius_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool corner_radius_arg_present = parse_icon_arg(args_start, corner_radius_buf, sizeof(corner_radius_buf), "corner-radius");
+				bool corner_radius_arg_present = parse_icon_arg(args_start, corner_radius_buf, sizeof(corner_radius_buf), "corner-radius", NULL);
 				if(corner_radius_arg_present)
 				{
 					char *endptr = NULL;
@@ -6856,18 +6912,18 @@ Texture2D *phos_gui_load_texture(const char *file_path)
 
 	return &textures.data[textures.size - 1].tex;
 }
-Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon)
+Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon_id)
 {
 	// return loaded texture at icon's file path in the icon map
 	const char **icon_file_path_value = NULL;
-	dynmaps_get(&icon_ids, icon, icon_file_path_value);
+	dynmaps_get(&icon_ids, icon_id, icon_file_path_value);
 	if(icon_file_path_value)
 	{
 		const char *icon_file_path = *icon_file_path_value;
 		return phos_gui_load_texture(icon_file_path);
 	}
 
-	vl_log(VL_ERROR, "Failed to obtain icon texture: %d!\n", icon);
+	vl_log(VL_ERROR, "Failed to obtain icon texture: %d!\n", icon_id);
 	return NULL;
 }
 Texture2D *phos_gui_get_icon_str(const char *str, phos_gui_icon_id *out_icon_id)
@@ -6891,10 +6947,141 @@ Texture2D *phos_gui_get_icon_str(const char *str, phos_gui_icon_id *out_icon_id)
 	vl_log(VL_ERROR, "Failed to parse icon string: '%s'!\n", str);
 	return NULL;
 }
-void phos_gui_set_icon(phos_gui_icon_id icon, const char *file_path)
+void phos_gui_set_icon(phos_gui_icon_id icon_id, const char *file_path)
 {
-	map_add(&icon_ids, icon, file_path);
-	vl_log(VL_INFO, "Icon %d now using texture file path: '%s'!\n", icon, file_path);
+	map_add(&icon_ids, icon_id, file_path);
+	vl_log(VL_INFO, "Icon %d now using texture file path: '%s'!\n", icon_id, file_path);
+}
+
+static void insert_char_str(char *buffer, size_t pos, char c)
+{
+	// move all chars at pos one slot over to the right
+	memmove(buffer + pos + 1, buffer + pos, strlen(buffer) - pos + 1);
+	buffer[pos++] = c;
+}
+int phos_gui_edit_icon_arg(char *buffer, size_t buffer_size, const char *icon_name, const char *arg_name, const char *new_arg_value)
+{
+	if(buffer_size == 0)
+	{
+		vl_log(VL_ERROR, "Cannot modify an icon string with a size of 0!\n");
+		return 0;
+	}
+
+	char *p = buffer;
+	
+	// first determine if the icon is found in the icon string
+	bool icon_found = false;
+	for(char *t = buffer; *t; ++t)
+	{
+		char icon_name_buf[MAX_ICON_PARSED_STR_LEN + 1];
+		if(parse_icon_name(t, icon_name_buf, sizeof(icon_name_buf)))
+		{
+			if(strcmp(icon_name_buf, icon_name) == 0)
+			{
+				icon_found = true;
+				// move edit pointer to where args should start
+				p = icon_args_start(buffer, icon_name_buf);
+				break;
+			}
+		}
+	}
+	if(!icon_found)
+	{
+		vl_log(VL_ERROR, "The icon '%s' was not found in this string: '%s'!\n", icon_name, buffer);
+		return 0;
+	}
+
+	// some values that will determine allocation status, edit information, etc.
+	char *edit_pos = NULL; // a pointer into buffer where the edit is required
+	size_t edit_len = 0; // edit_len defaults to length of just the arg value
+	int curr_len = -1; // the current length of the current arg in the string. -1 indicates the arg was not found
+	bool arg_found = false; // does same thing as curr_len but only determines if the arg was found
+
+	const char *arg_start = NULL;
+
+	// then determine if the arg is present within the icon string:
+	for(char *t = p; *t; ++t)
+	{
+		char arg_value_buf[MAX_ICON_PARSED_STR_LEN + 1];
+		if(parse_icon_arg(t, arg_value_buf, sizeof(arg_value_buf), arg_name, &arg_start))
+		{
+			// arg was found at p, so edit pos becomes p + 2 (skip ',' and '=') + length of arg name
+			edit_pos = (char*) arg_start;
+			curr_len = strlen(arg_value_buf);
+			arg_found = true;
+			break;
+		}
+	}
+
+	// if the arg was never found, the ',ARG_NAME=' has to be added to the string as well
+	if(arg_found)
+		edit_len = strlen(new_arg_value);
+	else
+		edit_len = 1 + strlen(arg_name) + 1 + strlen(new_arg_value);
+
+	// if buffer too small to fit the added text, do not allocate a new string, instead return error
+	if(edit_len >= buffer_size || strlen(buffer) + edit_len >= buffer_size)
+	{
+		vl_log(VL_ERROR, "The given buffer is not large enough to fit the new icon string: current size = %zu, required size = %zu!\n", buffer_size, strlen(buffer) + edit_len);
+		return 0;
+	}
+
+	if(!arg_found)
+	{
+		// add ',ARG_NAME=new_arg_value' to string
+		size_t icon_end = 0;
+		for(size_t i = 0; i < strlen(buffer); ++i)
+		{
+			// find where the '>' is
+			if(*(buffer + i) == '>')
+			{
+				icon_end = i;
+				break;
+			}
+		}
+
+		// insert ',' char there
+		insert_char_str(buffer, icon_end++, ',');
+
+		// now insert arg name
+		for(size_t i = 0; i < strlen(arg_name); ++i)
+			insert_char_str(buffer, icon_end++, *(arg_name + i));
+
+		// now insert '='
+		insert_char_str(buffer, icon_end++, '=');
+
+		// now insert the new arg value
+		for(size_t i = 0; i < strlen(new_arg_value); ++i)
+			insert_char_str(buffer, icon_end++, *(new_arg_value + i));
+	}
+	else
+	{
+		// modify arg value directly in string:
+
+		/*
+		   move all chars in the string after the edit pos to the left
+		   to account for length differences.
+
+		   for example, if changing an arg value from '3.0'
+		   to '1' you cannot just overwrite the '3.0,' you
+		   have to remove the '.0' entirely and then just
+		   overwrite the '3'
+
+		                                            V-edit pos
+		   example icon string:   "<icon=STAR,color=RED>"
+		   example edit: 'RED' to 'BRIGHT_PINK'     V-edit pos
+		   example edited string: "<icon=STAR,color=BRIGHT_PINK>"
+
+		   example icon string:   "<icon=STAR,color=BLUE>"
+		   example edit: 'BLUE' to 'RED'
+		   example edited string: "<icon=STAR,color=RED>"
+		*/
+		size_t new_len = strlen(new_arg_value);
+		memmove(edit_pos + new_len, edit_pos + curr_len, strlen(edit_pos + curr_len) + 1);
+		memcpy(edit_pos, new_arg_value, new_len);
+	}
+
+	return 1;
 }
 
 Font *phos_gui_load_font(const char *file_path)
