@@ -50,7 +50,7 @@
   Used to indicate an event listener has no specific
   button/key to listen for.
 */
-#define PHOS_GUI_NO_INPUT 0
+#define PHOS_GUI_NO_INPUT -1
 
 /**
   The max number of timers that a single
@@ -669,6 +669,10 @@
 */
 #define PHOS_GUI_THEME_FOREST phos_gui_create_theme_accented(PHOS_GUI_COLOR_DULL_GREEN, PHOS_GUI_COLOR_DARK_GREEN)
 /**
+  A theme focused on gray and subtle blues.
+*/
+#define PHOS_GUI_THEME_GLOOMY phos_gui_create_theme_accented((Color) { 130, 155, 150, 255 }, (Color) { 235, 255, 240, 255 })
+/**
   A simple theme built on grays.
 */
 #define PHOS_GUI_THEME_GRAPHITE phos_gui_create_theme_basic(RAYWHITE)
@@ -680,6 +684,10 @@
   A theme revolving around typical Halloween colors.
 */
 #define PHOS_GUI_THEME_HALLOWEEN phos_gui_create_theme_full(PHOS_GUI_COLOR_BRIGHT_ORANGE, PHOS_GUI_COLOR_DULL_GREEN, PHOS_GUI_COLOR_LIGHT_BLUE, PHOS_GUI_COLOR_BRIGHT_YELLOW, PHOS_GUI_COLOR_DULL_INDIGO, PHOS_GUI_COLOR_DULL_VIOLET)
+/**
+  A theme revolving around blue and yellow.
+*/
+#define PHOS_GUI_THEME_HERO phos_gui_create_theme_accented((Color) { 255, 200, 40, 255 }, (Color) { 85, 100, 185, 255 })
 /**
   A theme revolving around neon blue and orange.
 */
@@ -704,6 +712,10 @@
   A theme built around red and black.
 */
 #define PHOS_GUI_THEME_KNIGHT phos_gui_create_theme_accented(PHOS_GUI_COLOR_DULL_RED, PHOS_GUI_COLOR_BLACK)
+/**
+  A yellow theme.
+*/
+#define PHOS_GUI_THEME_LEMON phos_gui_create_theme_accented(PHOS_GUI_COLOR_YELLOW, PHOS_GUI_COLOR_BRIGHT_YELLOW)
 /**
   A simple light theme.
 */
@@ -800,6 +812,10 @@
   A theme revolving around marine ecosystems.
 */
 #define PHOS_GUI_THEME_SEAWEED phos_gui_create_theme_full(PHOS_GUI_COLOR_CORAL, PHOS_GUI_COLOR_DULL_GREEN, PHOS_GUI_COLOR_DARK_CRYSTAL, PHOS_GUI_COLOR_DULL_BLUE, PHOS_GUI_COLOR_DARK_SKY_BLUE, PHOS_GUI_COLOR_DARK_TEAL)
+/**
+  A theme revolving around neon violet and pink.
+*/
+#define PHOS_GUI_THEME_SPACE_SHIP phos_gui_create_theme_accented((Color) { 25, 250, 180, 255 }, (Color) { 200, 15, 200, 255 })
 /**
   A theme revolving around orange and yellow.
 */
@@ -1321,7 +1337,7 @@ typedef struct phos_gui_shadow_component
 	/**
 	  The length of the shadow from the element's edge.
 
-	  This is 10.0f by default.
+	  This is 15.0f by default.
 	*/
 	float length;
 	/**
@@ -1930,7 +1946,7 @@ typedef struct phos_gui_scroll_bar
 	/**
 	  The width/height of the scroll bar based on its orientation.
 
-	  This is 15.0f by default.
+	  This is 10.0f by default.
 	*/
 	float span;
 	/**
@@ -2340,6 +2356,10 @@ typedef enum phos_gui_icon_id
 	*/
 	PHOS_GUI_ICON_ARROW_UP,
 	/**
+	  The banner icon.
+	*/
+	PHOS_GUI_ICON_BANNER,
+	/**
 	  The bolt icon.
 	*/
 	PHOS_GUI_ICON_BOLT,
@@ -2351,6 +2371,10 @@ typedef enum phos_gui_icon_id
 	  The check mark icon.
 	*/
 	PHOS_GUI_ICON_CHECK_MARK,
+	/**
+	  The compass icon.
+	*/
+	PHOS_GUI_ICON_COMPASS,
 	/**
 	  The copyright icon.
 	*/
@@ -3563,6 +3587,10 @@ PHOS_GUI_API void phos_gui_add_elem_margin(phos_gui_elem *elem, float margin);
   @see phos_gui_target_text_string
 */
 PHOS_GUI_API void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gui_target_text_string target_str, const char *new_contents, phos_gui_opts opts);
+/**
+  Sets the font size of a text component and realigns the text.
+*/
+PHOS_GUI_API void phos_gui_set_text_font_size(phos_gui_text_component *text, float font_size);
 
 /**
   Aligns the given text component using its owner as a reference element.
@@ -3983,7 +4011,8 @@ PHOS_GUI_API phos_gui_elem *phos_gui_get_mouse_target(void);
   @param event The event to listen for.
   @param target_button The target button/key in the event.
   If no specific button/key is being targeted, pass in
-  PHOS_GUI_NO_INPUT, or 0.
+  PHOS_GUI_NO_INPUT, or -1.
+
   @param action The action the event listener should
   execute when the event occurs.
   @param args Any additional arguments you want to pass

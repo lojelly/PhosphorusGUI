@@ -23,7 +23,7 @@
 
 #define MIN_SCROLL_THUMB_LENGTH 25.0f
 
-#define DEFAULT_SCROLL_BAR (phos_gui_scroll_bar) { .bg_color = PHOS_GUI_COLOR_LIGHT_GRAY, .thumb_color = PHOS_GUI_COLOR_GRAY, .thumb_focus_color = PHOS_GUI_COLOR_DARK_GRAY, .thumb_shape = PHOS_GUI_SHAPE_RECT, .thumb_corner_radius = 0.0f, .span = 15.0f, .thumb_grab_offset = 0.0f, .thumb_has_focus = false, .thumb_grabbed = false, .rendered = true, .active = true }
+#define DEFAULT_SCROLL_BAR (phos_gui_scroll_bar) { .bg_color = PHOS_GUI_COLOR_LIGHT_GRAY, .thumb_color = PHOS_GUI_COLOR_GRAY, .thumb_focus_color = PHOS_GUI_COLOR_DARK_GRAY, .thumb_shape = PHOS_GUI_SHAPE_RECT, .thumb_corner_radius = 0.0f, .span = 10.0f, .thumb_grab_offset = 0.0f, .thumb_has_focus = false, .thumb_grabbed = false, .rendered = true, .active = true }
 
 #define MAX_ICON_PARSED_STR_LEN 32
 
@@ -229,7 +229,7 @@ static void init_shadow_component(void *shadow_component)
 	}
 
 	shadow->edges = PHOS_GUI_SHADOW_BOTTOM_RIGHT;
-	shadow->length = 10.0f;
+	shadow->length = 15.0f;
 	shadow->initial_color = PHOS_GUI_COLOR_DARK_GRAY;
 	shadow->fade_color = PHOS_GUI_COLOR_LIGHT_GRAY;
 
@@ -587,9 +587,11 @@ int phos_gui_init()
 	phos_gui_set_icon(PHOS_GUI_ICON_ARROW_LEFT, "icons/arrow_left.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_ARROW_RIGHT, "icons/arrow_right.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_ARROW_UP, "icons/arrow_up.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_BANNER, "icons/banner.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_BOLT, "icons/bolt.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_CALENDAR, "icons/calendar.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_CHECK_MARK, "icons/check_mark.png");
+	phos_gui_set_icon(PHOS_GUI_ICON_COMPASS, "icons/compass.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_COPYRIGHT, "icons/copyright.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_DOWNLOAD, "icons/download.png");
 	phos_gui_set_icon(PHOS_GUI_ICON_EXCLAMATION_MARK, "icons/exclamation_mark.png");
@@ -636,9 +638,11 @@ int phos_gui_init()
 	map_add_strkey(&icon_names, "ARROW_LEFT", PHOS_GUI_ICON_ARROW_LEFT, 0);
 	map_add_strkey(&icon_names, "ARROW_RIGHT", PHOS_GUI_ICON_ARROW_RIGHT, 0);
 	map_add_strkey(&icon_names, "ARROW_UP", PHOS_GUI_ICON_ARROW_UP, 0);
+	map_add_strkey(&icon_names, "BANNER", PHOS_GUI_ICON_BANNER, 0);
 	map_add_strkey(&icon_names, "BOLT", PHOS_GUI_ICON_BOLT, 0);
 	map_add_strkey(&icon_names, "CALENDAR", PHOS_GUI_ICON_CALENDAR, 0);
 	map_add_strkey(&icon_names, "CHECK_MARK", PHOS_GUI_ICON_CHECK_MARK, 0);
+	map_add_strkey(&icon_names, "COMPASS", PHOS_GUI_ICON_COMPASS, 0);
 	map_add_strkey(&icon_names, "COPYRIGHT", PHOS_GUI_ICON_COPYRIGHT, 0);
 	map_add_strkey(&icon_names, "DOWNLOAD", PHOS_GUI_ICON_DOWNLOAD, 0);
 	map_add_strkey(&icon_names, "EXCLAMATION_MARK", PHOS_GUI_ICON_EXCLAMATION_MARK, 0);
@@ -2109,6 +2113,23 @@ void phos_gui_set_text_contents(phos_gui_text_component *text_component, phos_gu
 	// realign text no matter what
 	realign_elem_texts(owner);
 }
+void phos_gui_set_text_font_size(phos_gui_text_component *text, float font_size)
+{
+	if(!text)
+	{
+		vl_log(VL_ERROR, "Cannot set font size of NULL text component!\n");
+		return;
+	}
+	if(font_size <= 0.0f)
+	{
+		vl_log(VL_ERROR, "Cannot set font size of text component to 0.0f or less!\n");
+		return;
+	}
+
+	// change font size and realign
+	text->font_size = font_size;
+	phos_gui_realign_elem_text(text, PHOS_GUI_TARGET_AUTO_TEXT);
+}
 
 static Vector2 resolve_elem_text_bounds(const phos_gui_text_component *const text_component, phos_gui_target_text_string target_str)
 {
@@ -2142,7 +2163,7 @@ static Vector2 resolve_elem_text_bounds(const phos_gui_text_component *const tex
 			else if(placeholder_text && placeholder_len > main_len)
 				text_bounds = phos_gui_measure_text(*text_component->font, placeholder_text->str, text_component->font_size);
 			else
-				vl_log(VL_WARNING, "PHOS_GUI_TARGET_AUTO_TEXT failed for element: '%s'!\n", elem->ID);
+				text_bounds = phos_gui_measure_text(*text_component->font, text_component->str, text_component->font_size);
 			break;
 		default:
 			vl_log(VL_ERROR, "Invalid target string: %d!\n", target_str);
@@ -2660,10 +2681,19 @@ void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float
 	phos_gui_init_text_field(elem, ID, x, y, w, h, main_text, placeholder_text);
 
 	// check which wrap mode the user gave:
-	if(wrap_mode == PHOS_GUI_TEXT_WRAP_NONE)
+	if(wrap_mode != PHOS_GUI_TEXT_WRAP_NONE)
 	{
 		// keep scroll pane component:
 
+		// modify scroll pane to work for multiple lines
+		phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
+		scroll_pane->h_bar.active = false;
+		scroll_pane->h_bar.rendered = false;
+		scroll_pane->v_bar.active = true;
+		scroll_pane->v_bar.rendered = true;
+	}
+	else
+	{
 		// modify scroll pane to work for multiple lines
 		phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 		scroll_pane->h_bar.active = true;
@@ -2671,9 +2701,6 @@ void phos_gui_init_text_area(phos_gui_elem *elem, const char *ID, float x, float
 		scroll_pane->v_bar.active = true;
 		scroll_pane->v_bar.rendered = true;
 	}
-	else
-		// no need for scroll pane component since text wraps
-		pluto_cs_remove_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 
 	// set wrap mode of text component
 	phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
@@ -4355,6 +4382,11 @@ static float get_elem_total_content_width(phos_gui_elem *e)
 {
 	float tcw = 0.0f;
 
+	// if it has a text component, use the width of the text block
+	phos_gui_text_component *text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXT);
+	if(text)
+		return resolve_elem_text_bounds(text, PHOS_GUI_TARGET_AUTO_TEXT).x;
+
 	// default to layout component's total content width
 	phos_gui_layout_component *layout = NULL;
 	if((layout = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_LAYOUT)))
@@ -4386,6 +4418,11 @@ static float get_elem_total_content_width(phos_gui_elem *e)
 static float get_elem_total_content_height(phos_gui_elem *e)
 {
 	float tch = 0.0f;
+
+	// if it has a text component, use the height of the text block
+	phos_gui_text_component *text = pluto_cs_get_component(e, PHOS_GUI_COMPONENT_TEXT);
+	if(text)
+		return resolve_elem_text_bounds(text, PHOS_GUI_TARGET_AUTO_TEXT).y;
 
 	// default to layout component's total content height
 	phos_gui_layout_component *layout = NULL;
@@ -5450,24 +5487,30 @@ void phos_gui_update_elem(phos_gui_elem *elem, float dt)
 				scroll_pane->h_bar.thumb_grab_offset = mouse_pos.x - h_thumb.x;
 			}
 
-			// continue grabs
+			// if user continues grabbing
 			if(scroll_pane->v_bar.thumb_grabbed)
 			{
 				float desired_thumb_y = mouse_pos.y - scroll_pane->v_bar.thumb_grab_offset;
 				float thumb_travel = v_bar.height - v_thumb.height;
 				float thumb_offset = desired_thumb_y - v_bar.y;
-				float t = thumb_offset / thumb_travel;
-				t = Clamp(t, 0.0f, 1.0f);
-				scroll_pane->scroll_y = t * scroll_pane->max_scroll_y;
+				if(thumb_travel != 0.0f)
+				{
+					float t = thumb_offset / thumb_travel;
+					t = Clamp(t, 0.0f, 1.0f);
+					scroll_pane->scroll_y = t * scroll_pane->max_scroll_y;
+				}
 			}
 			if(scroll_pane->h_bar.thumb_grabbed)
 			{
 				float desired_thumb_x = mouse_pos.x - scroll_pane->h_bar.thumb_grab_offset;
 				float thumb_travel = h_bar.width - h_thumb.width;
 				float thumb_offset = desired_thumb_x - h_bar.x;
-				float t = thumb_offset / thumb_travel;
-				t = Clamp(t, 0.0f, 1.0f);
-				scroll_pane->scroll_x = t * scroll_pane->max_scroll_x;
+				if(thumb_travel != 0.0f)
+				{
+					float t = thumb_offset / thumb_travel;
+					t = Clamp(t, 0.0f, 1.0f);
+					scroll_pane->scroll_x = t * scroll_pane->max_scroll_x;
+				}
 			}
 		}
 		// user is using mouse wheel instead: (requires 'use_mouse_wheel_input' to be true)
@@ -5495,15 +5538,8 @@ void phos_gui_update_elem(phos_gui_elem *elem, float dt)
 		}
 
 		// clamp scroll amounts
-		if(scroll_pane->scroll_x < 0.0f)
-			scroll_pane->scroll_x = 0.0f;
-		else if(scroll_pane->scroll_x > scroll_pane->max_scroll_x)
-			scroll_pane->scroll_x = scroll_pane->max_scroll_x;
-
-		if(scroll_pane->scroll_y < 0.0f)
-			scroll_pane->scroll_y = 0.0f;
-		else if(scroll_pane->scroll_y > scroll_pane->max_scroll_y)
-			scroll_pane->scroll_y = scroll_pane->max_scroll_y;
+		scroll_pane->scroll_x = Clamp(scroll_pane->scroll_x, 0.0f, scroll_pane->max_scroll_x);
+		scroll_pane->scroll_y = Clamp(scroll_pane->scroll_y, 0.0f, scroll_pane->max_scroll_y);
 
 		float delta_x = scroll_pane->scroll_x - prev_scroll_x;
 		float delta_y = scroll_pane->scroll_y - prev_scroll_y;
@@ -6628,7 +6664,7 @@ void phos_gui_apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
 	phos_gui_scroll_pane_component *scroll_pane = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SCROLL_PANE);
 	if(scroll_pane)
 	{
-		scroll_pane->v_bar.bg_color = theme.decoration_color;
+		scroll_pane->v_bar.bg_color = scroll_pane->h_bar.bg_color = theme.decoration_color;
 		scroll_pane->v_bar.thumb_color = scroll_pane->h_bar.thumb_color = ColorBrightness(theme.decoration_color, -0.4f);
 		scroll_pane->v_bar.thumb_focus_color = scroll_pane->h_bar.thumb_focus_color = ColorBrightness(theme.decoration_color, 0.4f);
 	}
@@ -6640,7 +6676,7 @@ void phos_gui_apply_theme_to_elem(phos_gui_elem *elem, phos_gui_theme theme)
 	phos_gui_shadow_component *shadow = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_SHADOW);
 	if(shadow)
 	{
-		shadow->initial_color = ColorBrightness(theme.window_bg_color, -0.3f);
+		shadow->initial_color = ColorBrightness(theme.window_bg_color, -0.5f);
 		shadow->fade_color = theme.window_bg_color;
 	}
 
