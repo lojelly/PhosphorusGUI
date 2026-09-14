@@ -3296,6 +3296,10 @@ typedef struct phos_gui
 */
 PHOS_GUI_API int phos_gui_init(void);
 /**
+  Determines if PhosphorusGUI has been initialized yet.
+*/
+PHOS_GUI_API bool phos_gui_is_init(void);
+/**
   Frees all resources used by the PhosphorusGUI library.
 */
 PHOS_GUI_API void phos_gui_shutdown(void);
@@ -3303,8 +3307,8 @@ PHOS_GUI_API void phos_gui_shutdown(void);
   Automatically closes and disposes of system resources
   and exits the program with the given exit code.
 
-  @important Only call this function once PlutoniumCS,
-  PhosphorusGUI, and Raylib have all been initialized!
+  @important It will automatically determine which libraries
+  require shutting down.
 */
 PHOS_GUI_API void phos_gui_exit(int exit_code);
 

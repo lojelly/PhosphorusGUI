@@ -819,6 +819,10 @@ int phos_gui_init()
 
 	return 1;
 }
+bool phos_gui_is_init()
+{
+	return init;
+}
 void phos_gui_shutdown()
 {
 	if(!init)
@@ -868,9 +872,12 @@ void phos_gui_exit(int exit_code)
 	else
 		vl_log(VL_INFO, "Exiting with exit code: %d!\n", exit_code);
 
-	pluto_cs_shutdown();
-	phos_gui_shutdown();
-	CloseWindow();
+	if(pluto_cs_is_init())
+		pluto_cs_shutdown();
+	if(phos_gui_is_init())
+		phos_gui_shutdown();
+	if(WindowShouldClose())
+		CloseWindow();
 	exit(exit_code);
 }
 
