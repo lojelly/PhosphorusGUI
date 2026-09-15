@@ -2550,6 +2550,7 @@ void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type 
 	elem->content_free_bounds.rect = bounds;
 	elem->parent = NULL;
 	elem->num_children = 0;
+	elem->num_listeners = 0;
 	elem->type = type;
 	elem->shape = PHOS_GUI_SHAPE_RECT;
 	elem->render_mode = render_mode;
@@ -3190,9 +3191,6 @@ int phos_gui_add_child_to_elem(phos_gui_elem *child, phos_gui_elem *parent, phos
 
 	// force calculate rectangles around child
 	phos_gui_reload_elem(child);
-
-	// apply theme to child
-	phos_gui_apply_theme_to_elem(child, phos_gui_get_theme());
 
 	vl_log(VL_SUCCESS, "Element '%s' added to parent element '%s'!\n", child->ID, parent->ID);
 
@@ -5749,7 +5747,9 @@ void phos_gui_update_elem(phos_gui_elem *elem, float dt)
 
 	// execute listeners
 	for(size_t i = 0; i < elem->num_listeners; ++i)
+	{
 		run_event_listener(&elem->listeners[i]);
+	}
 }
 void phos_gui_render_elem(phos_gui_elem *elem)
 {

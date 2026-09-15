@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "raylib.h"
+#include "raymath.h"
 
 #ifdef _WIN32
 	#ifdef PHOS_GUI_DLL
@@ -38,7 +39,7 @@
   The max number of child elements a parent element
   can contain.
 */
-#define PHOS_GUI_MAX_CHILDREN 48
+#define PHOS_GUI_MAX_CHILDREN 128
 
 /**
   The max number of event listeners that a
@@ -1854,19 +1855,27 @@ typedef struct phos_gui_layout_component
 {
 	/**
 	  The number of rows in the layout.
+
+	  This is 0 by default.
 	*/
 	size_t rows;
 	/**
 	  The number of columns in the layout.
+
+	  This is 0 by default.
 	*/
 	size_t cols;
 
 	/**
 	  The amount of pixels on the x-axis between each element.
+
+	  This is 0.0f by default.
 	*/
 	float spacing_x;
 	/**
 	  The amount of pixels on the y-axis between each element.
+
+	  This is 0.0f by default.
 	*/
 	float spacing_y;
 
@@ -1889,6 +1898,8 @@ typedef struct phos_gui_layout_component
 
 	/**
 	  Indicates how the layout should place the elements inside of it.
+
+	  This is PHOS_GUI_LAYOUT_ROW_MAJOR by default.
 	*/
 	phos_gui_layout_flow flow;
 
