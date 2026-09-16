@@ -25,7 +25,7 @@
 
 #define DEFAULT_SCROLL_BAR (phos_gui_scroll_bar) { .bg_color = PHOS_GUI_COLOR_LIGHT_GRAY, .thumb_color = PHOS_GUI_COLOR_GRAY, .thumb_focus_color = PHOS_GUI_COLOR_DARK_GRAY, .thumb_shape = PHOS_GUI_SHAPE_RECT, .thumb_corner_radius = 0.0f, .span = 10.0f, .thumb_grab_offset = 0.0f, .thumb_has_focus = false, .thumb_grabbed = false, .rendered = true, .active = true }
 
-#define MAX_ICON_PARSED_STR_LEN 32
+#define MAX_PARSED_STR_LEN 32
 
 // array of element pointers
 typedef struct elem_arr
@@ -113,6 +113,24 @@ typedef struct shape_name_map
 	phos_gui_shape *values;
 	size_t size, capacity;
 } shape_name_map;
+typedef struct type_name_map
+{
+	char **keys;
+	phos_gui_elem_type *values;
+	size_t size, capacity;
+} type_name_map;
+typedef struct render_mode_name_map
+{
+	char **keys;
+	phos_gui_elem_render_mode *values;
+	size_t size, capacity;
+} render_mode_name_map;
+typedef struct fn_name_map
+{
+	char **keys;
+	void **values;
+	size_t size, capacity;
+} fn_name_map;
 
 // core info and registries
 static bool init = false;
@@ -123,6 +141,9 @@ static gui_arr gui_registry = {0};
 static alignment_name_map alignment_names = {0};
 static color_name_map color_names = {0};
 static shape_name_map shape_names = {0};
+static type_name_map type_names = {0};
+static render_mode_name_map render_modes = {0};
+static fn_name_map init_functions = {0};
 
 // resources
 static tex_arr textures = {0};
@@ -548,6 +569,9 @@ int phos_gui_init()
 	init_map(&alignment_names, 0);
 	init_map(&color_names, 0);
 	init_map(&shape_names, 0);
+	init_map(&type_names, 0);
+	init_map(&render_modes, 0);
+	init_map(&init_functions, 0);
 
 	// resources:
 	init_arr(&textures, 0);
@@ -815,6 +839,28 @@ int phos_gui_init()
 	map_add_strkey(&shape_names, "ELLIPSE", PHOS_GUI_SHAPE_ELLIPSE, 0);
 	map_add_strkey(&shape_names, "ROUND_RECT", PHOS_GUI_SHAPE_ROUND_RECT, 0);
 
+	// register types
+	map_add_strkey(&type_names, "BLANK", PHOS_GUI_TYPE_BLANK, 0);
+	map_add_strkey(&type_names, "INTERACTIVE", PHOS_GUI_TYPE_INTERACTIVE, 0);
+
+	// register render modes
+	map_add_strkey(&render_modes, "BLANK", PHOS_GUI_RENDER_BLANK, 0);
+	map_add_strkey(&render_modes, "FILL_OUTLINE", PHOS_GUI_RENDER_FILL_OUTLINE, 0);
+	map_add_strkey(&render_modes, "FILL", PHOS_GUI_RENDER_FILL, 0);
+	map_add_strkey(&render_modes, "OUTLINE", PHOS_GUI_RENDER_OUTLINE, 0);
+	map_add_strkey(&render_modes, "TEXTURE", PHOS_GUI_RENDER_TEXTURE, 0);
+
+	// register init function names
+	map_add_strkey(&init_functions, "BUTTON", phos_gui_init_button, 0);
+	map_add_strkey(&init_functions, "LABEL", phos_gui_init_label, 0);
+	map_add_strkey(&init_functions, "TEXT_FIELD", phos_gui_init_text_field, 0);
+	map_add_strkey(&init_functions, "TEXT_AREA", phos_gui_init_text_area, 0);
+	map_add_strkey(&init_functions, "DROP_DOWN", phos_gui_init_drop_down, 0);
+	map_add_strkey(&init_functions, "CHECKBOX", phos_gui_init_checkbox, 0);
+	map_add_strkey(&init_functions, "CHECKBOX_LIST", phos_gui_init_checkbox_list, 0);
+	map_add_strkey(&init_functions, "VALUE_BAR", phos_gui_init_value_bar, 0);
+	map_add_strkey(&init_functions, "SLIDER", phos_gui_init_slider, 0);
+
 	// enforce no additional text line spacing
 	SetTextLineSpacing(0);
 
@@ -843,6 +889,9 @@ void phos_gui_shutdown()
 	dynmaps_free_strkey(&alignment_names);
 	dynmaps_free_strkey(&color_names);
 	dynmaps_free_strkey(&shape_names);
+	dynmaps_free_strkey(&type_names);
+	dynmaps_free_strkey(&render_modes);
+	dynmaps_free_strkey(&init_functions);
 
 	// resources:
 
@@ -1249,7 +1298,7 @@ static void resize_single_elem(phos_gui_elem *elem, float w, float h, phos_gui_o
 	// see if size is now negative
 	if(new_w <= 0.0f || new_h <= 0.0f)
 	{
-		vl_log(VL_ERROR, "Cannot shrink this element ('%s') anymore, its size cannot be <= 0.0f!\n", elem->ID);
+		vl_log(VL_ERROR, "Cannot shrink this element '%s' anymore, its size cannot be <= 0.0f!\n", elem->ID);
 		return;
 	}
 
@@ -1937,12 +1986,30 @@ void phos_gui_set_elem_pos(phos_gui_elem *elem, float x, float y, phos_gui_opts 
 		return;
 	}
 
-	// find difference between current pos and new pos
-	float x_diff = x - elem->bounds.x;
-	float y_diff = y - elem->bounds.y;
+	elem->bounds.x = x;
+	elem->bounds.y = y;
 
-	// move based on difference
-	phos_gui_move_elem(elem, x_diff, y_diff, opts);
+	phos_gui_reload_elem(elem);
+}
+void phos_gui_set_elem_x(phos_gui_elem *elem, float x, phos_gui_opts opts)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot set the x-position of a NULL element!\n");
+		return;
+	}
+
+	phos_gui_set_elem_pos(elem, x, elem->bounds.y, opts);
+}
+void phos_gui_set_elem_y(phos_gui_elem *elem, float y, phos_gui_opts opts)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot set the y-position of a NULL element!\n");
+		return;
+	}
+
+	phos_gui_set_elem_pos(elem, elem->bounds.x, y, opts);
 }
 void phos_gui_set_elem_size(phos_gui_elem *elem, float w, float h, phos_gui_opts opts)
 {
@@ -1952,12 +2019,43 @@ void phos_gui_set_elem_size(phos_gui_elem *elem, float w, float h, phos_gui_opts
 		return;
 	}
 
-	// find difference between current size and new size
-	float x_diff = w - elem->bounds.width;
-	float y_diff = h - elem->bounds.height;
+	if(w < 0.0f || h < 0.0f)
+	{
+		vl_log(VL_ERROR, "An element's width and height must both exceed 0.0f! In phos_gui_set_elem_size(...) w = %f, h = %f\n", w, h);
+		return;
+	}
 
-	// resize elem and fix text
-	phos_gui_resize_elem(elem, x_diff, y_diff, opts);
+	elem->bounds.width = w;
+	elem->bounds.height = h;
+
+	// check for FIT_TEXT option
+	if(opts & PHOS_GUI_OPTS_FIT_TEXT)
+	{
+		phos_gui_text_component *text = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+		if(text)
+			phos_gui_make_text_fit_elem(text, PHOS_GUI_TARGET_AUTO_TEXT);
+	}
+
+	phos_gui_reload_elem(elem);
+}
+void phos_gui_set_elem_width(phos_gui_elem *elem, float w, phos_gui_opts opts)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot set the width of a NULL element!\n");
+		return;
+	}
+
+	phos_gui_set_elem_size(elem, w, elem->bounds.height, opts);
+}
+void phos_gui_set_elem_height(phos_gui_elem *elem, float h, phos_gui_opts opts)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot set the height of a NULL element!\n");
+	}
+
+	phos_gui_set_elem_size(elem, elem->bounds.width, h, opts);
 }
 void phos_gui_set_elem_bounds(phos_gui_elem *elem, float x, float y, float w, float h, phos_gui_opts opts)
 {
@@ -2533,6 +2631,226 @@ void phos_gui_init_icon(phos_gui_icon *icon, phos_gui_icon_id ID, float x, float
 	icon->alignment = PHOS_GUI_ALIGN_LEFT;
 	icon->visible = true;
 }
+void phos_gui_init_elem_from_str(phos_gui_elem *elem, const char *str)
+{
+	if(!elem)
+	{
+		vl_log(VL_ERROR, "Cannot initialize a NULL element!\n");
+		return;
+	}
+
+	// parse string to create the element's attributes and functionality:
+
+	char id_buf[MAX_PARSED_STR_LEN + 1];
+	if(!phos_gui_parse_string_arg(str, id_buf, sizeof(id_buf), "id", NULL))
+		phos_gui_write_str(id_buf, PHOS_GUI_AUTO_ID);
+
+	char type_buf[MAX_PARSED_STR_LEN + 1];
+	if(phos_gui_parse_string_arg(str, type_buf, sizeof(type_buf), "type", NULL))
+	{
+		phos_gui_elem_type *type = NULL;
+		dynmaps_get_strkey(&type_names, type_buf, type);
+
+		if(type)
+			elem->type = *type;
+		else
+			vl_log(VL_ERROR, "Unknown element type: '%s'!\n", type_buf);
+	}
+	else
+		elem->type = PHOS_GUI_TYPE_BLANK;
+
+	char render_mode_buf[MAX_PARSED_STR_LEN + 1];
+	if(phos_gui_parse_string_arg(str, render_mode_buf, sizeof(render_mode_buf), "render-mode", NULL))
+	{
+		phos_gui_elem_render_mode *mode = NULL;
+		dynmaps_get_strkey(&render_modes, render_mode_buf, mode);
+
+		if(mode)
+			elem->render_mode = *mode;
+		else
+			vl_log(VL_ERROR, "Unknown element render mode: '%s'!\n", render_mode_buf);
+	}
+	else
+		elem->render_mode = PHOS_GUI_RENDER_FILL_OUTLINE;
+
+	char x_buf[MAX_PARSED_STR_LEN + 1];
+	if(phos_gui_parse_string_arg(str, x_buf, sizeof(x_buf), "x", NULL))
+	{
+		char *endptr = NULL;
+		float x = strtof(x_buf, &endptr);
+		if(endptr != x_buf)
+			phos_gui_set_elem_x(elem, x, PHOS_GUI_OPTS_NONE);
+		else
+			vl_log(VL_ERROR, "Failed to parse 'x' argument: '%s'!\n", x_buf);
+	}
+	char y_buf[MAX_PARSED_STR_LEN + 1];
+	if(phos_gui_parse_string_arg(str, y_buf, sizeof(y_buf), "y", NULL))
+	{
+		char *endptr = NULL;
+		float y = strtof(y_buf, &endptr);
+		if(endptr != y_buf)
+			phos_gui_set_elem_y(elem, y, PHOS_GUI_OPTS_NONE);
+		else
+			vl_log(VL_ERROR, "Failed to parse 'y' argument: '%s'!\n", y_buf);
+	}
+	char w_buf[MAX_PARSED_STR_LEN + 1];
+	if(phos_gui_parse_string_arg(str, w_buf, sizeof(w_buf), "w", NULL))
+	{
+		char *endptr = NULL;
+		float w = strtof(w_buf, &endptr);
+		if(endptr != w_buf)
+			phos_gui_set_elem_width(elem, w, PHOS_GUI_OPTS_NONE);
+		else
+			vl_log(VL_ERROR, "Failed to parse 'w' argument: '%s'!\n", w_buf);
+	}
+	char h_buf[MAX_PARSED_STR_LEN + 1];
+	if(phos_gui_parse_string_arg(str, h_buf, sizeof(h_buf), "h", NULL))
+	{
+		char *endptr = NULL;
+		float h = strtof(h_buf, &endptr);
+		if(endptr != h_buf)
+			phos_gui_set_elem_height(elem, h, PHOS_GUI_OPTS_NONE);
+		else
+			vl_log(VL_ERROR, "Failed to parse 'h' argument: '%s'!\n", h_buf);
+	}
+
+	char bg_color_buf[MAX_PARSED_STR_LEN + 1];
+	if(phos_gui_parse_string_arg(str, bg_color_buf, sizeof(bg_color_buf), "bg-color", NULL))
+	{
+		Color *color = NULL;
+		dynmaps_get_strkey(&color_names, bg_color_buf, color);
+		if(color)
+			elem->bg_color = *color;
+		else
+			vl_log(VL_ERROR, "Invalid color argument: '%s'!\n", bg_color_buf);
+	}
+
+	char outline_color_buf[MAX_PARSED_STR_LEN + 1];
+	if(phos_gui_parse_string_arg(str, outline_color_buf, sizeof(outline_color_buf), "outline-color", NULL))
+	{
+		Color *color = NULL;
+		dynmaps_get_strkey(&color_names, outline_color_buf, color);
+		if(color)
+			elem->outline_color = *color;
+		else
+			vl_log(VL_ERROR, "Invalid color argument: '%s'!\n", outline_color_buf);
+	}
+
+	char outline_thickness_buf[MAX_PARSED_STR_LEN + 1];
+	if(phos_gui_parse_string_arg(str, outline_thickness_buf, sizeof(outline_thickness_buf), "outline-thickness", NULL))
+	{
+		char *endptr = NULL;
+		float t = strtof(outline_thickness_buf, &endptr);
+		if(endptr != outline_thickness_buf)
+			elem->outline_thickness = t;
+		else
+			vl_log(VL_ERROR, "Failed to parse 'outline-thickness' argument: '%s'!\n", outline_thickness_buf);
+	}
+
+	phos_gui_text_component *textc = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_TEXT);
+	if(textc)
+		phos_gui_make_text_fit_elem(textc, PHOS_GUI_TARGET_AUTO_TEXT);
+	char main_text_buf[PHOS_GUI_MAX_TEXT_LEN + 1];
+	if(phos_gui_parse_string_arg(str, main_text_buf, sizeof(main_text_buf), "main-text", NULL))
+	{
+		// add text component with main text set to main_text_buf
+		if(!textc)
+		{
+			textc = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_TEXT);
+			if(!textc)
+				phos_gui_exit(EXIT_FAILURE);
+		}
+		phos_gui_set_text_contents(textc, PHOS_GUI_TARGET_MAIN_TEXT, main_text_buf, PHOS_GUI_OPTS_FIT_TEXT);
+	}
+
+	char label_text_buf[PHOS_GUI_MAX_TEXT_LEN + 1];
+	if(phos_gui_parse_string_arg(str, label_text_buf, sizeof(label_text_buf), "label-text", NULL))
+	{
+		// add label component with the text set to label_text_buf
+		phos_gui_label_component *label = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_LABEL);
+		if(!label)
+		{
+			label = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_LABEL);
+			if(!label)
+				phos_gui_exit(EXIT_FAILURE);
+		}
+		phos_gui_write_str(label->str, "%s", label_text_buf);
+		phos_gui_realign_elem_label(label);
+	}
+
+	char label_align_buf[MAX_PARSED_STR_LEN + 1];
+	if(phos_gui_parse_string_arg(str, label_align_buf, sizeof(label_align_buf), "label-align", NULL))
+	{
+		// obtain alignment value
+		phos_gui_alignment *alignment = NULL;
+		dynmaps_get_strkey(&alignment_names, label_align_buf, alignment);
+
+		if(alignment)
+		{
+			phos_gui_label_component *label = pluto_cs_get_component(elem, PHOS_GUI_COMPONENT_LABEL);
+			if(!label)
+			{
+				label = pluto_cs_add_component(elem, PHOS_GUI_COMPONENT_LABEL);
+				if(!label)
+					phos_gui_exit(EXIT_FAILURE);
+			}
+			phos_gui_align_elem_label(label, *alignment);
+		}
+		else
+			vl_log(VL_ERROR, "Unknown alignment argument: '%s'!\n", label_align_buf);
+	}
+
+	char elem_preset_buf[MAX_PARSED_STR_LEN + 1];
+	if(phos_gui_parse_string_arg(str, elem_preset_buf, sizeof(elem_preset_buf), "elem", NULL))
+	{
+		void **init_fn = NULL;
+		dynmaps_get_strkey(&init_functions, elem_preset_buf, init_fn);
+
+		// TODO:
+
+		if(init_fn)
+		{
+			if(*init_fn == phos_gui_init_button)
+				phos_gui_init_button(elem, id_buf, elem->bounds.x, elem->bounds.y, elem->bounds.width, elem->bounds.height, PHOS_GUI_NO_TEXT);
+			else if(*init_fn == phos_gui_init_label)
+				phos_gui_init_label(elem, id_buf, elem->bounds.x, elem->bounds.y, elem->bounds.width, elem->bounds.height, "");
+			else if(*init_fn == phos_gui_init_text_field)
+				phos_gui_init_text_field(elem, id_buf, elem->bounds.x, elem->bounds.y, elem->bounds.width, elem->bounds.height, PHOS_GUI_NO_TEXT, "");
+			else if(*init_fn == phos_gui_init_text_area)
+				// assume no text and no wrap mode, arguments will be parsed later
+				phos_gui_init_text_area(elem, id_buf, elem->bounds.x, elem->bounds.y, elem->bounds.width, elem->bounds.height, PHOS_GUI_NO_TEXT, "", PHOS_GUI_TEXT_WRAP_NONE);
+			else if(*init_fn == phos_gui_init_drop_down)
+				// assume no text and no container elem, arguments will be parsed later
+				phos_gui_init_drop_down(elem, id_buf, elem->bounds.x, elem->bounds.y, elem->bounds.width, elem->bounds.height, NULL, PHOS_GUI_NO_TEXT);
+			else if(*init_fn == phos_gui_init_checkbox)
+				phos_gui_init_checkbox(elem, id_buf, elem->bounds.x, elem->bounds.y, elem->bounds.width, elem->bounds.height, PHOS_GUI_NO_TEXT);
+			else if(*init_fn == phos_gui_init_checkbox_list)
+				phos_gui_init_checkbox_list(elem, id_buf, elem->bounds.x, elem->bounds.y, elem->bounds.width, elem->bounds.height);
+			else if(*init_fn == phos_gui_init_value_bar)
+				// parse values later:
+				phos_gui_init_value_bar(elem, id_buf, elem->bounds.x, elem->bounds.y, elem->bounds.width, elem->bounds.height, -1.0f, 1.0f, 0.0f);
+			else if(*init_fn == phos_gui_init_slider)
+				// parse values later as well as label text:
+				phos_gui_init_slider(elem, id_buf, elem->bounds.x, elem->bounds.y, elem->bounds.width, elem->bounds.height, -1.0f, 1.0f, 0.0f, PHOS_GUI_NO_TEXT);
+		}
+		else
+		{
+			vl_log(VL_ERROR, "Unknown element preset argument: '%s'!\n", elem_preset_buf);
+			phos_gui_init_elem(elem, id_buf, elem->type, elem->render_mode, elem->bounds.x, elem->bounds.y, elem->bounds.width, elem->bounds.height);
+		}
+	}
+	else
+		phos_gui_init_elem(elem, id_buf, elem->type, elem->render_mode, elem->bounds.x, elem->bounds.y, elem->bounds.width, elem->bounds.height);
+
+	char gui_buf[MAX_PARSED_STR_LEN + 1];
+	if(phos_gui_parse_string_arg(str, gui_buf, sizeof(gui_buf), "gui", NULL))
+	{
+		// try to find the matching GUI instance
+		phos_gui *gui = phos_gui_get_gui(gui_buf);
+		if(gui)
+			phos_gui_add_elem_to_gui(elem, gui);
+	}
+}
 void phos_gui_init_elem(phos_gui_elem *elem, const char *ID, phos_gui_elem_type type, phos_gui_elem_render_mode render_mode, float x, float y, float w, float h)
 {
 	if(!elem)
@@ -2759,7 +3077,7 @@ static void select_checkbox(phos_gui_elem *checkbox, phos_gui_checkbox_list_comp
 		return;
 
 	list->selections[list->num_options_selected++] = checkbox;
-	phos_gui_edit_icon_arg(text->str, sizeof(text->str), "CHECK_MARK", "visible", "TRUE");
+	phos_gui_set_icon_arg(text->str, sizeof(text->str), "CHECK_MARK", "visible", "TRUE");
 }
 static void unselect_oldest_checkbox(phos_gui_checkbox_list_component *list)
 {
@@ -2775,7 +3093,7 @@ static void unselect_oldest_checkbox(phos_gui_checkbox_list_component *list)
 		return;
 
 	// modify CHECK_MARK icon to be invisible
-	phos_gui_edit_icon_arg(text->str, sizeof(text->str), "CHECK_MARK", "visible", "FALSE");
+	phos_gui_set_icon_arg(text->str, sizeof(text->str), "CHECK_MARK", "visible", "FALSE");
 
 	// remove first elem
 	memmove(list->selections, list->selections + 1, (list->num_options_selected - 1) * sizeof(phos_gui_elem*));
@@ -2789,7 +3107,7 @@ static void unselect_checkbox(phos_gui_elem *checkbox, phos_gui_checkbox_list_co
 		{
 			memmove(list->selections + i, list->selections + i + 1, (list->num_options_selected - i - 1) * sizeof(phos_gui_elem*));
 			list->num_options_selected--;
-			phos_gui_edit_icon_arg(text->str, sizeof(text->str), "CHECK_MARK", "visible", "FALSE");
+			phos_gui_set_icon_arg(text->str, sizeof(text->str), "CHECK_MARK", "visible", "FALSE");
 			return;
 		}
 	}
@@ -2800,16 +3118,16 @@ static void toggle_checkbox(phos_gui_elem *elem, void *args, phos_gui_opts opts)
 	if(!text)
 		return;
 
-	char visible_arg_buf[MAX_ICON_PARSED_STR_LEN + 1] = {0};
+	char visible_arg_buf[MAX_PARSED_STR_LEN + 1] = {0};
 	bool can_continue = false;
 	for(const char *p = text->str; *p; ++p)
 	{
-		char icon_name_buf[MAX_ICON_PARSED_STR_LEN + 1];
+		char icon_name_buf[MAX_PARSED_STR_LEN + 1];
 		if(phos_gui_parse_icon_name(p, icon_name_buf, sizeof(icon_name_buf)))
 		{
 			if(strcmp(icon_name_buf, "CHECK_MARK") == 0)
 			{
-				if(phos_gui_parse_icon_arg(p, visible_arg_buf, sizeof(visible_arg_buf), "visible", NULL))
+				if(phos_gui_parse_string_arg(p, visible_arg_buf, sizeof(visible_arg_buf), "visible", NULL))
 				{
 					can_continue = true;
 					break;
@@ -2821,12 +3139,9 @@ static void toggle_checkbox(phos_gui_elem *elem, void *args, phos_gui_opts opts)
 	if(!can_continue)
 		return;
 
-	bool check_mark_visible = false;
-	if(strcmp(visible_arg_buf, "TRUE") == 0)
-		check_mark_visible = true;
-	else if(strcmp(visible_arg_buf, "FALSE") == 0)
-		check_mark_visible = false;
-	else
+	bool success;
+	bool check_mark_visible = phos_gui_parse_bool_arg(visible_arg_buf, &success);
+	if(!success)
 	{
 		vl_log(VL_ERROR, "Invalid boolean argument value '%s' in string: '%s'!\n", visible_arg_buf, text->str);
 		return;
@@ -2849,12 +3164,7 @@ static void toggle_checkbox(phos_gui_elem *elem, void *args, phos_gui_opts opts)
 		}
 	}
 	else
-	{
-		if(check_mark_visible)
-			phos_gui_edit_icon_arg(text->str, sizeof(text->str), "CHECK_MARK", "visible", "FALSE");
-		else
-			phos_gui_edit_icon_arg(text->str, sizeof(text->str), "CHECK_MARK", "visible", "TRUE");
-	}
+		phos_gui_set_icon_arg(text->str, sizeof(text->str), "CHECK_MARK", "visible", "OPPOSITE");
 }
 void phos_gui_init_checkbox(phos_gui_elem *elem, const char *ID, float x, float y, float w, float h, const char *label_text)
 {
@@ -5779,7 +6089,7 @@ void phos_gui_render_elem(phos_gui_elem *elem)
 	// if empty size, cannot render
 	if(elem->bounds.width <= 0 || elem->bounds.height <= 0)
 	{
-		vl_delay_log(VL_ERROR, 5.0f, "Cannot render element '%s' with negative visual bounds: %.2f, %.2f!\n", elem->ID, elem->bounds.width, elem->bounds.height);
+		vl_delay_log(VL_WARNING, 5.0f, "Cannot render element '%s' with negative visual bounds: %.2f, %.2f!\n", elem->ID, elem->bounds.width, elem->bounds.height);
 		return;
 	}
 
@@ -6232,12 +6542,12 @@ Vector2 phos_gui_measure_text(Font font, const char *text, float font_size)
 		}
 
 		// see if it's start of an icon
-		char icon_name[MAX_ICON_PARSED_STR_LEN + 1];
+		char icon_name[MAX_PARSED_STR_LEN + 1];
 		if(phos_gui_parse_icon_name(p, icon_name, sizeof(icon_name)))
 		{
 			// search for a size arg:
-			char size_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-			bool size_arg_present = phos_gui_parse_icon_arg(icon_args_start(p, icon_name), size_arg_buf, sizeof(size_arg_buf), "size", NULL);
+			char size_arg_buf[MAX_PARSED_STR_LEN + 1];
+			bool size_arg_present = phos_gui_parse_string_arg(icon_args_start(p, icon_name), size_arg_buf, sizeof(size_arg_buf), "size", NULL);
 			if(size_arg_present)
 			{
 				// get actual float value from string
@@ -6311,7 +6621,7 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 		}
 
 		// see if an icon should be rendered
-		char icon_name[MAX_ICON_PARSED_STR_LEN + 1];
+		char icon_name[MAX_PARSED_STR_LEN + 1];
 		phos_gui_icon_id icon_id = -1;
 		if(phos_gui_parse_icon_name(p, icon_name, sizeof(icon_name)))
 		{
@@ -6328,124 +6638,9 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 				icon.visible = true;
 				icon.bounds = (Rectangle) { draw_pos.x, draw_pos.y, font_size, font_size };
 
-				// icon args start directly after name of icon
-				const char *args_start = icon_args_start(p, icon_name);
-
-				// see if this icon should be colored differently:
-				char color_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool color_arg_present = phos_gui_parse_icon_arg(args_start, color_arg_buf, sizeof(color_arg_buf), "color", NULL);
-				if(color_arg_present)
-				{
-					// get actual color value from color map
-					Color *icon_color = NULL;
-					dynmaps_get_strkey(&color_names, color_arg_buf, icon_color);
-					if(icon_color && !ColorIsEqual(*icon_color, BLANK))
-						icon.color = *icon_color;
-					else
-						vl_delay_log(VL_ERROR, 3.0f, "Unknown color argument: '%s'!\n", color_arg_buf);
-				}
-
-				// see if the icon size should be overridden
-				char size_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool size_arg_present = phos_gui_parse_icon_arg(args_start, size_arg_buf, sizeof(size_arg_buf), "size", NULL);
-				if(size_arg_present)
-				{
-					// get actual float value from string
-					char *endptr = NULL;
-					float icon_size = strtof(size_arg_buf, &endptr);
-					if(endptr != size_arg_buf && icon_size >= 0.0f)
-					{
-						if(icon_size == 0.0f)
-							vl_delay_log(VL_WARNING, 5.0f, "An icon size argument of 0 results in the icon not rendering!\n");
-						icon.bounds.width = icon.bounds.height = icon_size;
-					}
-					else
-						vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon size argument: '%s'!\n", size_arg_buf);
-				}
-
-				// if the user provides a 'size' argument, that takes priority over any 'width' or 'height' arguments:
-				char width_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool width_arg_present = phos_gui_parse_icon_arg(args_start, width_arg_buf, sizeof(width_arg_buf), "width", NULL);
-				if(!size_arg_present && width_arg_present)
-				{
-					char *endptr = NULL;
-					float icon_width = strtof(width_arg_buf, &endptr);
-					if(endptr != width_arg_buf && icon_width >= 0.0f)
-					{
-						if(icon_width == 0.0f)
-							vl_delay_log(VL_WARNING, 5.0f, "An icon width of 0 results in the icon not rendering!\n");
-						icon.bounds.width = icon_width;
-					}
-					else
-						vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon width argument: '%s'!\n", width_arg_buf);
-				}
-				else if(size_arg_present && width_arg_present)
-					vl_delay_log(VL_WARNING, 5.0f, "Cannot use the 'width' argument as well as the 'size' argument in an icon string! The 'size' argument takes priority.\n");
-
-				char height_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool height_arg_present = phos_gui_parse_icon_arg(args_start, height_arg_buf, sizeof(height_arg_buf), "height", NULL);
-				if(!size_arg_present && height_arg_present)
-				{
-					char *endptr = NULL;
-					float icon_height = strtof(height_arg_buf, &endptr);
-					if(endptr != height_arg_buf && icon_height >= 0.0f)
-					{
-						if(icon_height == 0.0f)
-							vl_delay_log(VL_WARNING, 5.0f, "An icon height of 0 results in the icon not rendering!\n");
-						icon.bounds.height = icon_height;
-					}
-					else
-						vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon height argument: '%s'!\n", height_arg_buf);
-				}
-				else if(size_arg_present && height_arg_present)
-					vl_delay_log(VL_WARNING, 5.0f, "Cannot use the 'height' argument as well as the 'size' argument in an icon string! The 'size' argument takes priority.\n");
-
-				// see if this icon should be aligned specifically:
-				char alignment_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool alignment_arg_present = phos_gui_parse_icon_arg(args_start, alignment_arg_buf, sizeof(alignment_arg_buf), "align", NULL);
-				if(alignment_arg_present)
-				{
-					// get actual alignment value from alignment map
-					phos_gui_alignment *icon_alignment = NULL;
-					dynmaps_get_strkey(&alignment_names, alignment_arg_buf, icon_alignment);
-					if(icon_alignment && *icon_alignment != PHOS_GUI_ALIGN_INVALID)
-					{
-						Vector2 aligned_pos = get_proposed_align_pos(phos_gui_get_rect_size(icon.bounds), *icon_alignment, reference_elem);
-						icon.bounds.x = aligned_pos.x;
-						icon.bounds.y = aligned_pos.y;
-					}
-					else
-						vl_delay_log(VL_ERROR, 3.0f, "Unknown alignment argument: '%s'!\n", alignment_arg_buf);
-				}
-
-				// see if icon should be moved
-				char x_offset_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool x_offset_arg_present = phos_gui_parse_icon_arg(args_start, x_offset_arg_buf, sizeof(x_offset_arg_buf), "x-offset", NULL);
-				if(x_offset_arg_present)
-				{
-					// get actual x-offset value
-					char *endptr = NULL;
-					float x_offset = strtof(x_offset_arg_buf, &endptr);
-					if(endptr != x_offset_arg_buf)
-						icon.bounds.x += x_offset;
-					else
-						vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon x-offset argument: '%s'!\n", x_offset_arg_buf);
-				}
-				char y_offset_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool y_offset_arg_present = phos_gui_parse_icon_arg(args_start, y_offset_arg_buf, sizeof(y_offset_arg_buf), "y-offset", NULL);
-				if(y_offset_arg_present)
-				{
-					// get actual y-offset value
-					char *endptr = NULL;
-					float y_offset = strtof(y_offset_arg_buf, &endptr);
-					if(endptr != y_offset_arg_buf)
-						icon.bounds.y += y_offset;
-					else
-						vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon y-offset argument: '%s'!\n", y_offset_arg_buf);
-				}
-
-				char visible_arg_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool visible_arg_present = phos_gui_parse_icon_arg(args_start, visible_arg_buf, sizeof(visible_arg_buf), "visible", NULL);
+				// see if the icon will even be rendered:
+				char visible_arg_buf[MAX_PARSED_STR_LEN + 1];
+				bool visible_arg_present = phos_gui_parse_string_arg(p, visible_arg_buf, sizeof(visible_arg_buf), "visible", NULL);
 				if(visible_arg_present)
 				{
 					// get actual 'visible' value
@@ -6457,86 +6652,203 @@ void phos_gui_render_text(phos_gui_elem *reference_elem, Font font, const char *
 						vl_delay_log(VL_ERROR, 3.0f, "The 'visible' argument should either be 'TRUE' or 'FALSE.' Defaulting to TRUE.\n");
 				}
 
-				phos_gui_render_icon(&icon);
-
-				// see if icon outline should be rendered:
-
-				// first use default shape or read one from user
-				phos_gui_shape outline_shape = PHOS_GUI_SHAPE_RECT;
-
-				char outline_shape_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool outline_shape_arg_present = phos_gui_parse_icon_arg(args_start, outline_shape_buf, sizeof(outline_shape_buf), "outline-shape", NULL);
-				if(outline_shape_arg_present)
+				// if it's going to be rendered, then process the rest of icon args:
+				if(icon.visible)
 				{
-					// find matching shape value in map
-					phos_gui_shape *shape = NULL;
-					dynmaps_get_strkey(&shape_names, outline_shape_buf, shape); // TODO create shape names map
-					if(shape)
-						outline_shape = *shape;
-					else
-						vl_delay_log(VL_ERROR, 3.0f, "Unknown shape argument: '%s'!\n", outline_shape_buf);
-				}
-
-				// then use default color or read one from user
-				Color outline_color = BLACK;
-
-				char outline_color_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool outline_color_arg_present = phos_gui_parse_icon_arg(args_start, outline_color_buf, sizeof(outline_color_buf), "outline-color", NULL);
-				if(outline_color_arg_present)
-				{
-					// see if user passed 'AUTO' as color (use current theme's outline color)
-					if(strcmp(outline_color_buf, "AUTO") == 0)
-						outline_color = phos_gui_get_theme().outline_color;
-					else
+					// see if this icon should be colored differently:
+					char color_arg_buf[MAX_PARSED_STR_LEN + 1];
+					bool color_arg_present = phos_gui_parse_string_arg(p, color_arg_buf, sizeof(color_arg_buf), "color", NULL);
+					if(color_arg_present)
 					{
-						Color *color = NULL;
-						dynmaps_get_strkey(&color_names, outline_color_buf, color);
-						if(color)
-							outline_color = *color;
+						// get actual color value from color map
+						Color *icon_color = NULL;
+						dynmaps_get_strkey(&color_names, color_arg_buf, icon_color);
+						if(icon_color && !ColorIsEqual(*icon_color, BLANK))
+							icon.color = *icon_color;
 						else
-							vl_delay_log(VL_ERROR, 3.0f, "Unknown outline color argument: '%s'!\n", outline_color_buf);
+							vl_delay_log(VL_ERROR, 3.0f, "Unknown color argument: '%s'!\n", color_arg_buf);
 					}
+
+					// see if the icon size should be overridden
+					char size_arg_buf[MAX_PARSED_STR_LEN + 1];
+					bool size_arg_present = phos_gui_parse_string_arg(p, size_arg_buf, sizeof(size_arg_buf), "size", NULL);
+					if(size_arg_present)
+					{
+						// get actual float value from string
+						char *endptr = NULL;
+						float icon_size = strtof(size_arg_buf, &endptr);
+						if(endptr != size_arg_buf && icon_size >= 0.0f)
+						{
+							if(icon_size == 0.0f)
+								vl_delay_log(VL_WARNING, 5.0f, "An icon size argument of 0 results in the icon not rendering!\n");
+							icon.bounds.width = icon.bounds.height = icon_size;
+						}
+						else
+							vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon 'size' argument: '%s'!\n", size_arg_buf);
+					}
+
+					// if the user provides a 'size' argument, that takes priority over any 'width' or 'height' arguments:
+					char width_arg_buf[MAX_PARSED_STR_LEN + 1];
+					bool width_arg_present = phos_gui_parse_string_arg(p, width_arg_buf, sizeof(width_arg_buf), "width", NULL);
+					if(!size_arg_present && width_arg_present)
+					{
+						char *endptr = NULL;
+						float icon_width = strtof(width_arg_buf, &endptr);
+						if(endptr != width_arg_buf && icon_width >= 0.0f)
+						{
+							if(icon_width == 0.0f)
+								vl_delay_log(VL_WARNING, 5.0f, "An icon width of 0 results in the icon not rendering!\n");
+							icon.bounds.width = icon_width;
+						}
+						else
+							vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon 'width' argument: '%s'!\n", width_arg_buf);
+					}
+					else if(size_arg_present && width_arg_present)
+						vl_delay_log(VL_WARNING, 5.0f, "Cannot use the 'width' argument as well as the 'size' argument in an icon string! The 'size' argument takes priority.\n");
+
+					char height_arg_buf[MAX_PARSED_STR_LEN + 1];
+					bool height_arg_present = phos_gui_parse_string_arg(p, height_arg_buf, sizeof(height_arg_buf), "height", NULL);
+					if(!size_arg_present && height_arg_present)
+					{
+						char *endptr = NULL;
+						float icon_height = strtof(height_arg_buf, &endptr);
+						if(endptr != height_arg_buf && icon_height >= 0.0f)
+						{
+							if(icon_height == 0.0f)
+								vl_delay_log(VL_WARNING, 5.0f, "An icon height of 0 results in the icon not rendering!\n");
+							icon.bounds.height = icon_height;
+						}
+						else
+							vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon 'height' argument: '%s'!\n", height_arg_buf);
+					}
+					else if(size_arg_present && height_arg_present)
+						vl_delay_log(VL_WARNING, 5.0f, "Cannot use the 'height' argument as well as the 'size' argument in an icon string! The 'size' argument takes priority.\n");
+
+					// see if this icon should be aligned specifically:
+					char alignment_arg_buf[MAX_PARSED_STR_LEN + 1];
+					bool alignment_arg_present = phos_gui_parse_string_arg(p, alignment_arg_buf, sizeof(alignment_arg_buf), "align", NULL);
+					if(alignment_arg_present)
+					{
+						// get actual alignment value from alignment map
+						phos_gui_alignment *icon_alignment = NULL;
+						dynmaps_get_strkey(&alignment_names, alignment_arg_buf, icon_alignment);
+						if(icon_alignment && *icon_alignment != PHOS_GUI_ALIGN_INVALID)
+						{
+							Vector2 aligned_pos = get_proposed_align_pos(phos_gui_get_rect_size(icon.bounds), *icon_alignment, reference_elem);
+							icon.bounds.x = aligned_pos.x;
+							icon.bounds.y = aligned_pos.y;
+						}
+						else
+							vl_delay_log(VL_ERROR, 3.0f, "Unknown alignment argument: '%s'!\n", alignment_arg_buf);
+					}
+
+					// see if icon should be moved
+					char x_offset_arg_buf[MAX_PARSED_STR_LEN + 1];
+					bool x_offset_arg_present = phos_gui_parse_string_arg(p, x_offset_arg_buf, sizeof(x_offset_arg_buf), "x-offset", NULL);
+					if(x_offset_arg_present)
+					{
+						// get actual x-offset value
+						char *endptr = NULL;
+						float x_offset = strtof(x_offset_arg_buf, &endptr);
+						if(endptr != x_offset_arg_buf)
+							icon.bounds.x += x_offset;
+						else
+							vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon 'x-offset' argument: '%s'!\n", x_offset_arg_buf);
+					}
+					char y_offset_arg_buf[MAX_PARSED_STR_LEN + 1];
+					bool y_offset_arg_present = phos_gui_parse_string_arg(p, y_offset_arg_buf, sizeof(y_offset_arg_buf), "y-offset", NULL);
+					if(y_offset_arg_present)
+					{
+						// get actual y-offset value
+						char *endptr = NULL;
+						float y_offset = strtof(y_offset_arg_buf, &endptr);
+						if(endptr != y_offset_arg_buf)
+							icon.bounds.y += y_offset;
+						else
+							vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon 'y-offset' argument: '%s'!\n", y_offset_arg_buf);
+					}
+
+					phos_gui_render_icon(&icon);
+
+					// see if icon outline should be rendered:
+
+					// first use default shape or read one from user
+					phos_gui_shape outline_shape = PHOS_GUI_SHAPE_RECT;
+
+					char outline_shape_buf[MAX_PARSED_STR_LEN + 1];
+					bool outline_shape_arg_present = phos_gui_parse_string_arg(p, outline_shape_buf, sizeof(outline_shape_buf), "outline-shape", NULL);
+					if(outline_shape_arg_present)
+					{
+						// find matching shape value in map
+						phos_gui_shape *shape = NULL;
+						dynmaps_get_strkey(&shape_names, outline_shape_buf, shape); // TODO create shape names map
+						if(shape)
+							outline_shape = *shape;
+						else
+							vl_delay_log(VL_ERROR, 3.0f, "Unknown shape argument: '%s'!\n", outline_shape_buf);
+					}
+
+					// then use default color or read one from user
+					Color outline_color = BLACK;
+
+					char outline_color_buf[MAX_PARSED_STR_LEN + 1];
+					bool outline_color_arg_present = phos_gui_parse_string_arg(p, outline_color_buf, sizeof(outline_color_buf), "outline-color", NULL);
+					if(outline_color_arg_present)
+					{
+						// see if user passed 'AUTO' as color (use current theme's outline color)
+						if(strcmp(outline_color_buf, "AUTO") == 0)
+							outline_color = phos_gui_get_theme().outline_color;
+						else
+						{
+							Color *color = NULL;
+							dynmaps_get_strkey(&color_names, outline_color_buf, color);
+							if(color)
+								outline_color = *color;
+							else
+								vl_delay_log(VL_ERROR, 3.0f, "Unknown outline color argument: '%s'!\n", outline_color_buf);
+						}
+					}
+
+					// then use default outline thickness or read one from user
+					float outline_thickness = 1.0f;
+
+					char outline_thickness_buf[MAX_PARSED_STR_LEN + 1];
+					bool outline_thickness_arg_present = phos_gui_parse_string_arg(p, outline_thickness_buf, sizeof(outline_thickness_buf), "outline-thickness", NULL);
+					if(outline_thickness_arg_present)
+					{
+						char *endptr = NULL;
+						float t = strtof(outline_thickness_buf, &endptr);
+						if(endptr != outline_thickness_buf)
+							outline_thickness = t;
+						else
+							vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon 'outline-thickness' argument: '%s'!\n", outline_thickness_buf);
+					}
+
+					// then use default corner radius or read one from user
+					float corner_radius = 0.0f;
+
+					char corner_radius_buf[MAX_PARSED_STR_LEN + 1];
+					bool corner_radius_arg_present = phos_gui_parse_string_arg(p, corner_radius_buf, sizeof(corner_radius_buf), "corner-radius", NULL);
+					if(corner_radius_arg_present)
+					{
+						char *endptr = NULL;
+						float c = strtof(corner_radius_buf, &endptr);
+						if(endptr != corner_radius_buf)
+							corner_radius = c;
+						else
+							vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon 'corner-radius' argument: '%s'!\n", corner_radius_buf);
+					}
+
+					/*
+					   render outline if at least one of the outline args are present,
+					   excluding the 'corner-radius' argument because if it were alone,
+					   it still would require the 'outline-shape' from the user
+					   */
+					if(outline_color_arg_present || outline_shape_arg_present || outline_thickness_arg_present)
+						phos_gui_outline_shape(outline_shape, icon.bounds.x, icon.bounds.y, icon.bounds.width, icon.bounds.height, outline_thickness, corner_radius, outline_color);
+
+					draw_pos.x += font_size;
 				}
-
-				// then use default outline thickness or read one from user
-				float outline_thickness = 1.0f;
-
-				char outline_thickness_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool outline_thickness_arg_present = phos_gui_parse_icon_arg(args_start, outline_thickness_buf, sizeof(outline_thickness_buf), "outline-thickness", NULL);
-				if(outline_thickness_arg_present)
-				{
-					char *endptr = NULL;
-					float t = strtof(outline_thickness_buf, &endptr);
-					if(endptr != outline_thickness_buf)
-						outline_thickness = t;
-					else
-						vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon outline thickness: '%s'!\n", outline_thickness_buf);
-				}
-
-				// then use default corner radius or read one from user
-				float corner_radius = 0.0f;
-
-				char corner_radius_buf[MAX_ICON_PARSED_STR_LEN + 1];
-				bool corner_radius_arg_present = phos_gui_parse_icon_arg(args_start, corner_radius_buf, sizeof(corner_radius_buf), "corner-radius", NULL);
-				if(corner_radius_arg_present)
-				{
-					char *endptr = NULL;
-					float c = strtof(corner_radius_buf, &endptr);
-					if(endptr != corner_radius_buf)
-						corner_radius = c;
-					else
-						vl_delay_log(VL_ERROR, 3.0f, "Failed to parse icon's outline corner radius: '%s'!\n", corner_radius_buf);
-				}
-
-				/*
-				   render outline if at least one of the outline args are present,
-				   excluding the 'corner-radius' argument because if it were alone,
-				   it still would require the 'outline-shape' from the user
-				*/
-				if(outline_color_arg_present || outline_shape_arg_present || outline_thickness_arg_present)
-					phos_gui_outline_shape(outline_shape, icon.bounds.x, icon.bounds.y, icon.bounds.width, icon.bounds.height, outline_thickness, corner_radius, outline_color);
-
-				draw_pos.x += font_size;
 
 				// p should now point to the first char after the ending '>' char
 				while(*p && *p != '>')
@@ -6831,7 +7143,7 @@ Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon_id)
 }
 Texture2D *phos_gui_get_icon_str(const char *str, phos_gui_icon_id *out_icon_id)
 {
-	char icon_name[MAX_ICON_PARSED_STR_LEN + 1];
+	char icon_name[MAX_PARSED_STR_LEN + 1];
 	if(phos_gui_parse_icon_name(str, icon_name, sizeof(icon_name)))
 	{
 		// now use icon name to obtain icon ID
@@ -6885,12 +7197,65 @@ int phos_gui_parse_icon_name(const char *str, char *buffer, size_t buffer_size)
 
 	return 0;
 }
-int phos_gui_parse_icon_arg(const char *str, char *buffer, size_t buffer_size, const char *arg, const char **start_pos)
+static int parse_arg(const char *args_start, char *buffer, size_t buffer_size, const char *arg, size_t arg_len, const char **start_pos)
+{
+	// go to where a '=' should be, and ensure there is one
+	const char *equals = args_start + arg_len;
+
+	// ensure this char is '='
+	if(*equals != '=')
+	{
+		vl_delay_log(VL_ERROR, 3.0f, "Expected '=' after icon argument: '%s'!\n", arg);
+		return 0;
+	}
+	// then move onto the character after the '='
+	equals++;
+
+	if(start_pos)
+		*start_pos = equals;
+
+	// determine if this is a nested argument
+	if(*equals == '<')
+	{
+		// instead of putting a single value into the buffer, place the whole nested string into the buffer:
+		size_t i = 0;
+		while(*equals && *equals != '>' && i + 1 < buffer_size)
+			buffer[i++] = *equals++;
+
+		// ensure user ended the argument string
+		if(*equals != '>')
+		{
+			vl_log(VL_ERROR, "Expected '>' in nested argument string: '%s'!\n", args_start);
+			return 0;
+		}
+
+		// copy the closing '>' and '\0'
+		if(i + 1 >= buffer_size)
+			return 0;
+
+		buffer[i++] = *equals++;
+		buffer[i] = '\0';
+
+		return 1;
+	}
+
+	// if not a nested argument string, copy the arg value normally
+	size_t i = 0;
+	while(*equals && *equals != '>' && *equals != ',' && i + 1 < buffer_size)
+		buffer[i++] = *equals++;
+
+	buffer[i] = '\0';
+
+	return 1;
+}
+int phos_gui_parse_string_arg(const char *str, char *buffer, size_t buffer_size, const char *arg, const char **start_pos)
 {
 	if(buffer_size == 0)
 		return 0;
 
 	size_t arg_len = strlen(arg);
+
+	bool in_top_most_level = false;
 
 	/*
 	   begin at the start of the args list and walk forward until a ',' is found:
@@ -6903,42 +7268,71 @@ int phos_gui_parse_icon_arg(const char *str, char *buffer, size_t buffer_size, c
 		// get char
 		char c = *p;
 
-		// when a ',' is encountered, compare arg to the string after ','
-		if(c == ',')
+		// when the first '<' or ',' is encountered, compare arg to the string after ','
+		if(c == '<' && !in_top_most_level)
 		{
-			// push 'p' forward one character to skip the ','
-			p++;
+			// the first '<' found indicates the parser is in the top-most level now
+			in_top_most_level = true;
+
+			// all arguments start after the very first character
+			const char *args_start = p + 1;
 
 			// compare the next region of the string against the target arg
-			if(strncmp(p, arg, arg_len) == 0)
+			if(strncmp(args_start, arg, arg_len) == 0)
+				return parse_arg(args_start, buffer, buffer_size, arg, arg_len, start_pos);
+
+			continue;
+		}
+
+		// parse arguments within the top-most level
+		if(c == ',' && in_top_most_level)
+		{
+			// all arguments start after the very first character
+			const char *args_start = p + 1;
+
+			// compare the next region of the string against the target arg
+			if(strncmp(args_start, arg, arg_len) == 0)
+				return parse_arg(args_start, buffer, buffer_size, arg, arg_len, start_pos);
+
+			continue;
+		}
+
+		// nexted argument encountered while scanning the top-most argument list
+		if(c == '<' && in_top_most_level)
+		{
+			while(*p && *p != '>')
+				++p;
+
+			if(!*p)
 			{
-				// go to where a '=' should be, and ensure there is one
-				const char *equals = p + arg_len;
-
-				// ensure this char is '='
-				if(*equals != '=')
-				{
-					vl_delay_log(VL_ERROR, 3.0f, "Expected '=' after icon argument: '%s'!\n", arg);
-					return 0;
-				}
-				// then move onto the character after the '='
-				equals++;
-
-				if(start_pos)
-					*start_pos = equals;
-
-				size_t i = 0;
-				while(*equals && *equals != '>' && *equals != ',' && i + 1 < buffer_size)
-					buffer[i++] = *equals++;
-
-				buffer[i] = '\0';
-
-				return 1;
+				vl_log(VL_ERROR, "Expected '>' in nested argument string: '%s'!\n", str);
+				return 0;
 			}
+			
+			continue;
 		}
 	}
 
 	return 0;
+}
+bool phos_gui_parse_bool_arg(const char *str, bool *success)
+{
+	if(strcmp(str, "TRUE") == 0)
+	{
+		if(success)
+			*success = true;
+		return true;
+	}
+	else if(strcmp(str, "FALSE") == 0)
+	{
+		if(success)
+			*success = true;
+		return false;
+	}
+
+	if(success)
+		*success = false;
+	return false;
 }
 static void insert_char_str(char *buffer, size_t pos, char c)
 {
@@ -6946,7 +7340,7 @@ static void insert_char_str(char *buffer, size_t pos, char c)
 	memmove(buffer + pos + 1, buffer + pos, strlen(buffer) - pos + 1);
 	buffer[pos++] = c;
 }
-int phos_gui_edit_icon_arg(char *buffer, size_t buffer_size, const char *icon_name, const char *arg_name, const char *new_arg_value)
+int phos_gui_set_icon_arg(char *buffer, size_t buffer_size, const char *icon_name, const char *arg_name, const char *new_arg_value)
 {
 	if(buffer_size == 0)
 	{
@@ -6960,14 +7354,12 @@ int phos_gui_edit_icon_arg(char *buffer, size_t buffer_size, const char *icon_na
 	bool icon_found = false;
 	for(char *t = buffer; *t; ++t)
 	{
-		char icon_name_buf[MAX_ICON_PARSED_STR_LEN + 1];
+		char icon_name_buf[MAX_PARSED_STR_LEN + 1];
 		if(phos_gui_parse_icon_name(t, icon_name_buf, sizeof(icon_name_buf)))
 		{
 			if(strcmp(icon_name_buf, icon_name) == 0)
 			{
 				icon_found = true;
-				// move edit pointer to where args should start
-				p = icon_args_start(buffer, icon_name_buf);
 				break;
 			}
 		}
@@ -6987,16 +7379,30 @@ int phos_gui_edit_icon_arg(char *buffer, size_t buffer_size, const char *icon_na
 	const char *arg_start = NULL;
 
 	// then determine if the arg is present within the icon string:
+	char arg_value_buf[MAX_PARSED_STR_LEN + 1];
 	for(char *t = p; *t; ++t)
 	{
-		char arg_value_buf[MAX_ICON_PARSED_STR_LEN + 1];
-		if(phos_gui_parse_icon_arg(t, arg_value_buf, sizeof(arg_value_buf), arg_name, &arg_start))
+		if(phos_gui_parse_string_arg(t, arg_value_buf, sizeof(arg_value_buf), arg_name, &arg_start))
 		{
 			// arg was found at p, so edit pos becomes p + 2 (skip ',' and '=') + length of arg name
 			edit_pos = (char*) arg_start;
 			curr_len = strlen(arg_value_buf);
 			arg_found = true;
 			break;
+		}
+	}
+
+	// see if current value is a boolean and user passed "OPPOSITE" to get opposite bool value
+	if(strcmp(new_arg_value, "OPPOSITE") == 0)
+	{
+		if(strcmp(arg_value_buf, "TRUE") == 0)
+			new_arg_value = "FALSE";
+		else if(strcmp(arg_value_buf, "FALSE") == 0)
+			new_arg_value = "TRUE";
+		else
+		{
+			vl_log(VL_ERROR, "The 'OPPOSITE' arg value can only be used on boolean arguments!\n");
+			return 0;
 		}
 	}
 
@@ -7053,15 +7459,6 @@ int phos_gui_edit_icon_arg(char *buffer, size_t buffer_size, const char *icon_na
 		   to '1' you cannot just overwrite the '3.0,' you
 		   have to remove the '.0' entirely and then just
 		   overwrite the '3'
-
-		                                            V-edit pos
-		   example icon string:   "<icon=STAR,color=RED>"
-		   example edit: 'RED' to 'BRIGHT_PINK'     V-edit pos
-		   example edited string: "<icon=STAR,color=BRIGHT_PINK>"
-
-		   example icon string:   "<icon=STAR,color=BLUE>"
-		   example edit: 'BLUE' to 'RED'
-		   example edited string: "<icon=STAR,color=RED>"
 		*/
 		size_t new_len = strlen(new_arg_value);
 		memmove(edit_pos + new_len, edit_pos + curr_len, strlen(edit_pos + curr_len) + 1);

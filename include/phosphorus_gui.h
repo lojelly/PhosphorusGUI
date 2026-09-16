@@ -937,6 +937,11 @@ typedef enum phos_gui_elem_render_mode
 	*/
 	PHOS_GUI_RENDER_NONE,
 	/**
+	  Indicates the element should just render without any
+	  background color or outline.
+	*/
+	PHOS_GUI_RENDER_BLANK,
+	/**
 	  The default type of all elements.
 
 	  Results in the element's shape being filled,
@@ -951,11 +956,6 @@ typedef enum phos_gui_elem_render_mode
 	  Results in just the element's outline being rendered.
 	*/
 	PHOS_GUI_RENDER_OUTLINE,
-	/**
-	  Indicates the element should just render without any
-	  background color or outline.
-	*/
-	PHOS_GUI_RENDER_BLANK,
 	/**
 	  Results in the element's shape not being rendered.
 
@@ -3542,9 +3542,25 @@ PHOS_GUI_API bool phos_gui_is_rect_valid(Rectangle r);
 */
 PHOS_GUI_API void phos_gui_set_elem_pos(phos_gui_elem *elem, float x, float y, phos_gui_opts opts);
 /**
+  Sets the x-position of an element.
+*/
+PHOS_GUI_API void phos_gui_set_elem_x(phos_gui_elem *elem, float x, phos_gui_opts opts);
+/**
+  Sets the y-position of an element.
+*/
+PHOS_GUI_API void phos_gui_set_elem_y(phos_gui_elem *elem, float y, phos_gui_opts opts);
+/**
   Quickly sets the size of an element.
 */
 PHOS_GUI_API void phos_gui_set_elem_size(phos_gui_elem *elem, float w, float h, phos_gui_opts opts);
+/**
+  Sets the width of an element.
+*/
+PHOS_GUI_API void phos_gui_set_elem_width(phos_gui_elem *elem, float w, phos_gui_opts opts);
+/**
+  Sets the height of an element.
+*/
+PHOS_GUI_API void phos_gui_set_elem_height(phos_gui_elem *elem, float h, phos_gui_opts opts);
 /**
   Quickly sets the bounds of an element (its position and size).
 */
@@ -3691,6 +3707,63 @@ PHOS_GUI_API void phos_gui_make_icon_fit_rect(phos_gui_icon *icon, Rectangle rec
   to PHOS_GUI_ICON_SIZE.
 */
 PHOS_GUI_API void phos_gui_init_icon(phos_gui_icon *icon, phos_gui_icon_id ID, float x, float y);
+/**
+  Initializes an element based on a custom string.
+
+  Just like icon strings, element strings are used
+  to setup and customize elements.
+
+
+  Possible arguments for element strings include:
+
+  'gui' : Expects the ID of the targeted phos_gui instance.
+  When a valid GUI is given, the element is added to the matching GUI.
+
+  'id' : Sets the ID of the element. Note that if this
+  argument is missing, the element's ID is automatically
+  generated.
+
+  'type' : Sets the element type. Can be either 'BLANK' or 'INTERACTIVE.'
+  If this argument isn't provided, the default type is PHOS_GUI_TYPE_BLANK.
+
+  'render-mode' : Sets the elements' render mode.
+  Can either be 'BLANK,' 'FILL,' 'OUTLINE,'
+  'FILL_OUTLINE,' or 'TEXTURE.' If this argument
+  isn't provided, the default render mode is
+  PHOS_GUI_RENDER_FILL_OUTLINE.
+
+  'elem' : Provide this argument to turn the element
+  into a specific pre-built type. For example,
+  to turn it into a button, use 'BUTTON.' Other
+  possible values include 'SLIDER,' 'TEXT_FIELD,'
+  'TEXT_AREA,' etc. Not providing this argument
+  results in it being initialized with phos_gui_init_elem(...).
+
+  'x' : Sets the x-position of the element.
+
+  'y' : Sets the y-position of the element.
+
+  'w' : Sets the width of the element.
+
+  'h' : Sets the height of the element.
+
+  'bg-color' : Sets the background color of the element.
+
+  'outline-color' : Sets the outline color of the element.
+
+  'outline-thickness' : Sets the thickness of the element's outline.
+
+  'main-text' : Used to add a text component to the element with the
+  main text string set to the argument's value. Note that you can nest
+  another argument string for icons if desired.
+
+  'label-text' : Used to add a label component to the element with
+  the label text string set to the argument's value. Note that you
+  can nest another argument string for icons if desired.
+
+  'label-align' : Used to align the element's label.
+*/
+PHOS_GUI_API void phos_gui_init_elem_from_str(phos_gui_elem *elem, const char *str);
 /**
   Sets some basic element attributes
   and puts the element in a valid state.
@@ -4301,38 +4374,38 @@ PHOS_GUI_API Texture2D *phos_gui_get_icon_id(phos_gui_icon_id icon_id);
 
   Possible arguments include:
 
-  'align'             : Changes the alignment of the icon relative to its parent element
+  'align' : Changes the alignment of the icon relative to its parent element
 
-  'size'              : Changes the width and height of the icon. Note that this argument makes the
+  'size' : Changes the width and height of the icon. Note that this argument makes the
   icon a square since the width and height are the same. Additionally, if
   you use the 'size' argument, you cannot also use the 'width' or 'height'
   arguments. The 'size' argument takes the most priority.
 
-  'width'             : Changes only the width of the icon
+  'width' : Changes only the width of the icon
 
-  'height'            : Changes only the height of the icon
+  'height' : Changes only the height of the icon
 
-  'color'             : Modifies the color of the icon
+  'color' : Modifies the color of the icon
 
-  'x-offset'          : An offset to the icon's x-position
+  'x-offset' : An offset to the icon's x-position
 
-  'y-offset'          : An offset to the icon's y-position
+  'y-offset' : An offset to the icon's y-position
 
-  'outline-color'     : The color of the icon's outline. To actually view the outline,
+  'outline-color' : The color of the icon's outline. To actually view the outline,
   the 'outline-thickness' argument is also required. If you want to use the current
   theme's outline color instead, set the argument to 'AUTO.'
 
   'outline-thickness' : How thick the icon's outline should be. This argument is optional,
   as the default outline thickness is 1.0f.
 
-  'outline-shape'     : The shape of the icon's outline. Can either be 'RECT,' 'ELLIPSE,' or 'ROUND_RECT'
+  'outline-shape' : The shape of the icon's outline. Can either be 'RECT,' 'ELLIPSE,' or 'ROUND_RECT'
   This argument is optional, as the default outline shape is PHOS_GUI_SHAPE_RECT.
 
-  'corner-radius'     : Used to modify how rounded the corners of the rounded rectangle shape is.
+  'corner-radius' : Used to modify how rounded the corners of the rounded rectangle shape is.
   This argument is optional, as the default corner radius is 1.0f.
 
-  'visible'           : Used to determine whether or not the icon should be rendered. Can either be
-  "TRUE" or "FALSE."
+  'visible' : Used to determine whether or not the icon should be rendered. Can either be
+  "TRUE," "FALSE," or "OPPOSITE" to get the opposite of its current value.
 
 
   Note that for an icon's outline to be rendered, at least one of the outline arguments
@@ -4376,12 +4449,29 @@ PHOS_GUI_API void phos_gui_set_icon(phos_gui_icon_id icon_id, const char *file_p
 */
 PHOS_GUI_API int phos_gui_parse_icon_name(const char *str, char *buffer, size_t buffer_size);
 /**
-  Searches an icon string for a particular argument and if it's found,
+  Searches a string for a particular argument and if it's found,
   the value of the argument is printed into a buffer.
+
+  String arguments should be in this format:
+  "ARG_NAME=arg_value,ARG_NAME2=arg_value2,..."
+
+  @note If you want to obtain the starting position of the found
+  argument within the string, pass a char* into the 'start_pos' argument.
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_parse_icon_arg(const char *str, char *buffer, size_t buffer_size, const char *arg, const char **start_pos);
+PHOS_GUI_API int phos_gui_parse_string_arg(const char *str, char *buffer, size_t buffer_size, const char *arg, const char **start_pos);
+/**
+  Parses a boolean argument and returns the actual boolean value
+  corresponding to it.
+
+  The boolean arguments can either be "TRUE" or "FALSE."
+
+  @param str The argument to parse.
+  @param success A pointer to a bool. Determines whether or not the
+  parsing succeeded.
+*/
+PHOS_GUI_API bool phos_gui_parse_bool_arg(const char *str, bool *success);
 /**
   Modifies an argument within an icon string.
 
@@ -4410,7 +4500,7 @@ PHOS_GUI_API int phos_gui_parse_icon_arg(const char *str, char *buffer, size_t b
 
   @return 1 on success, 0 on failure.
 */
-PHOS_GUI_API int phos_gui_edit_icon_arg(char *buffer, size_t buffer_size, const char *icon_name, const char *arg_name, const char *new_arg_value);
+PHOS_GUI_API int phos_gui_set_icon_arg(char *buffer, size_t buffer_size, const char *icon_name, const char *arg_name, const char *new_arg_value);
 
 /**
   Loads a font.
